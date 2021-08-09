@@ -10,12 +10,17 @@ import java.util.Scanner;
 public class MyInterfaceClient {
     public static void main(String[] args){
         try {
-            MyInterface myInterface = RPC.getProxy(MyInterface.class,1L,
-                        new InetSocketAddress(MyInterfaceServer.SERVER_ADDRESS,
-                                MyInterfaceServer.SERVER_PORT), new Configuration());
-            Scanner sc = new Scanner(System.in);
-            String name = myInterface.findName(sc.next());
-            System.out.println(name);
+            // 使用静态方法getProxy构造客户端代理对象
+            MyInterface myInterface = RPC.getProxy(MyInterface.class,
+                    MyInterface.versionID,/*保持和接口中的VersionID保持一致*/
+                    new InetSocketAddress(MyInterfaceServer.SERVER_ADDRESS,
+                            MyInterfaceServer.SERVER_PORT), new Configuration());
+            // 获取用户的输入
+            Scanner scanner = new Scanner(System.in);
+            while (scanner.hasNext()) {
+                String name = myInterface.findName(scanner.next());
+                System.out.println("The student's name is " + name);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
