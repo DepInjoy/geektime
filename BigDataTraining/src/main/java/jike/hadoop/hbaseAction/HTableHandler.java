@@ -1,21 +1,16 @@
 package jike.hadoop.hbaseAction;
 
 import org.apache.hadoop.hbase.CellUtil;
+import org.apache.hadoop.hbase.NamespaceDescriptor;
+import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.Admin;
-import org.apache.hadoop.hbase.client.Connection;
-import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.Result;
-import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
-import org.apache.hadoop.hbase.client.TableDescriptorBuilder;
 
 import java.io.IOException;
 
 public class HTableHandler {
+    private String          curNamespace;
     private TableName       tableName;
     private Admin           admin;
     private Connection      conn;
@@ -28,6 +23,18 @@ public class HTableHandler {
 
     public void createTable(String[] columnFamily) throws IOException {
         if (!admin.tableExists(tableName)) {
+            String[] split = tableName.toString().split(":");
+            // 获取命名空间, 判断命名空间是否存在，如果不存在则创建
+            if (split.length > 1) {
+                try {
+                    NamespaceDescriptor namespaceDesc = admin.getNamespaceDescriptor(split[0]);
+                } catch (IOException e) {
+                    System.out.println("Namespace not exist, now create " + split[0]);
+                    NamespaceDescriptor namespaceDesc = NamespaceDescriptor.create(split[0]).build();
+                    this.admin.createNamespace(namespaceDesc);
+                }
+            }
+
             // create 表描述生成器
             TableDescriptorBuilder tableDesc = TableDescriptorBuilder.newBuilder(tableName);
             // 添加列簇
@@ -60,18 +67,39 @@ public class HTableHandler {
         table.put(put);
     }
 
-    public void getValue (String rowKey) throws IOException {
+    /*
+        根据RowKey获取某一行数据信息
+
+    * */
+    public void getRow (String rowKey) throws IOException {
         Table table = conn.getTable(tableName);
         Get get = new Get(rowKey.getBytes());
         Result result = table.get(get);
         // 遍历数据
         Cell[] cells = result.rawCells();
         for (Cell cell : cells) {
-            System.out.println("rowkey :"+ Bytes.toString(CellUtil.cloneRow(cell)));
+            System.out.println("RowKey :"+ Bytes.toString(CellUtil.cloneRow(cell)));
             System.out.println("列簇    :"+ Bytes.toString(CellUtil.cloneFamily(cell)));
             System.out.println("列名    :"+ Bytes.toString(CellUtil.cloneQualifier(cell)));
             System.out.println("值      :"+ Bytes.toString(CellUtil.cloneValue(cell)));
             System.out.println("------------------");
+        }
+    }
+
+    public void getAllRows() throws IOException {
+        Table table = conn.getTable(tableName);
+        // 创建用于扫描region的对象
+        Scan scan = new Scan();
+        ResultScanner resultScanner = table.getScanner(scan);
+        for (Result result : resultScanner) {
+            Cell[] cells = result.rawCells();
+            for (Cell cell : cells) {
+                System.out.println("RowKey :" + Bytes.toString(CellUtil.cloneRow(cell)));
+                System.out.println("列簇    :" + Bytes.toString(CellUtil.cloneFamily(cell)));
+                System.out.println("列名    :" + Bytes.toString(CellUtil.cloneQualifier(cell)));
+                System.out.println("值      :" + Bytes.toString(CellUtil.cloneValue(cell)));
+                System.out.println("+++++++++++++++++++++++++++++++++++++++++");
+            }
         }
     }
 }
