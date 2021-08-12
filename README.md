@@ -64,7 +64,19 @@ SELECT collect_set(t_user.sex)[0] AS sex, t_movie.moviename,
 ![执行页面](others/Hive_2.png)
 
 ### 查询三
-
+```sql
+ELECT moviename, avgrate
+    FROM (
+        SELECT moviename, AVG(t_rating.rate) AS avgrate
+            FROM hive_sql_test1.t_movie AS t_movie
+                INNER JOIN hive_sql_test1.t_rating AS t_rating
+                    ON t_movie.movieid=t_rating.movieid
+            GROUP BY t_movie.moviename
+        ) AS t_static_info
+    LEFT SEMI JOIN t_top1user_top10rate
+        ON t_static_info.moviename=t_top1user_top10rate.moviename
+    ORDER BY avgrate DESC;
+```
 
 
 ## 环境相关
