@@ -34,6 +34,39 @@ yarn jar BigDataTraining.jar jike.hadoop.hbaseAction.StudentInfoProcessor
 
 ![提交后查询结果](others/HBase查询数据结果.png)
 
+## HIve
+### 查询一
+```sql
+SELECT t_user.age, AVG(t_rating.rate) AS avgrate
+    FROM hive_sql_test1.t_rating AS t_rating
+        INNER JOIN hive_sql_test1.t_user AS t_user
+            ON t_user.userid=t_rating.userid
+    WHERE t_rating.movieid='2116'
+    GROUP BY t_user.age;
+```
+![执行页面](others/Hive_1.png)
+
+### 查询二
+```sql
+SELECT collect_set(t_user.sex)[0] AS sex, t_movie.moviename,
+        AVG(t_rating.rate) AS avgrate, COUNT(*) AS total
+    FROM hive_sql_test1.t_user AS t_user
+    INNER JOIN hive_sql_test1.t_rating AS t_rating
+        ON t_user.userid=t_rating.userid
+    INNER JOIN hive_sql_test1.t_movie AS t_movie
+        ON t_movie.movieid=t_rating.movieid
+    WHERE t_user.sex='M'
+    GROUP BY t_movie.moviename
+    HAVING total>50
+    ORDER BY avgrate DESC
+    LIMIT 10;
+```
+![执行页面](others/Hive_2.png)
+
+### 查询三
+
+
+
 ## 环境相关
 配置hosts:
 ```
