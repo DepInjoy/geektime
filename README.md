@@ -35,7 +35,10 @@ yarn jar BigDataTraining.jar jike.hadoop.hbaseAction.StudentInfoProcessor
 ![提交后查询结果](others/HBase查询数据结果.png)
 
 ## HIve
+
 ### 查询一
+
+查询语句：
 ```sql
 SELECT t_user.age, AVG(t_rating.rate) AS avgrate
     FROM hive_sql_test1.t_rating AS t_rating
@@ -47,6 +50,7 @@ SELECT t_user.age, AVG(t_rating.rate) AS avgrate
 ![执行页面](others/Hive_1.png)
 
 ### 查询二
+查询语句：
 ```sql
 SELECT collect_set(t_user.sex)[0] AS sex, t_movie.moviename,
         AVG(t_rating.rate) AS avgrate, COUNT(*) AS total
@@ -64,8 +68,22 @@ SELECT collect_set(t_user.sex)[0] AS sex, t_movie.moviename,
 ![执行页面](others/Hive_2.png)
 
 ### 查询三
+
+查询语句：
+
 ```sql
-ELECT moviename, avgrate
+CREATE VIEW IF NOT EXISTS t_f_view AS
+    SELECT t_user.userid AS userid,
+            t_movie.moviename AS moviename,
+            t_rating.rate AS rate
+        From hive_sql_test1.t_movie AS t_movie
+        INNER JOIN hive_sql_test1.t_rating AS t_rating
+            ON t_movie.movieid=t_rating.movieid
+        INNER JOIN hive_sql_test1.t_user AS t_user
+            ON t_rating.userid=t_user.userid
+        WHERE t_user.sex='F';
+
+SELECT moviename, avgrate
     FROM (
         SELECT moviename, AVG(t_rating.rate) AS avgrate
             FROM hive_sql_test1.t_movie AS t_movie
@@ -73,10 +91,24 @@ ELECT moviename, avgrate
                     ON t_movie.movieid=t_rating.movieid
             GROUP BY t_movie.moviename
         ) AS t_static_info
-    LEFT SEMI JOIN t_top1user_top10rate
-        ON t_static_info.moviename=t_top1user_top10rate.moviename
+    LEFT SEMI JOIN (
+        SELECT t_f_view.rate AS rate, t_f_view.moviename AS moviename,
+                top1_user.userid
+            FROM t_f_view, (
+                SELECT userid, COUNT(*) AS total
+                    FROM t_f_view
+                    GROUP BY userid
+                    ORDER BY total DESC
+                    LIMIT 1) top1_user
+            WHERE t_f_view.userid=top1_user.userid
+            ORDER BY rate DESC
+            LIMIT 10
+        ) t_top1user_top10rate
+    ON t_static_info.moviename=t_top1user_top10rate.moviename
     ORDER BY avgrate DESC;
 ```
+
+![执行页面](others/Hive_3.png)
 
 
 ## 环境相关
