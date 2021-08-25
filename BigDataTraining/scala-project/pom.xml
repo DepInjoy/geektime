@@ -14,6 +14,7 @@
     <properties>
         <spark.version>3.1.2</spark.version>
         <scala.version>2.12</scala.version>
+        <hadoop.version>3.2.1</hadoop.version>
     </properties>
 
     <dependencies>
@@ -29,5 +30,12 @@
             <version>${spark.version}</version>
         </dependency>
         <!-- Load Spark Dependencies End -->
+        <!-- Load Hadoop DistCp Start -->
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-distcp</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+        <!-- Load Hadoop DistCp End -->
     </dependencies>
 </project>
