@@ -1,6 +1,9 @@
 package jike.spark.pratice1.DisCpSpark
 
-object DistcpSpark {
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.rdd.RDD;
+
+object DistCpSpark {
   /*
   * 功能：   在Spark中应使用RDD实现HadoopDistCp的copy功能
   *
