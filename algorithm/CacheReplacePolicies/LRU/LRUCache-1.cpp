@@ -5,17 +5,19 @@ public:
     
     int get(int key) {
         auto iter = hash_map_.find(key);
+        // 如果已存在，由于此次访问了数据，需要调整数据的位置
         if (iter != hash_map_.end()) {
-            // 调整数据的位置
-            key_list_.remove(key);
-            insert(key, iter->second.first);
+            // 根据双向链表中的位置进行删除，降低操作复杂度
+            key_list_.erase(iter->second.second);
+            key_list_.push_front(key);
+            hash_map_[key] = std::make_pair(iter->second.first, key_list_.begin());
             return iter->second.first;
         }
         return -1;
     }
 
     void put(int key, int value) {
-        // 如果key已存在，则更新value
+        // 如果数据存在，则更新value
         if (get(key) != -1) {
             hash_map_.find(key)->second.first = value;
             return;
@@ -36,8 +38,9 @@ private:
     void insert(int key, int value) {
         key_list_.push_front(key);
         hash_map_.insert(std::make_pair(key,
-                std::make_pair(value, --key_list_.end())));
+                std::make_pair(value, key_list_.begin())));
     }
+
     int                                         capacity_;
     std::list<int>                              key_list_;
     // <key, <key, double-list location> >
