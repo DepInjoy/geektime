@@ -8,6 +8,8 @@ public interface AccountService {
      *
      * @param accountId:    账户ID
      * @param amount:       转账金额
+     *
+     * @return:             -1: Failed, 0:successfully
     * */
-    CompletableFuture<Void> add(int accountId, int amount);
+    CompletableFuture<Integer> add(int accountId, int amount) throws RuntimeException;
 }
