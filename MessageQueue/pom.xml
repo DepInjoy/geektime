@@ -8,7 +8,7 @@
     <artifactId>MessageQueue</artifactId>
     <version>1.0-SNAPSHOT</version>
     <properties>
-        <rocketmq.version>4.3.0</rocketmq.version>
+        <rocketmq.version>4.9.0</rocketmq.version>
     </properties>
     <dependencies>
         <!-- Load RocketMQ Start -->
