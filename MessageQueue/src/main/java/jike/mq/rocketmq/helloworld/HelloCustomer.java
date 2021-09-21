@@ -9,14 +9,14 @@ import org.apache.rocketmq.common.message.MessageExt;
 
 import java.util.List;
 
-public class Customer {
+public class HelloCustomer {
     public static void main(String[] args) throws MQClientException {
         // 初始化消费者实例
         DefaultMQPushConsumer pushConsumer = new DefaultMQPushConsumer("HelloWorldConsumerGroup");
         // 设置NameServer的地址
         pushConsumer.setNamesrvAddr("localhost:9876");
         // 订阅Topic以及Tag来过滤需要消费的消息
-        pushConsumer.subscribe("TopicTest", "*");
+        pushConsumer.subscribe("HelloTopic", "*");
         // 注册回调实现类来处理从broker拉取回来的消息
         pushConsumer.registerMessageListener(new MessageListenerConcurrently() {
             public ConsumeConcurrentlyStatus consumeMessage(

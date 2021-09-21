@@ -10,7 +10,7 @@ import org.apache.rocketmq.remoting.common.RemotingHelper;
 
 import java.util.concurrent.TimeUnit;
 
-public class SyncProducer {
+public class HelloProducer {
     // 定义发送消息的方式
     private enum SendMethod {
         SYNC,       /** 同步发送 */
@@ -18,7 +18,7 @@ public class SyncProducer {
         ONEWAY     /** 单向发送 */
     };
     // 定义发送消息的方式
-    private static SendMethod sendMethod = SendMethod.ONEWAY;
+    private static SendMethod sendMethod = SendMethod.SYNC;
 
     public static void main(String[] args) {
         // 初始化生产者实例
@@ -36,7 +36,7 @@ public class SyncProducer {
             // 同步发送10条消息
             for (int i = 0; i < 10; i++) {
                 final int msgIndex = i;
-                Message msg = new Message("TopicTest", /* Topic */
+                Message msg = new Message("HelloTopic", /* Topic */
                         "TagA", /* Tag */
                         ("Hello World RocketMQ " + i).getBytes(RemotingHelper.DEFAULT_CHARSET) /* Message Body */);
                 switch (sendMethod) {
