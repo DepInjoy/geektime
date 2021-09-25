@@ -8,7 +8,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class CASDemo {
+public class CASOrFAADemo {
     private static Integer TOTAL_THREADS_COUNTER = 1000;
     private static String increaseMethod = "FAA"; // or CAS
     public static void main(String[] args) {
