@@ -110,7 +110,22 @@ SELECT moviename, avgrate
 
 ![执行页面](others/Hive_3.png)
 
+## Presto
+### HyperLogLog算法
+#### 用途和实际案例
+主要用途是基数统计，例如
+-1 统计页面的UV
+-2 统计访问量(IP数)
+-3 统计在线用户数
+-4 统计每天搜索不同词条的个数
+-5 统计注册 IP 数
+-6 统计在线用户数
+-7 统计用户每天搜索不同词条的个数
 
+```sql
+select approx_distinct(user_id) from user_visits;
+select distinct count(user_id) from user_visits;
+```
 ## 环境相关
 配置hosts:
 ```
@@ -123,5 +138,6 @@ SELECT moviename, avgrate
 106.15.39.86		jikehadoop07
 139.196.162.22		jikehadoop08
 ```
+
 
 
