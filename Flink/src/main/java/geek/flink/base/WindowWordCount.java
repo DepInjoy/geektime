@@ -14,8 +14,8 @@ import org.apache.flink.util.Preconditions;
 /**
  * 以批处理和流处理两种方式实现WordCout,需要注意的是两种实现的结果的不同
  * 运行：
- *  -input /mnt/project/code/geektime/Flink/src/main/resources/WrodCountData.txt -output /mnt/output
- *  -input /mnt/project/code/geektime/Flink/src/main/resources/WrodCountData.txt
+ *  -input src/main/resources/WordCountData.txt -output /mnt/output
+ *  -input src/main/resources/WordCountData.txt
  *
  * 批处理的结果
  * (is,1)
