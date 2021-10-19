@@ -2,6 +2,7 @@
 #include <string>
 #include <list>
 #include <set>
+#include <vector>
 
 extern "C"
 
@@ -119,6 +120,12 @@ void putValueToOrderList(std::list<Row>& sortedRow, int& curMinPos, const Row& n
     }
 }
 
+void formatOutput(const std::list<Row>& rows) {
+    for (auto iter = rows.begin(); iter != rows.end(); ++iter) {
+        std::cout << iter->a << " " << iter->b << std::endl;
+    }
+}
+
 void task3(const Row* rows, int nrows) {
     int batchNum = nrows % NUM_PER_BATCH ? nrows / NUM_PER_BATCH + 1 : nrows / NUM_PER_BATCH;
     std::list<Row> sortedRes;
@@ -154,15 +161,69 @@ void task3(const Row* rows, int nrows) {
             }
         }
     }
+    formatOutput(sortedRes);
+}
 
-    // formated output
-    for (auto iter = sortedRes.begin(); iter != sortedRes.end(); ++iter) {
-        std::cout << iter->a << " " << iter->b << std::endl;
+void getRows(const Row* rows, const int startRow, const int endRow,
+        const int target, std::list<Row>& result) {
+    RowInfo row_info;
+    if (binarySearch(rows, startRow, endRow, 0, target, &row_info)) {
+        for (int index = row_info.minRowNum; index <= row_info.maxRowNum; ++index) {
+            if (rows[index].b >= 10 && rows[index].b < 50) {
+                result.push_back(rows[index]);
+            }
+        }
     }
 }
 
-void task4(const Row* rows, int nrows) {
+void mergeSort(const std::list<Row>& left, const std::list<Row>& right,
+        std::list<Row>& result) {
+    auto l_iter = left.begin();
+    auto r_iter = right.begin();
+    while (l_iter != left.end()) {
+        if (r_iter != right.end()) {
+            if (l_iter->b < r_iter->b) {
+                result.push_back(*l_iter);
+                ++l_iter;
+            } else {
+                result.push_back(*r_iter);
+                ++r_iter;
+            }
+        } else {
+            result.push_back(*l_iter);
+            ++l_iter;
+        }
+    }
 
+    while (r_iter != right.end()){
+        result.push_back(*r_iter);
+        ++r_iter;
+    }   
+}
+
+
+void task4(const Row* rows, int nrows) {
+    int batchNum = nrows % NUM_PER_BATCH ? nrows / NUM_PER_BATCH + 1 : nrows / NUM_PER_BATCH;
+    std::list<Row> sortedRes;
+    for (int i = 0; i < batchNum; ++i) {
+        int startRow = i * NUM_PER_BATCH;
+        int endRow = (i + 1) * NUM_PER_BATCH - 1;
+        endRow = endRow < nrows ? endRow : nrows;
+
+        bool inited = false;
+        RowInfo row_info;
+        std::vector<int> condition{1000, 2000, 3000, 5000};  // no-repeated and sorted
+        int len = condition.size();
+        for (int index = 0; index < len; index = index + 2) {
+            std::list<Row> left, right;
+            int low = index, mid = std::min(index + 1, len);
+            int high = std::min(index + 2, len);
+            getRows(rows, startRow, endRow, condition[low], left);
+            getRows(rows, startRow, endRow, condition[mid], right);
+            mergeSort(left, right, sortedRes);
+        }
+    }
+    formatOutput(sortedRes);
 }
 
 int main (int argc, char* argv[]) {
