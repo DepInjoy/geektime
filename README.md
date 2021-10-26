@@ -126,6 +126,14 @@ SELECT moviename, avgrate
 select approx_distinct(user_id) from user_visits;
 select distinct count(user_id) from user_visits;
 ```
+
+## Flink作业
+每分钟（小时）计算在五分钟（小时）内每个账号的平均交易金额
+```shell
+git clone https://github.com/apache/flink-playgrounds.git
+```
+功能实现: geektime\BigDataTraining\src\main\java\jike\flink\SpendReport.java
+
 ## 环境相关
 配置hosts:
 ```
