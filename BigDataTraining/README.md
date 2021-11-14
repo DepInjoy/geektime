@@ -1,11 +1,7 @@
 # 极客时间大数据训练营结业
 ## 作业一：基于SPark3.1.1分析一条 TPCDS SQL
-
-wget https://repo1.maven.org/maven2/org/apache/spark/spark-catalyst_2.12/3.1.1/spark-catalyst_2.12-3.1.1-tests.jar
-wget https://repo1.maven.org/maven2/org/apache/spark/spark-core_2.12/3.1.1/spark-core_2.12-3.1.1-tests.jar
-wget https://repo1.maven.org/maven2/org/apache/spark/spark-sql_2.12/3.1.1/spark-sql_2.12-3.1.1-tests.jar
 ## 作业二：基于Lambda架构的数据平台架构设计
-![](others/image/Lambda.svg)
+![](Lambda.svg)
 ## 作业三
 ### 简述 HDFS 的读写流程
 #### HDFS写流程
