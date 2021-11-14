@@ -1,8 +1,11 @@
 # 极客时间大数据训练营结业
 ## 作业一：基于SPark3.1.1分析一条 TPCDS SQL
 
+wget https://repo1.maven.org/maven2/org/apache/spark/spark-catalyst_2.12/3.1.1/spark-catalyst_2.12-3.1.1-tests.jar
+wget https://repo1.maven.org/maven2/org/apache/spark/spark-core_2.12/3.1.1/spark-core_2.12-3.1.1-tests.jar
+wget https://repo1.maven.org/maven2/org/apache/spark/spark-sql_2.12/3.1.1/spark-sql_2.12-3.1.1-tests.jar
 ## 作业二：基于Lambda架构的数据平台架构设计
-
+![](others/image/Lambda.svg)
 ## 作业三
 ### 简述 HDFS 的读写流程
 #### HDFS写流程
@@ -50,6 +53,6 @@ Flink SQL基于Apache Calcite来实现的标准SQL，是构建在Table API之上
 
 - 5 根据逻辑计划生成物理执行计划
 > 物理计划会根据物理实现特性，根据每一个节点的Cost,生成具体实现方式，比如Join是使用SortMergeJoin、HashJoin或BroadcastHashJoin等。优化器在生成逻辑执行计划时会计算整棵树上每一个节点的Cost，对于有多种实现方式的节点(比如Join节点)，优化器会展开所有可能的Join方式分别计算，最终整条路径上Cost最小的实现方式就被选中成为Final Physical Plan。
-- 6. 通过代码生成技术(CodeGen)生成transformation，再进一步编译为可执行的JobGraph
+- 6 通过代码生成技术(CodeGen)生成transformation，再进一步编译为可执行的JobGraph
 
 
