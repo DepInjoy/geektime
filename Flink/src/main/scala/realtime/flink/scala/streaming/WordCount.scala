@@ -3,6 +3,7 @@ package realtime.flink.scala.streaming
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.util.Collector
 import org.apache.flink.api.common.functions.{FlatMapFunction, RichFlatMapFunction}
+import org.apache.flink.api.java.functions.KeySelector
 import org.apache.flink.api.java.utils.ParameterTool;
 /**
  *    本程序重点是了解Flink的编程结构以及Scala编程实现的简便之处
@@ -46,7 +47,11 @@ object WodCount {
       .flatMap(new MyRichFlatMapFunction)               // 实现4：通过RichFunciton实现接口
       .filter(_.nonEmpty)
       .map((_, 1))
-      .keyBy(value => value._1)
+//      .keyBy(value => value._1)           // 方式1. 指定分区Key
+//        .keyBy(0)                     // 方式2
+      .keyBy(new KeySelector[(String, Int), String]() {               // 方式3: 通过Key选择器指定
+        override def getKey(value: (String, Int) ): String = value._1
+      })
       .sum(1)
 
     // 4. 指定计算结果输出位置
