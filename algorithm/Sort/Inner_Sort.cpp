@@ -46,6 +46,7 @@ void Bubble_Sort(T data[], const int N) {
         if (!flag) break;
     }
 }
+
 /**
  * @brief       插入排序算法
  * 
@@ -54,7 +55,7 @@ void Bubble_Sort(T data[], const int N) {
  * @param N 
  */
 template<typename T>
-void Inseter_Sort(T data[], const int N) {
+void Inserter_Sort(T data[], const int N) {
     for (int i = 1; i < N; ++i) {
         T tmp = data[i];  // 抽到一张牌
         for (int j = i; j >= 0 && tmp < data[j]; --j) {  // 找到这张牌的应该放的位置
@@ -64,13 +65,56 @@ void Inseter_Sort(T data[], const int N) {
     }
 }
 
+/**
+ * @brief       原始希尔排序，D(M)=floor(N/2), D(k)=floor(D(k+1)/2)
+ * 
+ * @tparam T 
+ * @param data 
+ * @param N 
+ */
+template<typename T>
+void Origin_Shell_Sort(T data[], const int N) {
+    for (int D = N / 2; D > 0; D /= 2) {  // 希尔增量序列
+        T tmp = data[D];
+        for (int i = D; i < N && tmp < data[i]; i += D) {  // 插入排序
+            data[i - D] = data[i];
+            data[i] = tmp;
+        }
+    }
+}
+
+template<typename T>
+void Sedgewick_Shell_Sort(T data[], const int N) {
+    // Sedgewick部分增量
+    int Sedgewick[] = {929, 505, 209, 109, 41, 19, 5, 1, 0};
+    for (int si = 0; Sedgewick[si] < N; ++si) {
+        for (int D = Sedgewick[si]; D > 0; D = Sedgewick[si+1]) {  // Sedgewick增量序列
+            T tmp = data[D];
+            for (int i = D; i < N && tmp < data[i]; i += D) {  // 插入排序
+                data[i - D] = data[i];
+                data[i] = tmp;
+            }
+        }
+    }
+}
+
 int main(int argc, char* argv[]) {
     const int N = 11;  // 用于验证的数据的个数
     int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
+    std::cout << "Bubble Sort:" << std::endl;
     Bubble_Sort(array, N);
     printData(array, N);
+    
+    std::cout << "Inserter Sort:" << std::endl;
+    Inserter_Sort(array, N);
+    printData(array, N);
 
-    Inseter_Sort(array, N);
+    std::cout << "Origin Shell Sort:" << std::endl;
+    Origin_Shell_Sort(array, N);
+    printData(array, N);
+
+    std::cout << "Sedgewick Shell Sort:" << std::endl;
+    Sedgewick_Shell_Sort(array, N);
     printData(array, N);
     return 0;
 }
