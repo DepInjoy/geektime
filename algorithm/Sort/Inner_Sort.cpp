@@ -59,10 +59,12 @@ template<typename T>
 void Inserter_Sort(T data[], const int N) {
     for (int i = 1; i < N; ++i) {
         T tmp = data[i];  // 抽到一张牌
-        for (int j = i; j >= 0 && tmp < data[j]; --j) {  // 找到这张牌的应该放的位置
-            data[j - 1] = data[j];  // 腾挪位置
-            data[j] = tmp;  // 新牌落位
+        // 找到这张牌的应该放的位置
+        int j = i;
+        for (; j > 0 && tmp < data[j-1]; --j) {
+            data[j] = data[j-1];  // 腾挪位置
         }
+        data[j] = tmp;  // 新牌落位
     }
 }
 
@@ -76,9 +78,12 @@ void Inserter_Sort(T data[], const int N) {
 template<typename T>
 void Origin_Shell_Sort(T data[], const int N) {
     for (int D = N / 2; D > 0; D /= 2) {  // 希尔增量序列
-        T tmp = data[D];
-        for (int i = D; i < N && tmp < data[i]; i += D) {  // 插入排序
-            data[i - D] = data[i];
+        for (int P = D; P < N; P++) {
+            T tmp = data[P];
+            int i = P;
+            for (; i >= D && tmp < data[i - D]; i -= D) {  // 插入排序
+                data[i] = data[i - D];
+            }
             data[i] = tmp;
         }
     }
@@ -88,13 +93,17 @@ template<typename T>
 void Sedgewick_Shell_Sort(T data[], const int N) {
     // Sedgewick部分增量
     int Sedgewick[] = {929, 505, 209, 109, 41, 19, 5, 1, 0};
-    for (int si = 0; Sedgewick[si] < N; ++si) {
-        for (int D = Sedgewick[si]; D > 0; D = Sedgewick[si+1]) {  // Sedgewick增量序列
-            T tmp = data[D];
-            for (int i = D; i < N && tmp < data[i]; i += D) {  // 插入排序
-                data[i - D] = data[i];
-                data[i] = tmp;
+    int si = 0;
+    /* 初始的增量Sedgewick[si]不能超过待排序列长度 */
+    for (; Sedgewick[si] >= N; ++si);
+    for (int D = Sedgewick[si]; D > 0; D = Sedgewick[si++]) {  // Sedgewick增量序列
+        for (int P = D; P < N; P++) {
+            T tmp = data[P];
+            int i = P;
+            for (; i >= D && tmp < data[i - D]; i -= D) {  // 插入排序
+                data[i] = data[i- D];
             }
+            data[i] = tmp;
         }
     }
 }
@@ -102,7 +111,7 @@ void Sedgewick_Shell_Sort(T data[], const int N) {
 template<typename T>
 int ScanForMinIndex(T data[], int start, int end) {
     int index = start;
-    for (int i = start; i < end; ++i) {
+    for (int i = start; i <= end; ++i) {
         if (data[i] < data[index]) {
             index = i;
         }
@@ -196,30 +205,46 @@ void Quick_Sort(T data[], const int N) {
 
 int main(int argc, char* argv[]) {
     const int N = 11;  // 用于验证的数据的个数
-    int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
-    std::cout << "Bubble Sort:" << std::endl;
-    Bubble_Sort(array, N);
-    printData(array, N);
+    {
+        int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
+        std::cout << "Bubble Sort:" << std::endl;
+        Bubble_Sort(array, N);
+        printData(array, N);
+    }
 
-    std::cout << "Inserter Sort:" << std::endl;
-    Inserter_Sort(array, N);
-    printData(array, N);
+    {
+        int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
+        std::cout << "Inserter Sort:" << std::endl;
+        Inserter_Sort(array, N);
+        printData(array, N);
+    }
 
-    std::cout << "Origin Shell Sort:" << std::endl;
-    Origin_Shell_Sort(array, N);
-    printData(array, N);
+    {
+        int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
+        std::cout << "Origin Shell Sort:" << std::endl;
+        Origin_Shell_Sort(array, N);
+        printData(array, N);
+    }
 
-    std::cout << "Sedgewick Shell Sort:" << std::endl;
-    Sedgewick_Shell_Sort(array, N);
-    printData(array, N);
+    {
+        int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
+        std::cout << "Sedgewick Shell Sort:" << std::endl;
+        Sedgewick_Shell_Sort(array, N);
+        printData(array, N);
+    }
 
-    std::cout << "Selection Shell Sort:" << std::endl;
-    Selection_Sort(array, N);
-    printData(array, N);
+    {
+        int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
+        std::cout << "Selection Shell Sort:" << std::endl;
+        Selection_Sort(array, N);
+        printData(array, N);
+    }
     
-    int quick_array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
-    std::cout << "Quick Sort:" << std::endl;
-    Quick_Sort(quick_array, 11);
-    printData(quick_array, 11);
+    {
+        int array[] = {10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0};  // 用于验证的数组
+        std::cout << "Quick Sort:" << std::endl;
+        Quick_Sort(array, 11);
+        printData(array, 11);
+    }
     return 0;
 }
