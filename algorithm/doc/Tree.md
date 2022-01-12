@@ -59,8 +59,6 @@
 后序遍历：			 4       5 2         6       7 3 1
 ```
 
-
-
 三者的差别是第几次达到节点的时候执行对节点的操作：
 
 - 先序遍历是第一次到达节点执行操作
@@ -76,4 +74,32 @@
 - [二叉树的前中后序递归遍历](https://github.com/DepInjoy/geektime/blob/main/algorithm/Java/algorithm-project/src/main/java/algorithm/training/struct/BT/C10_02_RecursiveTraversalBT.java)
 - [二叉树的前中后序非递归遍历](https://github.com/DepInjoy/geektime/blob/main/algorithm/Java/algorithm-project/src/main/java/algorithm/training/struct/BT/UnrecursiveTraversalBT_2_Star.java)
 - [二叉树的层次遍历](https://github.com/DepInjoy/geektime/blob/main/algorithm/Java/algorithm-project/src/main/java/algorithm/training/struct/BT/C11_01_LevelTraversalBT.java)
+
+## 二叉树衡量指标
+
+### 平衡因子
+
+平衡因子(Balance Factor，简称BF)，`BF(T) = hL-hR`，其中：hL和hR分别为T的左、右子树的高度。
+
+## 二叉树的应用
+
+### 二叉搜索树
+
+二叉搜索树(`BST, Binary Search Tree`), 也称二叉排序树或二叉查找树。二叉搜索树是一棵二叉树，可以为空; 如果不为空，满足以下性质：
+
+- 1.非空左子树的所有键值小于其根结点的键值。
+- 2.非空右子树的所有键值大于其根结点的键值。
+- 3.左、右子树都是二叉搜索树。
+
+
+
+### 平衡二叉树
+
+平衡二叉树(`AVL树，Balanced Binary Tree`).平衡二叉树可以是一颗空树，如果不为空，则需要满足如下性质：
+
+- 任一结点左、右子树高度差的绝对值不超过1，即`|BF(T) |≤ 1`。
+
+
+
+
 
