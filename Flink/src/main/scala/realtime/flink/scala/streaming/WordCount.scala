@@ -22,6 +22,7 @@ class MyRichFlatMapFunction extends RichFlatMapFunction[String, String] {
   }
 }
 
+
 object WodCount {
   def main(args: Array[String]): Unit = {
     val inputParam = ParameterTool.fromArgs(args)
@@ -66,3 +67,4 @@ object WodCount {
     env.execute("Streaming WordCount")
   }
 }
+

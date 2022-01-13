@@ -27,10 +27,10 @@ public class C01_03_MonotonousStack {
         if (arr == null || arr.length == 0) return null;
 
         int[][] res = new int[arr.length][2];
-        // 从小到大
+        // 从栈底到栈顶从大到小
         Stack<Integer> orderedStack = new Stack<Integer>();
         for (int i = 0; i < arr.length; i++) {
-            while (!orderedStack.isEmpty() && arr[orderedStack.peek()] > arr[i]) {
+            while (!orderedStack.isEmpty() && arr[orderedStack.peek()] > arr[i]) { // 发现更小元素
                 int index = orderedStack.pop();
                 int nearLeftLessIndex = orderedStack.isEmpty() ? -1 : orderedStack.peek();
                 res[index][0] = nearLeftLessIndex;

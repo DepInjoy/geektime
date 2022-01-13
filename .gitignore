@@ -1,1 +1,3 @@
 algorithm/Java/algorithm-project/target/*
+algorithm/.vscode/*
+algorithm/Java/.idea/*

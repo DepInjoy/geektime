@@ -25,20 +25,19 @@ public class C01_04_AllTimesMinToMax {
         int res = Integer.MIN_VALUE;
         Stack<Integer> stack = new Stack<Integer>();
         for (Integer i = 0; i < arr.length; i++) {
-            while (!stack.isEmpty() && arr[stack.peek()] > arr[i]) {
-                Integer nearLeftGreaterIndex = stack.pop();
-                Integer nearRightGreaterIndex = i - 1;
-                res = Math.max(res, (stack.isEmpty() ? sum[nearRightGreaterIndex] :
-                        sum[nearRightGreaterIndex] - sum[stack.peek()]) * arr[nearLeftGreaterIndex]);
+            while (!stack.isEmpty() && arr[stack.peek()] >= arr[i]) { // 发现比arr[i]小的
+                // 栈中是从栈底到栈顶由大到小的, 栈顶即子数组sub中的最小值
+                // 接着,在这个有序的数组中寻找符合条件的值
+                Integer index = stack.pop();
+                res = Math.max(res, (stack.isEmpty() ? sum[i - 1] : (sum[i - 1] - sum[stack.peek()])) * arr[index]);
             }
             stack.push(i);
         }
 
         while (!stack.isEmpty()) {
-            Integer nearLeftGreaterIndex = stack.pop();
-            Integer nearRightGreaterIndex = arr.length - 1;
-            res = Math.max(res, (stack.isEmpty() ? sum[nearRightGreaterIndex] :
-                    sum[nearRightGreaterIndex] - sum[stack.peek()]) * arr[nearLeftGreaterIndex]);
+            Integer index = stack.pop();
+            res = Math.max(res, (stack.isEmpty() ?  sum[arr.length - 1] :  (sum[arr.length - 1] - sum[stack.peek()]))
+                    * arr[index]);
         }
         return res;
     }
@@ -65,10 +64,11 @@ public class C01_04_AllTimesMinToMax {
         arr[5] = 3;
         arr[6] = 4;
         arr[7] = 1;
-        assert max(arr) == 48;
+        assert max(arr) == 55;
     }
 
     public static void main(String[] args) {
         ut1();
+        ut2();
     }
 }
