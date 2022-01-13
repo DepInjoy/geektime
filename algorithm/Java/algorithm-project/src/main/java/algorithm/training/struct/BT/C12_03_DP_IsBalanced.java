@@ -20,7 +20,7 @@ public class C12_03_DP_IsBalanced {
         }
     }
 
-    public static boolean isBalanced(TreeNode head) {
+    public static boolean IsBalanced(TreeNode head) {
         return process(head).isBalanced;
     }
 
@@ -40,7 +40,7 @@ public class C12_03_DP_IsBalanced {
     public static void main(String[] args) {
         // Case1: 空树是平衡二叉树
         TreeNode head0 = null;
-        assert isBalanced(head0) == true;
+        assert IsBalanced(head0) == true;
 
         /* Case2:构造一颗平衡二叉树
                             1
@@ -52,7 +52,7 @@ public class C12_03_DP_IsBalanced {
         head1.left = new TreeNode(2);
         head1.right = new TreeNode(3);
         head1.left.left = new TreeNode(4);
-        assert isBalanced(head1) == true;
+        assert IsBalanced(head1) == true;
 
         /* Case3: 构造一颗非平衡二叉树
                             1
@@ -66,6 +66,6 @@ public class C12_03_DP_IsBalanced {
         head2.right = new TreeNode(3);
         head2.left.left = new TreeNode(4);
         head2.left.left.left = new TreeNode(5);
-        assert isBalanced(head2) == false;
+        assert IsBalanced(head2) == false;
     }
 }
