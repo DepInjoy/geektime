@@ -11,13 +11,31 @@ import java.util.Comparator;
  *                  3. 写代码变得异常容易，还用于范型编程
  *
  *              比较器的统一约定：
- *                  @Override
- *                  public int compare(T o1, T o2)
- *                      返回负数的情况，就是o1比o2优先的情况
- *                      返回正数的情况，就是o2比o1优先的情况
- *                      返回0的情况，就是o1与o2同样优先的情况
+
  * */
 public class C06_01_Comparator {
+    /**
+     * @brief:      通过继承Comparable重写compareTo接口实现比较器
+     * */
+    static class ComparableStudent implements Comparable<ComparableStudent>{
+        public Integer id;
+        public Integer age;
+        public String name;
+
+        public ComparableStudent(String name, Integer id, Integer age) {
+            this.id = id;
+            this.age = age;
+            this.name = name;
+        }
+
+        @Override
+        public int compareTo(ComparableStudent st) {
+            return (id != st.id) ? id - st.id :
+                    (age != st.age) ? st.age - age :
+                            name.compareTo(st.name);
+        }
+    };
+
     static class Student {
         public Integer id;
         public Integer age;
@@ -30,42 +48,50 @@ public class C06_01_Comparator {
         }
     };
 
-    static class IdAscendingOrder implements Comparator<Student> {
+    /**
+     * @brief:      通过Comparator函数式接口实现比较器
+     * @return:     返回负数, o1 < o2, o1优先
+     *              返回正数, o2 < o1, o2优先
+     *              返回0, o1与o2相等, 同等优先
+     * */
+    static class ComparableStudentOrder implements Comparator<Student> {
         @Override
         public int compare(Student s1, Student s2) {
-            return s1.id - s2.id;
-        }
-    }
-
-    static class IdAndAgeAscendingOrder implements Comparator<Student> {
-        @Override
-        public int compare(Student s1, Student s2) {
-            return (s1.id - s2.id != 0) ? s1.id - s2.id : s1.age - s2.age;
+            return (s1.id != s2.id) ? s1.id - s2.id :
+                    (s1.age != s2.age) ? s2.age - s1.age :
+                            s1.name.compareTo(s2.name);
         }
     }
 
     public static void main(String[] args) {
-        Student student1 = new Student("A", 4, 40);
-        Student student2 = new Student("B", 4, 21);
-        Student student3 = new Student("C", 3, 12);
-        Student student4 = new Student("D", 3, 62);
-        Student student5 = new Student("E", 3, 42);
+        ComparableStudent cst0 = new ComparableStudent("A", 4, 41);
+        ComparableStudent cst1 = new ComparableStudent("B", 4, 41);
+        ComparableStudent cst2 = new ComparableStudent("C", 3, 42);
+        ComparableStudent cst3 = new ComparableStudent("C", 3, 41);
+        ComparableStudent cst4 = new ComparableStudent("B", 3, 42);
+        ComparableStudent cst5 = new ComparableStudent("A", 3, 41);
 
-        System.out.println("按照ID排序:");
-        Student[] students1 = new Student[]{student1, student2, student3, student4, student5 };
-        Arrays.sort(students1, new IdAscendingOrder());
-        for (int i = 0; i < students1.length; i++) {
-            Student s = students1[i];
-            System.out.println(s.name + "," + s.id + "," + s.age);
+        ComparableStudent[] csts1 = new ComparableStudent[]{cst0, cst1, cst2, cst3, cst4, cst5};
+        Arrays.sort(csts1);
+        System.out.println("Comparable Student 先ID升序Age降序Name升序:");
+        for (int i = 0; i < csts1.length; i++) {
+            ComparableStudent cst = csts1[i];
+            System.out.println(cst.id + " " + cst.age + " " + cst.name);
         }
 
-        System.out.println("先按照ID排序，如果ID相同则按照Age排序:");
-        Student[] students2 = new Student[]{student1, student2, student3, student4, student5 };
-        Arrays.sort(students2, new IdAndAgeAscendingOrder());
-        for (int i = 0; i < students2.length; i++) {
-            Student s = students2[i];
-            System.out.println(s.name + "," + s.id + "," + s.age);
+        Student student1 = new Student("A", 4, 41);
+        Student student2 = new Student("B", 4, 41);
+        Student student3 = new Student("C", 3, 42);
+        Student student4 = new Student("C", 3, 41);
+        Student student5 = new Student("B", 3, 42);
+        Student student6 = new Student("A", 3, 41);
+
+        System.out.println("Comparator Student 先ID升序Age降序Name升序:");
+        Student[] sts = new Student[]{student1, student2, student3, student4, student5, student6};
+        Arrays.sort(sts, new ComparableStudentOrder());
+        for (int i = 0; i < sts.length; i++) {
+            Student st = sts[i];
+            System.out.println(st.id + " " + st.age + " " + st.name);
         }
     }
-
 }
