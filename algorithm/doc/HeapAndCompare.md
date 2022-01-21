@@ -10,8 +10,6 @@
 2. 比较器可以很好的应用在根据特殊标准排序的结构上
 3. 容易实现，还可用于范型编程
 
-
-
 下面自定义了一个`student`结构，实现按照首先按照ID升序再按照Age降序，最后按照Name升序进行排序，来实现比较器。
 
 ### C++比较器
@@ -48,8 +46,6 @@ struct XXXComparator {
     3.  除类型自定义的比较方式以外的比较方法。
 
 3. 通过函数对象结构体来实现`<`方法
-
-
 
 代码详见[自定义比较器](https://github.com/DepInjoy/geektime/blob/main/algorithm/CPP/Comparator/CustomComparator.cpp)
 
@@ -131,8 +127,4 @@ sorted(l, key=cmp_to_key(cmp))
 
 - 舍弃0号元素，对于$i$位置的元素，其左右孩子的索引分别为$2i$和$2i+1$，其父节点$\frac{i}{2}$。
 - 不弃用0号元素，对于$i$位置的元素，其左右孩子的索引分别为$2i+1$和$2i+2$,其父节点为$\frac{i-1}{2}$
-
-
-
-
 
