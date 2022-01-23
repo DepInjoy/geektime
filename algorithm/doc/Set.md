@@ -18,7 +18,7 @@
 
 可以用树结构表示集合，树的每个结点代表一个集合元素。双亲表示法：孩子指向双亲。
 
-![](./img/UnionSetExample1.png)
+![双亲表示法](img/UnionSetExample1.png)
 
 采用数组存储形式，**数组中每个元素的类型描述为：**
 
@@ -57,8 +57,7 @@ typedef struct {
 在查找时进行，对于查找的元素X，先找到跟，将根变成X的父节点再返回。
 
 
-
-![](./img/UnionSet.png)
+![并查集初始化和优化](./img/UnionSet.png)
 
 
 
