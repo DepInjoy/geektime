@@ -121,10 +121,120 @@ sorted(l, key=cmp_to_key(cmp))
 
 对于有N个节点，树的高度是`log(N)`。堆表示示例：
 
-![](.\img\堆的表示.png)
+![](./img/堆的表示.png)
 
 在堆的表示第一个元素不存放元素，存放一个哨兵，这样便于之后更快速的操作，那么
 
 - 舍弃0号元素，对于$i$位置的元素，其左右孩子的索引分别为$2i$和$2i+1$，其父节点$\frac{i}{2}$。
 - 不弃用0号元素，对于$i$位置的元素，其左右孩子的索引分别为$2i+1$和$2i+2$,其父节点为$\frac{i-1}{2}$
+
+
+
+### 堆的数据抽象数据类型描述
+
+**类型名称：**最大堆(`MaxHeap`)
+
+**数据对象集：**完全二叉树，每个结点的元素值**不小于**其子结点的元素值
+
+**操作集：最大堆**$H \in MaxHeap$，元素$item \in MaxHeap$主要操作有:
+
+- `MaxHeap Create( int MaxSize )`：创建一个空的最大堆
+- `Boolean IsFull( MaxHeap H )`：判断最大堆H是否已满
+- `Insert( MaxHeap H, ElementType item )`：将元素item插入最大堆H
+- `Boolean IsEmpty( MaxHeap H )`：判断最大堆H是否为空
+- `ElementType DeleteMax( MaxHeap H )`：返回H中最大元素(高优先级)
+
+
+
+### 堆操作
+
+堆中记录有堆大小和容量，可以很容易实现判断堆是否满和为空，下面主要关注一下几个相对复杂一些的操作实现。
+
+#### 元素插入
+
+堆是完全二叉树，时间复杂度$T(N)=O(logN)$，实现思想：
+
+- 将其插入堆中最后一个元素的位置，确保堆依然是完全二叉树
+- 堆调整，依次过滤节点，对不符合规则(根节点必须是其子树所有节点的最大值(或最小值))的元素进行交换，直到找到要插入元素的位置为止。
+
+
+
+下面是`MOOC`浙大的《数据结构和算法》课程以大根堆为例实现的插入实现的主体，以供参考
+
+```C++
+/* 将元素item 插入最大堆H，其中H->Elements[0]已经定义为哨兵 */
+void Insert( MaxHeap H, ElementType item ) {
+    /* i指向插入后堆中的最后一个元素的位置 */
+ 	i = ++H->Size;
+    /* 向下过滤结点 */
+ 	for ( ; H->Elements[i/2] < item; i/=2 )
+ 		H->Elements[i] = H->Elements[i/2];
+     /* 将item 插入 */
+ 	H->Elements[i] = item;
+}
+```
+
+
+
+#### 元素删除
+
+取出根结点（最大/小值）元素，同时删除堆的一个结点，将堆中最后一个元素当作根节点(确保依然是完全树)进行堆调整，实现思想
+
+- 取出根节点，并作为最终的返回结果
+- 用堆中最后一个元素当作根节点，然后从第一层开始进行节点过滤。
+
+
+
+下面是`MOOC`浙大的《数据结构和算法》课程以大根堆为例实现的删除实现的主体，以供参考
+
+```C++
+/* 从最大堆H中取出键值为最大的元素，并删除一个结点 */
+ElementType DeleteMax( MaxHeap H ) { 
+	MaxItem = H->Elements[1]; /* 取出根结点最大值 */
+ 	/* 用最大堆中最后一个元素从根结点开始向上过滤下层结点 */
+ 	temp = H->Elements[H->Size--];
+ 	for( Parent=1; Parent*2<=H->Size; Parent=Child ) {
+        Child = Parent * 2;
+        /* Child指向左右子结点的较大者 */
+ 		if( (Child!= H->Size) &&(H->Elements[Child] < H->Elements[Child+1])) Child++;
+ 		if( temp >= H->Elements[Child] )
+            break;
+ 		else /* 移动temp元素到下一层 */
+ 			H->Elements[Parent] = H->Elements[Child];
+ 	}
+ 	H->Elements[Parent] = temp;
+ 
+    return MaxItem;
+```
+
+
+
+#### 堆建立
+
+堆被应用到堆排序中，此时会涉及将已经存在的N个元素按照堆的要求存在在一个一维数组中，下面以大根堆为例，来了解堆的建立，有两种实现方式：
+
+- 方式一：通过插入操作，经N个元素依次插入到出师为空的堆中，时间代价最大值为`O(NlogN)`
+- 方式二：在线性时间复杂度$O(N)$下建立最大堆：
+    - ① 将N个元素按输入顺序存入，先满足完全二叉树的结构特性
+    - ② 从存在根节点的底层的根节点开始调整节点的位置依次调整各结点位置，以满足最大堆的有序特性。
+
+![](./img/HeapAdjust.png)
+
+
+
+对于有$N$个节点的堆，树的高度为$logN$,设$k-1=logN$
+
+|     节点数      | 最多交换次数 |
+| :-------------: | :----------: |
+|  $\frac{N}{4}$  |      1       |
+|  $\frac{N}{8}$  |      2       |
+| $\frac{N}{16}$  |      3       |
+|     ......      |    ......    |
+| $\frac{N}{2^k}$ |    $k-1$     |
+
+
+
+$T(N)=\frac{N}{4}+\frac{N}{8}\times2+\frac{N}{16}\times3 + ... + \frac{N}{2^k}\times(k-1)$
+$2T(N)=\frac{N}{2}+\frac{N}{4}\times2+\frac{N}{8}\times3 + ... + \frac{N}{2^{k-1}}\times(k-1)$
+$2T(N)-T(N)=\frac{N}{2}+\frac{N}{4}+\frac{N}{8} + ... + \frac{N}{2^{k-1}} - \frac{N}{2^k}\times(k-1) \le N - (log_{2}{N}-1) \le N$
 
