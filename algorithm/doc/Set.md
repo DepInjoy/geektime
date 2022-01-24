@@ -6,7 +6,7 @@
 
 ## 并查集
 
-并查集(Union Set)，运用于集合的合并、判断某元素是否属于某个集合。常用于解决连通性问题。
+并查集(Union Set)，运用于集合的合并、判断某元素是否属于某个集合。⽤于处理⼀些不交集（Disjoint Sets）的合并及查询问题，常用于解决连通性问题。
 
 
 
@@ -186,4 +186,12 @@ A(i-1, A(i, j-1)) & i\ge2 and j \ge 2\\
     p[find(a)] = find(b);
     d[find(a)] = distance; // 根据具体问题，初始化find(a)的偏移量
 ```
+
+
+
+### 练习题目
+
+- https://leetcode.com/problems/number-of-islands/
+
+- https://leetcode.com/problems/friend-circles/
 
