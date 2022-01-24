@@ -33,7 +33,7 @@ typedef struct {
 | 下标 |Data | Parent |
 | :--: |---- | ------ |
 |  0   |1    | -1     |
-|  1   | 2    | 0      |
+|  1   | 2   | 0      |
 |  2   |3    | -1     |
 |  3   |4    | 0      |
 |  4   |5    | 2      |
@@ -50,7 +50,32 @@ typedef struct {
 针对`union`操作,按秩归并有两种实现方式：
 
 - 根据树的高度，将矮树合并到高树上
+
+    ```C++
+    if ( Root2高度 > Root1高度 )
+    	S[Root1] = Root2;
+    else {
+    	if ( 两者等高 ) 树高++;
+    	S[Root2] = Root1;
+    }
+    ```
+
 - 根据树的规模，将小树贴到大树上
+
+    ```C++
+    // S[Root] = -元素个数
+    void Union( SetType S, SetName Root1, SetName Root2 ) {
+        if ( S[Root2]<S[Root1] ){
+    		S[Root2] += S[Root1]; 
+    		S[Root1] = Root2; 
+    	} else {
+    		S[Root1] += S[Root2];
+    		S[Root2] = Root1; 
+    	}
+    }
+    ```
+
+    
 
 #### 路径压缩
 
@@ -88,4 +113,78 @@ A(i-1, A(i, j-1)) & i\ge2 and j \ge 2\\
 
 
 关于是否进行路径压缩决定因素在于查找次数$M$乘以一个常数或者一个$logN$。当N趋于无穷大，$log(N)$也是趋于无穷大，而常数却是固定的。而路径压缩只有当$N$充分大时候才可以看出差别。当$N$到达$10^6$级别时，便可以看出进行路径压缩和不进行路径压缩的差距。
+
+
+
+### 代码模板
+
+参考[ACWing](https://www.acwing.com/blog/content/404/)
+
+#### 朴素并查集
+
+```C++
+    int p[N]; //存储每个点的祖宗节点
+
+    // 返回x的祖宗节点
+    int find(int x) {
+        if (p[x] != x) p[x] = find(p[x]);
+        return p[x];
+    }
+
+    // 初始化，假定节点编号是1~n
+    for (int i = 1; i <= n; i ++ ) p[i] = i;
+
+    // 合并a和b所在的两个集合：
+    p[find(a)] = find(b);
+```
+
+#### 维护size的并查集
+
+```C++
+	int p[N], size[N];
+    //p[]存储每个点的祖宗节点, size[]只有祖宗节点的有意义，表示祖宗节点所在集合中的点的数量
+
+    // 返回x的祖宗节点
+    int find(int x) {
+        if (p[x] != x) p[x] = find(p[x]); // 路径压缩
+        return p[x];
+    }
+
+    // 初始化，假定节点编号是1~n
+    for (int i = 1; i <= n; i ++) {
+        p[i] = i;
+        size[i] = 1;
+    }
+
+    // 合并a和b所在的两个集合：
+    size[find(b)] += size[find(a)];
+    p[find(a)] = find(b);
+```
+
+#### 维护到祖宗节点距离的并查集
+
+```C++
+    int p[N], d[N];
+    //p[]存储每个点的祖宗节点, d[x]存储x到p[x]的距离
+
+    // 返回x的祖宗节点
+    int find(int x) {
+        if (p[x] != x) {
+            int u = find(p[x]);
+            d[x] += d[p[x]];
+            p[x] = u;
+        }
+        return p[x];
+    }
+
+    // 初始化，假定节点编号是1~n
+    for (int i = 1; i <= n; i ++ ) {
+        p[i] = i;
+        d[i] = 0;
+    }
+
+    // 合并a和b所在的两个集合：
+    p[find(a)] = find(b);
+    d[find(a)] = distance; // 根据具体问题，初始化find(a)的偏移量
+```
 
