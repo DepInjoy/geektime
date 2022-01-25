@@ -92,6 +92,9 @@ Index Hash ( const char *Key, int TableSize ) {
 - 开放地址法：换个位置
 - 链地址法：同一位置的冲突对象组织在一起
 
+| 开放地址法                                              | 分离链法                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| 散列表是一个数组，存储效率高，随机查找<br/>有“聚集”现象 | 散列表是顺序存储和链式存储的结合，链表部分的存储效率和查找效率都比较低。<br/>关键字删除不需要“懒惰删除”法，从而没有存储“垃圾”。<br/>太小的α可能导致空间浪费，大的α又将付出更多的时间代价。<br/>不均匀的链表长度导致时间效率的严重下降。 |
 
 ### 开放定址法(Open Addressing)
 
@@ -108,10 +111,7 @@ Index Hash ( const char *Key, int TableSize ) {
 
 
 
- 当散列表元素太多（即装填因子 α太大）时，查找效率会下降；
-
-- 实用最大装填因子一般取$0.5 \le \alpha  \le 0.85$
-- 当装填因子过大时，解决的方法是加倍扩大散列表，这个过程叫做“再散列（Rehashing）”
+- 
 
 
 
@@ -156,6 +156,15 @@ Double Hashing，$d_i 为i*h_2(key)，h_2(key)是另一个散列函数$， 探�
 
 
 
+#### 再散列
+
+ 当散列表元素太多（即装填因子 α太大）时，查找效率会下降；
+
+- 实用最大装填因子一般取$0.5 \le \alpha  \le 0.85$
+- 当装填因子过大时，解决的方法是加倍扩大散列表，这个过程叫做“再散列（Rehashing）”
+
+
+
 ### 分离链接法
 
 Separate Chaining，将相应位置上冲突的所有关键词存储在同一个单链表中。
@@ -164,13 +173,66 @@ Separate Chaining，将相应位置上冲突的所有关键词存储在同一个
 
 
 
-## 散列表查找性能分析
-
-- 成功平均查找长度(ASLs)：查找表中关键词的平均查找比较次数（其冲突次数加1）
-  
+## 性能分析
+平均查找长度（ASL）用来度量散列表查找效率：成功、不成功
+- 成功平均查找长度(ASLs)：查找表中关键词的平均查找比较次数（其冲突次数加1）  
 - 不成功平均查找长度 (ASLu)：不在散列表中的关键词的平均查找次数（不成功）
 
+关键词的比较次数，取决于产生冲突的多少, 影响产生冲突多少有以下三个因素:
+- 散列函数是否均匀
+- 处理冲突的方法
+- 散列表的装填因子$ \alpha $
 
+分析：不同冲突处理方法、装填因子对效率的影响
+
+### 线性探测法的查找性能
+可以证明，线性探测法的期望探测次数 满足下列公式：
+$\begin{align}
+p = \left\{\begin{matrix} 
+  \frac{1}{2}[1+\frac{1}{{1-\alpha}^2} ] & （对插入和不成功查找而言） \\  
+  \frac{1}{2}[1+\frac{1}{1-\alpha} ] & （对成功查找而言）
+\end{matrix}\right.  
+\end{align}$
+
+
+
+### 平方和双散列探测法的查找性能
+
+可以证明，平方探测法和双散列探测法探测次数 满足下列公式：
+
+$\begin{align}
+p = \left\{\begin{matrix} 
+  \frac{1}{1-\alpha} & （对插入和不成功查找而言） \\  
+  -\frac{1}{\alpha}ln{(1-\alpha)} & （对成功查找而言）
+\end{matrix}\right.  
+\end{align}$
+
+
+
+### 分离链接法的查找性能
+
+所有地址链表的平均长度定义成装填因子α，α有可能超过1。不难证明：其期望探测次数 p为：
+
+$\begin{align}
+p = \left\{\begin{matrix} 
+  \alpha + e^{-\alpha } &（对插入和不成功查找而言） \\  
+  1 + \frac{\alpha}{2} & （对成功查找而言）\\
+\end{matrix}\right.  
+\end{align}$
+
+![](./img/HashPerf.png)
+
+上图，U表示不成功查找，I表示插入，S表示成功查找
+
+
+
+在开放地址法中：
+
+- 当装填因子α< 0.5的时候，各种探测法的期望探测次数不大，也比较接近。
+- 随着$\alpha $的增大，线性探测法的期望探测次数增加较快，不成功查找和插入操作的期望探测次数比成功查找的期望探测次数要大。
+- 合理的的最大装入因子α应 该不超过0.85。
+
+哈希表的平均查找长度是装填因子$\alpha$的函数，而不 是$N$的函数。 用哈希表构造查找表时，可以选择一个适当的装填因子$ \alpha$ ，使得平均查找长度限定在某个范围 内。
 
 ## 练习题
 
@@ -183,6 +245,57 @@ Separate Chaining，将相应位置上冲突的所有关键词存储在同一个
 - https://leetcode.com/problems/4sum/
 
 - https://leetcode.com/problems/group-anagrams/description/
+
+
+
+## 附录
+
+性能分析Python实现
+
+```python
+import matplotlib.pyplot as plt
+import numpy as np
+
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 用来正常显示中文标签
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+
+x = np.arange(0.05, 0.95, 0.05)
+
+y_su = 0.5*(1+1/(1-x)**2)
+y_ss = 0.5*(1+1/(1-x))
+
+y_du = 1/(1-x)
+y_ds = np.multiply(-1/x, np.log(1-x))
+
+y_max = max(y_su.max(), y_ss.max(), y_du.max(), y_ds.max())
+y_min = min(y_su.min(), y_ss.min(), y_du.min(), y_ds.min())
+
+plt.figure()
+ax1 = plt.subplot(1, 2, 1)
+ax1.plot(x, y_su, '--', color='red', label="线性探测法 U,I")
+ax1.plot(x, y_ss, '-.', color='red', label="线性探测法 S")
+ax1.plot(x, y_du, '.', color='blue', label="平方和双散列探测法 U,I")
+ax1.plot(x, y_ds, ':', color='blue', label="平方和双散列探测法 S")
+
+ax1.vlines(0.5, y_min, y_max, colors="orange", linestyles="dashed")
+ax1.vlines(0.85, y_min, y_max, colors="orange", linestyles="dashed")
+ax1.legend()
+plt.grid(linestyle=':')
+plt.xticks(x)
+plt.ylim(0, 50)
+
+ax2=plt.subplot(1, 2, 2)
+x = np.arange(0.05, 1.5, 0.1)
+y_lu = x + np.exp(-x)
+y_ls = 1 + x/2
+ax2.plot(x, y_lu, "-.", color='red', label="分离链接法 U,I")
+ax2.plot(x, y_ls, '.', color='red', label="分离链接法 S")
+ax2.legend()
+plt.grid(linestyle=':')
+plt.xticks(x)
+plt.ylim(0)
+plt.show()
+```
 
 
 
