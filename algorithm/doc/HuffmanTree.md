@@ -19,7 +19,7 @@ struct TreeNode{
 
 /*
 	Huffman树的构造:每次把权值最小的两棵二叉树合并
-	整体复杂度为O(N logN)
+	整体复杂度为O(NlogN)
 */
 HuffmanTree Huffman( MinHeap H ) { /* 假设H->Size个权值已经存在H->Elements[]->Weight里 */
 	int i; HuffmanTree T;
