@@ -29,6 +29,7 @@ public class C06_03_HeapSort {
         if (arr == null || arr.length <= 1) return;
 
         // 1. 建立大根堆
+        // 从最后一层节点开始堆的构建,处理完成的节点都是大根堆,可以达到O(N)的时间复杂度
         for (int i = arr.length - 1; i >= 0; --i) {
             heapify(arr, i, arr.length);
         }
@@ -50,6 +51,7 @@ public class C06_03_HeapSort {
     }
 
     public static void main(String[] args) {
+        // Case1: 逆序数组排序
         int[] arr0 = new int[]{9, 8, 7, 6, 5, 4, 3, 2, 1};
         HeapSort(arr0);
         print(arr0);
