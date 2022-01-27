@@ -7,11 +7,15 @@ package algorithm.training.struct.BT;
  * */
 public class C12_05_DP_MaxSubBSTSize {
     static class DPNodeInfo {
-        DPNodeInfo() {}
+        Integer     maxBSTSize;
+        DPNodeInfo(Integer maxBSTSize) {
+            this.maxBSTSize = maxBSTSize;
+        }
     }
 
     public static DPNodeInfo process(TreeNode root) {
-        return new DPNodeInfo();
+        if (root == null) return new DPNodeInfo(0);
+        return new DPNodeInfo(0);
     }
 
     public static void main(String[] args) {

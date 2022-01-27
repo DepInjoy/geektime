@@ -2,3 +2,4 @@ algorithm/Java/algorithm-project/target/*
 algorithm/.vscode/*
 algorithm/Java/.idea/*
 algorithm/Java/algorithm-project/.idea/
+algorithm/CPP/*/*.exe
