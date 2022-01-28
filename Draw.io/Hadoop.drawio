@@ -1,1 +1,91 @@
-<mxfile host="app.diagrams.net" modified="2021-12-29T09:52:13.936Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36" version="15.8.8" etag="Q2hXoIVC0r9d-icpBF2P" type="github"><diagram id="I0iKNpL2dDFjR3JQlgoz">UzV2zq1wL0osyPDNT0nNUTV2VTV2LsrPL4GwciucU3NyVI0MMlNUjV1UjYwMgFjVyA2HrCFY1qAgsSg1rwSLBiADYTaQg2Y1AA==</diagram></mxfile>
+<mxfile host="app.diagrams.net" modified="2022-01-28T10:54:43.935Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36" etag="FbOQpP3AJvUESoBFhaFB" version="16.4.7" type="github">
+  <diagram id="I0iKNpL2dDFjR3JQlgoz" name="HDFS">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="wMaF2IcnBX7iyWfK24k7-1" target="wMaF2IcnBX7iyWfK24k7-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-1" value="FileSystem" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="600" height="86" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-2" value="+ " style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-1">
+          <mxGeometry y="26" width="600" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-3" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-1">
+          <mxGeometry y="52" width="600" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-4" value="+ create(Path f) throws IOException : FSDataOutputStream" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-1">
+          <mxGeometry y="60" width="600" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-5" value="DistributedFileSystem" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;" vertex="1" parent="1">
+          <mxGeometry x="80" y="280" width="600" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-6" value="+ " style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-5">
+          <mxGeometry y="26" width="600" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-7" value="" style="line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-5">
+          <mxGeometry y="52" width="600" height="8" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-8" value="+ create(Path f, FsPermission permission, boolean overwrite, int bufferSize,short replication, long blockSize, &#xa;   Progressable progress) throws IOException : FSDataOutputStream" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-5">
+          <mxGeometry y="60" width="600" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-33" value="Packet" style="swimlane;" vertex="1" parent="1">
+          <mxGeometry x="80" y="520" width="990" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-29" value="PacketHeader" style="swimlane;startSize=20;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-33">
+          <mxGeometry y="23" width="370" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-30" value="PacketLength" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-29">
+          <mxGeometry y="20" width="130" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-31" value="HeaderLength" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-29">
+          <mxGeometry x="130" y="20" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-32" value="Header&#xa;&lt;Protobuf&gt;" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-29">
+          <mxGeometry x="250" y="20" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-34" value="PacketLength" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-29">
+          <mxGeometry y="20" width="130" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-35" value="HeaderLength" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-29">
+          <mxGeometry x="130" y="20" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-36" value="Header&#xa;&lt;Protobuf&gt;" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-29">
+          <mxGeometry x="250" y="20" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-11" value="Chukcums" style="swimlane;startSize=20;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-33">
+          <mxGeometry x="370" y="23" width="330" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-37" value="Chucksum 2" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-11">
+          <mxGeometry x="90" y="20" width="90" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-45" value="Chucksum 1" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-11">
+          <mxGeometry y="20" width="90" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-46" value="......" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-11">
+          <mxGeometry x="180" y="20" width="70" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-21" value="Chucksum N" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-11">
+          <mxGeometry x="250" y="20" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-39" value="Data" style="swimlane;startSize=20;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-33">
+          <mxGeometry x="700" y="23" width="290" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-40" value="Chunk 1" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-39">
+          <mxGeometry y="20" width="70" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-41" value="Chunk 2" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-39">
+          <mxGeometry x="70" y="20" width="70" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-42" value="Chuck N" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-39">
+          <mxGeometry x="210" y="20" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="wMaF2IcnBX7iyWfK24k7-43" value="......" style="swimlane;startSize=40;" vertex="1" parent="wMaF2IcnBX7iyWfK24k7-39">
+          <mxGeometry x="140" y="20" width="70" height="80" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
