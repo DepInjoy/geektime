@@ -329,6 +329,48 @@ SimpleOperatorFactory.createStreamOperator创建StreamOperator实例
         return (T) operator;
     }
 ```
+### OneInputStreamOperator与TwoInputStreamOperator
+StreamOperator根据输入流的数量分为两种类型，即支持单输入流的OneInputStreamOperator以及支持双输入流的TwoInputStreamOperator，我们可以将其称为一元输入算子和二元输入算子。
+#### OneInputStreamOperator的实现
+OneInputStreamOperator定义了单输入流的StreamOperator，常见的实现类有StreamMap、StreamFilter等算子。OneInputStreamOperator接口主要包含以下方法，专门用于处理接入的单输入数据流.
+```java
+public interface OneInputStreamOperator<IN, OUT> extends StreamOperator<OUT>, Input<IN> {
+    @Override
+    default void setKeyContextElement(StreamRecord<IN> record) throws Exception {
+        setKeyContextElement1(record);
+    }
+}
+```
+
+#### TwoInputStreamOperator的实现
+TwoInputStreamOperator定义了双输入流类型的StreamOperator接口实现，常见的实现类有CoStreamMap、HashJoinOperator等算子。
+```java
+public interface TwoInputStreamOperator<IN1, IN2, OUT> extends StreamOperator<OUT> {
+    // 处理输入源1的数据元素方法
+    void processElement1(StreamRecord<IN1> element) throws Exception;
+
+    // 处理输入源2的数据元素方法
+    void processElement2(StreamRecord<IN2> element) throws Exception;
+
+    // 处理输入源1的Watermark方法
+    void processWatermark1(Watermark mark) throws Exception;
+
+    // 处理输入源2的Watermark方法
+    void processWatermark2(Watermark mark) throws Exception;
+
+    // 处理输入源1的LatencyMarker方法
+    void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception;
+
+    // 处理输入源2的LatencyMarker方法
+    void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception;
+
+    void processWatermarkStatus1(WatermarkStatus watermarkStatus) throws Exception;
+
+    void processWatermarkStatus2(WatermarkStatus watermarkStatus) throws Exception;
+}
+
+```
+
 |算子|连接策略|
 |:--:|:--:|
 |StreamMap|ALWAYS|
