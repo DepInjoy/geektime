@@ -4,10 +4,13 @@ import java.util.*;
 
 /**
  * @brief:              Kruskal算法
+ *
  *              实现思想, 整体是贪心，不会先入局部最优解
  *                  1. 寻找权重最小的边
  *                  2. 以该点为中心寻找不会形成环的下一条最小边
  *                  3. 重复第2步, 直到所有的边都被访问过
+ *
+ *              时间复杂度:O(|E|log|E|)
  * */
 public class D16_04_Kruskal {
     public static class UnionSet {

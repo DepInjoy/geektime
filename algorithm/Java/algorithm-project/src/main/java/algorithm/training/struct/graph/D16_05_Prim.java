@@ -7,10 +7,13 @@ import java.util.Set;
 
 /**
  * @brief:      Prim最小生成树算法
+ *
  *              实现思想：
  *                  1. 随机选一个点,选取周围weight最小的边
  *                  2. 确定这条边另外一个顶点没有访问过，将该顶点周围的边加入最小堆
  *                  3. 取出最小边，继续执行2,直到所有的顶点都被访问过
+ *
+ *              时间复杂度: O(V^2)
  * */
 public class D16_05_Prim {
     public static class EdgeComparator implements Comparator<Edge> {
