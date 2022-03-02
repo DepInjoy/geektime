@@ -15,6 +15,7 @@ public class D17_05_ReverseStackUsingRecursive {
         stack.push(last);
     }
 
+    // 将栈底元素取出并返回
     public static int process(Stack<Integer> stack) {
         int ans = stack.pop();
         if (stack.isEmpty()) {
