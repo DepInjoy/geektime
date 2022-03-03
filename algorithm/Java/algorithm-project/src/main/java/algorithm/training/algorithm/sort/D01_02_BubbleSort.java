@@ -3,23 +3,34 @@ package algorithm.training.algorithm.sort;
 import java.util.Arrays;
 
 /**
- * @brief   选择排序, 时间复杂度为O(N^2)
+ * @brief:      冒泡排序
  * */
-public class D01_01_SelectionSort {
-    public static void selectionSort(int[] arr) {
-        if (arr == null || arr.length < 2) return;
+public class D01_02_BubbleSort {
+    public static void bubbleSort(int[] arr) {
+        if (arr == null || arr.length < 2) {
+            return;
+        }
 
-        // 对数组中元素一一遍历
-        for (int i = 0; i < arr.length - 1; i++) {
-            int minIndex = i;
-            // 选择从i+1到N寻找最小值,并将其放在应当在的位置
-            for (int j = i + 1; j < arr.length; j++) {
-                if (arr[j] < arr[minIndex]) {
-                    minIndex = j;
+        for (int i = 0; i < arr.length; i++) {
+            boolean flags = false; // 设置交换标志
+            for (int j = 0; j < arr.length - 1 - i; ++j) {
+                if (arr[j] > arr[j + 1]) {
+                    swap(arr, j, j + 1);
+                    flags = true;
                 }
             }
-            if (minIndex != i) swap(arr, i, minIndex);
+            // 全程无交换,数据已经有序直接退出
+            if (!flags) break;
         }
+
+        // 外层遍历每一趟将一个元素放在它应该在的位置
+//        for (int i = arr.length - 1; i > 0; i--) {
+//            for (int j = 0; j < i; j++) {
+//                if (arr[j] > arr[j+1]) {
+//                    swap(arr, j, j + 1);
+//                }
+//            }
+//        }
     }
 
     public static void swap(int[] arr, int i, int j) {
@@ -28,10 +39,11 @@ public class D01_01_SelectionSort {
         arr[j] = tmp;
     }
 
-    /****************************** For Test ****************************/
+    /****************** For Test ************************/
     public static void comparator(int[] arr) {
         Arrays.sort(arr);
     }
+
 
     public static int[] generateRandomArray(int maxSize, int maxValue) {
         int[] arr = new int[(int) ((maxSize + 1) * Math.random())];
@@ -42,8 +54,9 @@ public class D01_01_SelectionSort {
     }
 
     public static int[] copyArray(int[] arr) {
-        if (arr == null) return null;
-
+        if (arr == null) {
+            return null;
+        }
         int[] res = new int[arr.length];
         for (int i = 0; i < arr.length; i++) {
             res[i] = arr[i];
@@ -70,8 +83,9 @@ public class D01_01_SelectionSort {
     }
 
     public static void printArray(int[] arr) {
-        if (arr == null) return;
-
+        if (arr == null) {
+            return;
+        }
         for (int i = 0; i < arr.length; i++) {
             System.out.print(arr[i] + " ");
         }
@@ -86,12 +100,10 @@ public class D01_01_SelectionSort {
         for (int i = 0; i < testTime; i++) {
             int[] arr1 = generateRandomArray(maxSize, maxValue);
             int[] arr2 = copyArray(arr1);
-            selectionSort(arr1);
+            bubbleSort(arr1);
             comparator(arr2);
             if (!isEqual(arr1, arr2)) {
                 succeed = false;
-                printArray(arr1);
-                printArray(arr2);
                 break;
             }
         }
