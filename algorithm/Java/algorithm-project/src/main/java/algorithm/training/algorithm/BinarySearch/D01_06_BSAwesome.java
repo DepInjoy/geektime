@@ -19,11 +19,13 @@ public class D01_06_BSAwesome {
         int L = 0, R = sortedArr.length - 1;
         while (L <= R) {
             int mid = L + ((R - L) >> 1);
+            //      \       /
+            // mid-1 mid mid+1
             if (sortedArr[mid-1] > sortedArr[mid] && sortedArr[mid] < sortedArr[mid+1]) {
                 return mid;
-            } else if (sortedArr[mid] < sortedArr[mid+1]) {
+            } else if (sortedArr[mid] < sortedArr[mid+1]) { // L\L+1  mid/mid+1
                 R = mid + 1;
-            } else {
+            } else { // mid+1 \ mid  R-1/R
                 L = mid - 1;
             }
         }
@@ -31,14 +33,21 @@ public class D01_06_BSAwesome {
     }
 
     public static void main(String[] args) {
+        int[] arr = {0, -1}; // 1
+        System.out.println(getLessIndex(arr));
+
         int[] arr0 = {0, 1}; // 1
         System.out.println(getLessIndex(arr0));
+
         int[] arr1 = {0, 1, 2, 3, 4}; // 0
         System.out.println(getLessIndex(arr1));
+
         int[] arr2 = {4, 3, 2, 1}; // 3
         System.out.println(getLessIndex(arr2));
+
         int[] arr3 = {1, 0, 2}; // 1
         System.out.println(getLessIndex(arr3));
+
         int[] arr4 = {1, 0, 2, 4, 3, 5, 7, 6, 8}; // 4符合
         System.out.println(getLessIndex(arr4));
     }
