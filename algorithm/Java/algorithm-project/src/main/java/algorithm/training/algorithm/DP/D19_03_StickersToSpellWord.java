@@ -7,6 +7,11 @@ package algorithm.training.algorithm.DP;
  *              例子：str= "babac"，arr = {"ba","c","abcd"}
  *              ba + ba + c  3  abcd + abcd 2  abcd+ba 2
  *              所以返回2
+ *
+ *              https://leetcode.com/problems/stickers-to-spell-word
  * */
 public class D19_03_StickersToSpellWord {
+    public static int minStickers1(String[] stickers, String target) {
+        return 0;
+    }
 }
