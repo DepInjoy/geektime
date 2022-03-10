@@ -6,14 +6,24 @@ import java.util.Arrays;
  * @breif:      给定一个有序数组arr，代表坐落在X轴上的点
  *              给定一个正数K，代表绳子的长度
  *              返回绳子最多压中几个点？即使绳子边缘处盖住点也算盖住
+ *
+ *              实现思想
+ *                  窗口函数
+ *                  建立l和r两个index,当arr[r]-arr[l]<=绳子长度，则r++,否则l++
  * */
 public class DC_01_01_CordCoverMaxPoint {
-    public static int maxPoint1(int[] arr, int L) {
-        return 0;
-    }
+    public static int maxPoint(int[] arr, int L) {
+        if(arr == null || arr.length == 0) return 0;
 
-    public static int maxPoint2(int[] arr, int L) {
-        return 0;
+        int l = 0, r = 0;
+        int ans = 0;
+        while (l < arr.length) {
+            while (r < arr.length && arr[r] - arr[l] <= L) {
+                r++;
+            }
+            ans = Math.max(ans, r - l++);
+        }
+        return ans;
     }
 
     /******************** For Test *******************/
@@ -46,13 +56,13 @@ public class DC_01_01_CordCoverMaxPoint {
         for (int i = 0; i < testTime; i++) {
             int L = (int) (Math.random() * max);
             int[] arr = generateArray(len, max);
-            int ans1 = maxPoint1(arr, L);
-            int ans2 = maxPoint2(arr, L);
+            int ans1 = maxPoint(arr, L);
             int ans3 = test(arr, L);
-            if (ans1 != ans2 || ans2 != ans3) {
+            if (ans1 != ans3) {
                 System.out.println("oops!");
                 break;
             }
         }
+        System.out.println("测试结束");
     }
 }
