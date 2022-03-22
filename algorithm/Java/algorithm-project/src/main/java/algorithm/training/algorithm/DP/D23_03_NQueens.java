@@ -6,25 +6,56 @@ package algorithm.training.algorithm.DP;
  *              给定一个整数n，返回n皇后的摆法有多少种。n=1，返回1
  *              n=2或3，2皇后和3皇后问题无论怎么摆都不行，返回0
  *              n=8，返回92
+ *
+ *              https://leetcode-cn.com/problems/n-queens-ii/
  * */
 public class D23_03_NQueens {
-    public static int num1(int n) {
-        return 0;
+    public static int totalNQueens(int n) {
+        if (n < 1) return 0;
+
+        int[] record = new int[n];
+        return process(record, 0, n);
     }
 
-    public static int num2(int n) {
-        return 0;
+    // 当前来到row行，对n列尝试是否符合摆放条件
+    // record记录了第row行皇后放在第record[row]列
+    public static int process(int[] record, int row, int n) {
+        if (row == n) return 1;
+
+        int ways = 0;
+        for (int j = 0; j < n; j++) {
+            if (isValid(record, row, j)) {
+                record[row] = j;
+                ways += process(record, row + 1, n);
+            }
+        }
+        return ways;
+    }
+
+    public static boolean isValid(int[] record, int row, int col) {
+        for (int i = 0; i < row; i++) {
+            if (record[i] == col || Math.abs(i - row) == Math.abs(record[i] - col)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static int totalNQueens2(int n) {
+        if (n < 1) return 0;
+
+
     }
 
     public static void main(String[] args) {
-        int n = 15;
+        int n = 8;
         long start = System.currentTimeMillis();
         System.out.println(num2(n));
         long end = System.currentTimeMillis();
         System.out.println("cost time: " + (end - start) + "ms");
 
         start = System.currentTimeMillis();
-        System.out.println(num1(n));
+        System.out.println(totalNQueens(n));
         end = System.currentTimeMillis();
         System.out.println("cost time: " + (end - start) + "ms");
     }
