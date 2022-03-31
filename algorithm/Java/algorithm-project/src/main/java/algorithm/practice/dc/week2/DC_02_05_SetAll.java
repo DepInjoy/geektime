@@ -1,5 +1,6 @@
 package algorithm.practice.dc.week2;
 
+import algorithm.practice.week1.L02_05_SetAll;
 import org.omg.PortableInterceptor.INACTIVE;
 
 import java.util.HashMap;
@@ -59,5 +60,17 @@ public class DC_02_05_SetAll {
         System.out.println(mmap.get(1));
         mmap.put(0, 4);
         System.out.println(mmap.get(0));
+
+        mmap.put(1, 2);
+        mmap.put(2, 4);
+        mmap.put(3, 8);
+        System.out.println("1: " + mmap.get(1) + " 2: " +
+                mmap.get(2) + " 3:" + mmap.get(3));
+        mmap.setAll(0);
+        System.out.println("1: " + mmap.get(1) + " 2: " +
+                mmap.get(2) + " 3:" + mmap.get(3));
+        mmap.put(3, 8);
+        System.out.println("1: " + mmap.get(1) + " 2: " +
+                mmap.get(2) + " 3:" + mmap.get(3));
     }
 }
