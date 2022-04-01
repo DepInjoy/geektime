@@ -1,5 +1,8 @@
 package algorithm.practice.dc.week2;
 
+import javax.xml.stream.events.NotationDeclaration;
+import java.util.HashMap;
+
 /**
  * @brief:      已知一个消息流会不断地吐出整数 1~N，但不一定按照顺序依次吐出
  *              如果上次打印的序号为i， 那么当i+1出现时
@@ -8,9 +11,54 @@ package algorithm.practice.dc.week2;
  *              请设计这种接收并打印的结构
  * */
 public class DC_02_03_ReceiveAndPrintOrderLine {
-    public static class MessageBox {
-        public void receive(int num, String info) {
+    public static class Node {
+        public String info;
+        public Node next;
 
+        public Node(String info) {
+            this.info = info;
+        }
+    }
+
+    public static class MessageBox {
+        private int waitingIndex;
+        private HashMap<Integer, Node>    container;
+
+        public MessageBox() {
+            waitingIndex = 1;
+            container = new HashMap<>();
+        }
+
+        public void receive(int num, String info) {
+            if (num < 1) return;
+
+            Node curNode = new Node(info);
+            if (container.containsKey(num + 1)) {
+                curNode.next = container.get(num + 1);
+                container.put(num, curNode);
+            }
+
+            if (container.containsKey(num - 1)) {
+                container.get(num - 1).next = curNode;
+            }
+            container.put(num, curNode);
+
+            // System.out.println("trigger " + waitingIndex);
+            if (container.containsKey(waitingIndex)) {
+                print(container.get(waitingIndex));
+            }
+        }
+
+
+        private void print(Node head) {
+            Node cur = head;
+            while (cur != null) {
+                System.out.print(cur.info + " ");
+                container.remove(waitingIndex);
+                waitingIndex++;
+                cur = cur.next;
+            }
+            // System.out.println();
         }
     }
 

@@ -1,8 +1,5 @@
 package algorithm.practice.dc.week2;
 
-import algorithm.practice.week1.L02_05_SetAll;
-import org.omg.PortableInterceptor.INACTIVE;
-
 import java.util.HashMap;
 
 /**
