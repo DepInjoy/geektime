@@ -1,7 +1,7 @@
 /**
  * @brief   适配器模式，有对象适配器和类适配器两种模式
- *              Adapter1: 对象适配器实现示例
- *              Adapter2: 类适配器实现示例
+ *              ObjectAdapter: 对象适配器实现示例
+ *              ClassAdapter: 类适配器实现示例
  */
 
 #include <iostream>
