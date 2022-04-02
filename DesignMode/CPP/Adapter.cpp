@@ -21,10 +21,10 @@ public:
 };
 
 // 对象适配器
-class Adapter1 : public Target{
+class ObjectAdapter : public Target{
 public:
     void Requet() {
-        std::cout << "对象适配器实现适配功能" << std::endl;
+        std::cout << "对象适配器实现适配功能 ";
         adaptee.SpecialRequet();
     }
 
@@ -33,21 +33,21 @@ private:
 };
 
 // 类适配器实现
-class Adapter2 : public Target, private Adaptee {
+class ClassAdapter : public Target, private Adaptee {
 public:
     void Requet() {
-        std::cout << "类适配器实现适配功能" << std::endl;
+        std::cout << "类适配器实现适配功能 ";
         SpecialRequet();
     }
 };
 
 int main(int argc, char* argv[]) {
-    Adapter1 adapter1;
+    ObjectAdapter adapter1;
     adapter1.Requet();
 
     std::cout << std::endl;
 
-    Adapter2 adapter2;
+    ClassAdapter adapter2;
     adapter2.Requet();
     return 0;
 }
