@@ -8,5 +8,5 @@ package algorithm.training.algorithm.recursion;
  *                  2. 左部分求最大值，右部分求最大值(是个递归过程，当范围上只剩下一个数便结束递归)
  *                  3. [L..R]范围上的最大值，是max{左部分最大值，右部分最大值}
  * */
-public class C03_08_GetMax {
+public class 03_08_GetMax {
 }
