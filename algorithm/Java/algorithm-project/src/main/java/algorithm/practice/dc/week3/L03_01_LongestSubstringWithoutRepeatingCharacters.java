@@ -1,4 +1,4 @@
-package algorithm.practice.week1;
+package algorithm.practice.dc.week3;
 
 /**
  * @brief       求一个字符串中，最长无重复字符子串长度

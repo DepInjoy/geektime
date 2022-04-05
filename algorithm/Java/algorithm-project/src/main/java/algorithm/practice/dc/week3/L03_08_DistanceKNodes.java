@@ -1,4 +1,4 @@
-package algorithm.practice.week1;
+package algorithm.practice.dc.week3;
 
 import java.util.*;
 

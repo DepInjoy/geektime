@@ -1,4 +1,4 @@
-package algorithm.practice.week1;
+package algorithm.practice.dc.week3;
 
 /**
  * @brief       只由小写字母（a~z）组成的一批字符串,都放在字符类型的数组String[] arr中
