@@ -9,7 +9,14 @@ import java.util.Stack;
  *              1. pop、push、getMin操作的时间复杂度都是 O(1)
  *              2. 设计的栈类型可以使用现成的栈结构
  *
+ *          实现思想：
+ *          用两个栈实现，存放最小元素的栈为minStack
+ *              方式1. push时，minStack为空或者当前值<=minStack栈顶
+ *                    则将数据push到minStack, 否则忽略测数据
+ *              范式2. push时，minStack为空或者当前值<=minStack栈顶,
+ *                    将当前值push到minStack，否则将栈顶元素再次压入minStack
  *
+ *          https://leetcode-cn.com/problems/min-stack/
  * */
 public class D03_05_GetMinStack {
     public static class MinStack {
