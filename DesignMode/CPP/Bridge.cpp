@@ -13,6 +13,7 @@
 
 #include <iostream>
 
+// 操作系统抽象
 class ImageOS {
 public:
     virtual void draw(const char* data) = 0;
@@ -40,6 +41,7 @@ public:
     }
 };
 
+// 图像格式抽象
 class ImageFormat {
 public:
     ImageFormat(ImageOS* imageOS) : imageos_(imageOS) {};
@@ -84,7 +86,7 @@ int main(int argc, char* argv[]) {
 
     std::cout << std::endl << std::endl;
 
-    // 假设是Linux操作系统的JPG格式的图片处理
+    // Linux操作系统的JPG格式的图片处理
     ImageOS * linuxos = new ImageOSLinux();
     ImageFormat* jpg = new ImageJPG(linuxos);
     jpg->parseFile("2.jpg");
