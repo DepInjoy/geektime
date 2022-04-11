@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2022-03-30T10:53:19.475Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36" etag="3eN1i5US6WMBsDWQpHSE" version="17.2.4" type="github" pages="2">
+<mxfile host="app.diagrams.net" modified="2022-04-09T12:55:49.161Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36" etag="Hk7B6yIOnpFpfbtvONUp" version="17.2.4" type="github" pages="2">
   <diagram id="m-U73xjPtrYBY18f9X35" name="页空间">
     <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -260,6 +260,41 @@
         </mxCell>
         <mxCell id="DiLrOkDjU9yglOGz8_8y-71" value="&lt;div style=&quot;font-family: &amp;#34;consolas&amp;#34; , &amp;#34;courier new&amp;#34; , monospace ; font-size: 14px ; line-height: 19px&quot;&gt;&lt;div style=&quot;font-family: &amp;#34;consolas&amp;#34; , &amp;#34;courier new&amp;#34; , monospace ; line-height: 19px&quot;&gt;&lt;div style=&quot;font-family: &amp;#34;consolas&amp;#34; , &amp;#34;courier new&amp;#34; , monospace ; line-height: 19px&quot;&gt;&lt;div style=&quot;color: rgb(212 , 212 , 212) ; background-color: rgb(30 , 30 , 30) ; font-family: &amp;#34;consolas&amp;#34; , &amp;#34;courier new&amp;#34; , monospace ; line-height: 19px&quot;&gt;&lt;span style=&quot;color: #4fc1ff&quot;&gt;return MemoryAllocation_Success&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=#FFFFFF;fontColor=#000000;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="40" y="1285" width="260" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-78" value=":QE" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;outlineConnect=0;labelBackgroundColor=none;fontColor=#000000;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-800" y="1800" width="100" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-79" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;labelBackgroundColor=none;fontColor=#000000;fillColor=none;" vertex="1" parent="DiLrOkDjU9yglOGz8_8y-78">
+          <mxGeometry x="45" y="60" width="10" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-80" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontColor=#000000;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-560" y="1920" as="targetPoint" />
+            <mxPoint x="-745" y="1920" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-81" value="AssignResGroupOnMaster" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontColor=#000000;" vertex="1" connectable="0" parent="DiLrOkDjU9yglOGz8_8y-80">
+          <mxGeometry x="-0.219" y="2" relative="1" as="geometry">
+            <mxPoint x="23" y="-8" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-84" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontColor=#000000;" edge="1" parent="1" source="DiLrOkDjU9yglOGz8_8y-82" target="DiLrOkDjU9yglOGz8_8y-83">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-82" value="&lt;div&gt;StartTransaction&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=none;fontColor=#000000;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-439" y="1760" width="199" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-83" value="&lt;span&gt;AssignResGroupOnMaster&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=none;fontColor=#000000;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-439" y="1840" width="199" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-87" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontColor=#000000;" edge="1" parent="1" source="DiLrOkDjU9yglOGz8_8y-85" target="DiLrOkDjU9yglOGz8_8y-86">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-85" value="&lt;div&gt;CommitTransaction&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=none;fontColor=#000000;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-160" y="1760" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="DiLrOkDjU9yglOGz8_8y-86" value="&lt;span&gt;UnassignResGroup&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;labelBackgroundColor=none;fontColor=#000000;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-160" y="1840" width="160" height="40" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
