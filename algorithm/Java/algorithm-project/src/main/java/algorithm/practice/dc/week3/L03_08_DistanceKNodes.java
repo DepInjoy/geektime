@@ -22,6 +22,59 @@ public class L03_08_DistanceKNodes {
     public static List<Node> distanceKNodes(Node root, Node target, int K) {
         if (root == null || target == null) return null;
 
+        HashMap<Node, Node> parentChildMap = new HashMap<>();
+        List<Node> ans = new ArrayList<>();
+        Queue<Node> queue = new LinkedList<>();
+        HashSet<Node> visited = new HashSet<>();
+        queue.add(target);
+        createParentMap(root, parentChildMap);
+        int curLevel = 0;
+        while (!queue.isEmpty()) {
+            int curLevelSize = queue.size();
+            while (curLevelSize-- > 0) {
+                Node curNode = queue.poll();
+                if (curLevel == K) ans.add(curNode);
+
+                if (curNode.left != null && !visited.contains(curNode.left)) {
+                    queue.add(root.left);
+                    visited.add(root.left);
+                }
+
+                if (curNode.right != null && !visited.contains(curNode.right)) {
+                    queue.add(curNode.right);
+                    visited.add(root.left);
+                }
+
+                Node parentNode = parentChildMap.get(curNode);
+                if (!visited.contains(parentNode)) {
+                    queue.add(parentNode);
+                    visited.add(parentNode);
+                }
+
+                if (curLevel > K) break;
+            }
+            curLevel++;
+        }
+        return ans;
+    }
+
+    public static void createParentChildMap(Node root, HashMap<Node, Node> parentChildMap) {
+        if (root == null) return;
+
+        if (root.left != null) {
+            parentChildMap.put(root.left, root);
+            createParentMap(root.left, parentChildMap);
+        }
+
+        if (root.right != null) {
+            parentChildMap.put(root.right, root);
+            createParentMap(root.right, parentChildMap);
+        }
+    }
+
+    public static List<Node> distanceKNodes2(Node root, Node target, int K) {
+        if (root == null || target == null) return null;
+
         HashMap<Node, Node> parentMap = new HashMap<>();
         List<Node> ans = new ArrayList<>();
         Queue<Node> queue = new LinkedList<>();
@@ -73,7 +126,15 @@ public class L03_08_DistanceKNodes {
             createParentMap(root.right, parentMap);
         }
     }
-
+/**
+               3
+           /       \
+        5           1
+      /    \     /     \
+    6       2   0       8
+         /    \
+        7       4
+ */
     public static void main(String[] args) {
         Node n0 = new Node(0);
         Node n1 = new Node(1);
@@ -98,7 +159,7 @@ public class L03_08_DistanceKNodes {
         Node target = n5;
         int K = 2;
 
-        List<Node> ans = distanceKNodes(root, target, K);
+        List<Node> ans = distanceKNodes2(root, target, K);
         for (Node o1 : ans) {
             System.out.println(o1.value);
         }
