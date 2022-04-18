@@ -2,6 +2,7 @@ package algorithm.practice.dc.week3;
 
 import jdk.internal.org.objectweb.asm.tree.analysis.Value;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 
@@ -13,35 +14,13 @@ import java.util.HashSet;
  *              实现思想：
  *                  1. 排序+窗口，记录窗口右边使用的信息，避免重复使用
  * */
+
+
 public class L03_04_MaxPairNumber {
     public static int maxPairNum1(int[] arr, int k) {
         if (arr == null || arr.length < 2 || k < 0) return -1;
 
         return process(arr, 0, k);
-    }
-
-    public static int process(int[] arr, int index, int k) {
-        int ans = 0;
-        if (index == arr.length) {
-            for (int i = 1; i < arr.length; i += 2) {
-                if (arr[i] - arr[i - 1] == k) {
-                    ans++;
-                }
-            }
-        } else {
-            for (int r = index; r < arr.length; r++) {
-                swap(arr, index, r);
-                ans = Math.max(ans, process(arr, index + 1, k));
-                swap(arr, index, r);
-            }
-        }
-        return ans;
-    }
-
-    public static void swap(int[] arr, int i, int j) {
-        int tmp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = tmp;
     }
 
     public static int maxPairNum2(int[] arr, int k) {
@@ -70,6 +49,31 @@ public class L03_04_MaxPairNumber {
             }
         }
         return games;
+    }
+
+    public static int process(int[] arr, int index, int k) {
+        int ans = 0;
+        if (index == arr.length) {
+            for (int i = 1; i < arr.length; i += 2) {
+                if (arr[i] - arr[i - 1] == k) {
+                    ++ans;
+                }
+            }
+            return ans;
+        }
+
+        for (int i = index; i <arr.length; i++) {
+            swap(arr, index, i);
+            ans = Math.max(ans, process(arr, index + 1, k));
+            swap(arr, index, i);
+        }
+        return ans;
+    }
+
+    public static void swap(int[] arr, int i, int j) {
+        int tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
     }
 
     /**************************** For Test ********************/
