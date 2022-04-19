@@ -1,7 +1,10 @@
 package algorithm.practice.dc.week3;
 /**
  * @brief:  给定一个只有0和1组成的二维数组, 返回边框全是1的最大正方形面积
- *          https://leetcode-cn.com/problems/closest-subsequence-sum/
+ *          https://leetcode-cn.com/problems/largest-1-bordered-square/
+ *
+ *          实现思想：
+ *              数据预处理，从右下角开始向左、向上构造，到当前位置连续为1的数字数目
  * */
 public class L03_03_Largest1BorderedSquare {
     int largest1BorderedSquare(int[][] grid) {
@@ -11,7 +14,7 @@ public class L03_03_Largest1BorderedSquare {
         int[][] right = new int[M][N];
         int[][] down = new int[M][N];
         setBorderedInfo(grid, right, down);
-        for (int size = Math.min(M, N); size >= 0; size--) {
+        for (int size = Math.min(M, N); size > 0; size--) {
             if (isBorderedSquare(size, right, down)) {
                 return size * size;
             }
@@ -51,9 +54,10 @@ public class L03_03_Largest1BorderedSquare {
     }
 
     boolean isBorderedSquare(int size, int[][] right, int[][] down) {
-        for (int i = 0; i < right.length; i++) {
-            for (int j = 0; j < right[0].length; j++) {
-                if (right[i][j] >= size && down[i][j] >= size && right[i+size][j] >= size && down[i][j+size] >= size) {
+        for (int i = 0; i < right.length- size + 1; i++) {
+            for (int j = 0; j < right[0].length- size + 1; j++) {
+                if (right[i][j] >= size && down[i][j] >= size &&
+                        right[i+size-1][j] >= size && down[i][j+size-1] >= size) {
                     return true;
                 }
             }
