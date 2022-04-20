@@ -30,6 +30,31 @@ public class L03_05_MinBoat {
         return process(arr, 0, limit);
     }
 
+    public static int minBoat2(int[] arr, int limit) {
+        if (arr == null || arr.length == 0) return 0;
+
+        Arrays.sort(arr);
+        int N = arr.length;
+        if (arr[N - 1] > limit) return -1;
+
+        int ans = 0, unresoled = 0;
+        int mostLessR = getLessMostR(arr, limit/2);
+        int L = mostLessR, R = mostLessR + 1;
+        while (L >= 0 && R < N) {
+            if (arr[L] + arr[R] <= limit) {
+                ans++;
+                L--;
+                R++;
+            } else if(arr[L] + arr[R] > limit) {
+                unresoled++;
+                L--;
+            }
+        }
+        // 小于limit/2的数量为unresoled+L+1,需要的小船的数量需要向上取整
+        ans += ((unresoled + L + 2) >> 1) + (N - R);
+        return ans;
+    }
+
     public static int process(int[] arr, int index, int limit) {
         int ans = Integer.MAX_VALUE;
         if (index == arr.length) {
@@ -83,32 +108,6 @@ public class L03_05_MinBoat {
         }
         return ans;
     }
-
-    public static int minBoat2(int[] arr, int limit) {
-        if (arr == null || arr.length == 0) return 0;
-
-        Arrays.sort(arr);
-        int N = arr.length;
-        if (arr[N - 1] > limit) return -1;
-
-        int ans = 0, unresoled = 0;
-        int mostLessR = getLessMostR(arr, limit/2);
-        int L = mostLessR, R = mostLessR + 1;
-        while (L >= 0 && R < N) {
-            if (arr[L] + arr[R] <= limit) {
-                ans++;
-                L--;
-                R++;
-            } else if(arr[L] + arr[R] > limit) {
-                unresoled++;
-                L--;
-            }
-        }
-        // 小于limit/2的数量为unresoled+L+1,需要的小船的数量需要向上取整
-        ans += ((unresoled + L + 2) >> 1) + (N - R);
-        return ans;
-    }
-
     /*********************** For Test******************/
     public static int[] randomArray(int n, int valueMax) {
         int[] ans = new int[n];
