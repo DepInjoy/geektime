@@ -11,16 +11,16 @@ public class L03_06_ClosestSubsequenceSum {
     public int minAbsDifference(int[] nums, int goal) {
         if (nums == null || nums.length == 0) return -1;
 
-        int[] lSubSum = new int[1 >> 20];
-        int[] rSubSum = new int[1 >> 20];
-        int lend = process(nums, 0, nums.length << 1, 0, 0, lSubSum);
-        int rend = process(nums, nums.length << 1, nums.length, 0, 0, rSubSum);
+        int[] lSubSum = new int[1 << 20];
+        int[] rSubSum = new int[1 << 20];
+        int lend = process(nums, 0, nums.length >> 1, 0, 0, lSubSum);
+        int rend = process(nums, nums.length >> 1, nums.length, 0, 0, rSubSum);
         Arrays.sort(lSubSum, 0, lend);
         Arrays.sort(rSubSum, 0, rend--);
         int ans = Math.abs(goal);
         for(int i = 0; i < lend; i++) {
             int rest = goal - lSubSum[i];
-            while (rend >= 0 && Math.abs(rest - rSubSum[rend - 1]) < Math.abs(rest - rSubSum[rend])) rend--;
+            while (rend > 0 && Math.abs(rest-rSubSum[rend-1]) <= Math.abs(rest-rSubSum[rend])) rend--;
             ans = Math.min(ans, Math.abs(rest - rSubSum[rend]));
         }
         return ans;
@@ -31,7 +31,7 @@ public class L03_06_ClosestSubsequenceSum {
             arr[fillIndex++] = sum;
         } else {
             fillIndex = process(nums, index + 1, end, fillIndex, sum, arr);
-            fillIndex = process(nums, index + 1, end, fillIndex, nums[index] + sum, arr)
+            fillIndex = process(nums, index + 1, end, fillIndex, nums[index] + sum, arr);
         }
         return fillIndex;
     }

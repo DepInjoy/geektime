@@ -16,11 +16,10 @@ public class L03_07_FreedomTrail {
         HashMap<Character, ArrayList<Integer>> dialmap = new HashMap<>();
         char[] ringChs = ring.toCharArray();
         for (int i = 0; i < ringChs.length; i++) {
-            if (dialmap.containsKey(ringChs[i])) {
-                dialmap.get(ringChs[i]).add(i);
-            } else {
-                dialmap.put(ringChs[i], new ArrayList<>(i));
+            if (!dialmap.containsKey(ringChs[i])) {
+                dialmap.put(ringChs[i], new ArrayList<>(1));
             }
+            dialmap.get(ringChs[i]).add(i);
         }
 
         char[] keyChs = key.toCharArray();
@@ -34,8 +33,8 @@ public class L03_07_FreedomTrail {
         return process(dialmap, 0, 0, keyChs, ring.length(), dp);
     }
 
-    public int process(HashMap<Character, ArrayList<Integer>> dialmap, int preButton, int index,
-                       char[] keyChs, int N, int[][] dp) {
+    public int process(HashMap<Character, ArrayList<Integer>> dialmap,
+                       int preButton, int index, char[] keyChs, int N, int[][] dp) {
         if (dp[preButton][index] != -1) return dp[preButton][index];
 
         int ans = Integer.MAX_VALUE;
@@ -43,7 +42,7 @@ public class L03_07_FreedomTrail {
             ans = 0;
         } else {
             for (Integer next : dialmap.get(keyChs[index])) {
-                ans = Math.min(ans, dialLength(preButton, next, N) +
+                ans = Math.min(ans, dialLength(preButton, next, N) + 1 +
                         process(dialmap, next, index + 1, keyChs, N, dp));
             }
         }
