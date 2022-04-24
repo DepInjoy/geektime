@@ -13,5 +13,32 @@
 using namespace std;
 
 vector<int> closestKValues(TreeNode* root, double target, int k) {
+    if (root == null) return vector<int>();
 
+    vector<int> ans;
+    std::vector<int> arr;
+    inorderPost(root, arr);
+    int sum = 0;
+    int index = 0;
+    for (int i = 0; i < arr.size(); i++) {
+        if (ans.size() < k) {
+            index++;
+            sum += arr[i];
+            ans.push_back(arr[i]);
+        } else {
+            if (abs(sum - ans[index%(k-1)] + arr[i] - target) < abs(sum)) {
+                index++;
+                sum += -ans[index%(k-1)] + arr[i]
+            }
+        }
+    }
+    return ans;
+}
+
+void inorderPost(TreeNode* root, std::vector<int> arr) {
+    if (root == null) return;
+
+    if (root.left != null) inorderPost(root.left, arr);
+    arr.push_back(root.value);
+    if (root.right != null) inorderPost(root.right, arr);
 }
