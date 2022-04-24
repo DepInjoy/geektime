@@ -13,16 +13,23 @@ using namespace std;
 
 int threeSumClosest(vector<int>& nums, int target) {
     int N = nums.size();
-    int delta = INT_MAX;
-    int ai = 0, aj = 0; ak = 0;
     sort(nums.begin(), nums.end());
+    int ans = nums[0] + nums[1] + nums[2];
     for (int i = 0; i < N; i++) {
-        for (int j = i + 1, k = N -1; j < k; j++) {
-            while (k > j && abs(arr[i] + arr[j] + arr[k] - target)
-                    >= abs(arr[i] + arr[j - 1] + arr[k] - target)) j--;
-            if (delta > abs(arr[i] + arr[j] + arr[k] - target)) {
-                ai = i, aj = j, ak = k;
+        int j = i + 1, k = N -1;
+        while (j < k) {
+            int sum = nums[i] + nums[j] + nums[k];
+            if (abs(sum - target) < abs(ans - target)) {
+                ans = sum;
             }
+            if (sum > target) {
+                k--;
+            } else if (sum == target) {
+                return ans;
+            } else {
+                j++;
+            }
+        }
     }
-    return nums[ai] + nums[aj] + nums[ak];
+    return ans;
 }
