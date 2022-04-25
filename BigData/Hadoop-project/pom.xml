@@ -3,10 +3,23 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <groupId>org.example</groupId>
     <artifactId>Hadoop-project</artifactId>
     <version>1.0-SNAPSHOT</version>
 
+    <!-- 属性定义 开始 -->
+    <properties>
+        <hadoop.version>3.0.0</hadoop.version>
+    </properties>
+    <!-- 属性定义 结束 -->
 
+    <!-- 依赖加载 开始-->
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>${hadoop.version}</version>
+        </dependency>
+    </dependencies>
+    <!-- 依赖加载 结束 -->
 </project>
