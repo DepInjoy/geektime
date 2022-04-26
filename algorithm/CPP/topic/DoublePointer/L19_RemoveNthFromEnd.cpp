@@ -32,5 +32,5 @@ ListNode* removeNthFromEnd(ListNode* head, int n) {
 
     ListNode* ans = dummyNode->next;
     delete dummyNode;
-    return ans->next;
+    return ans;
 }
