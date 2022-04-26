@@ -12,5 +12,25 @@ struct ListNode {
 };
 
 ListNode* removeNthFromEnd(ListNode* head, int n) {
+    ListNode* dummyNode = new ListNode();
+    dummyNode->next = head;
 
+    ListNode* slow = dummyNode;
+    ListNode* fast = head;
+    for (int i = 0; i < n; i++) {
+        fast = fast->next;
+    }
+
+    while (fast) {
+        slow = slow->next;
+        fast = fast->next;
+    }
+
+    ListNode* tmp = slow->next;
+    slow->next = tmp->next;
+    delete tmp;
+
+    ListNode* ans = dummyNode->next;
+    delete dummyNode;
+    return ans->next;
 }

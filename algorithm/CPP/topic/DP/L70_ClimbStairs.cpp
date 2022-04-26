@@ -68,10 +68,48 @@ int climbStairs(int n) {
     return cur;
 }
 
+/**
+ * @brief   f(n) = f(n-1) + f(n-2)
+ *          f(n), f(n-1)       f(n-1), f(n-2)    [ 1, 1 ]
+ *                                               [ 1, 0 ]
+ * 
+ *          f(n) f(n-1) = [2, 1] * ([1, 1])^n-2
+ *                                 ([1, 0])
+ */
 int climbStairs(int n) {
+    if (n <= 0) return 0;
+    if (n == 1 || n == 2) return n;
 
+    vector<vector> factor = {{1, 1}, {1, 0}};
+    vector<vector> ans = multiMatrix(factor, n-2);
+    return 2 * ans[0][0] + ans[1][0];
 }
 
-vector<vector<int> > matrixPower() {
+vector<vector<int>> multiMatrix(const vector<vector<int>>& m1, const vector<vector<int>>& m2) {
+    vector<vector<int>> ans(m1.size(), vector<int>(m2[0].size(), 0));
+    for (int i = 0; i < m1.size(); i++) {
+        for (int j = 0; j < m2[0].size(); j++) {
+            for (int k = 0; k < m2.size(); k++) {
+                ans[i][j] += m1[i][k] * m2[k][j];
+            }
+        }
+    }
+    return ans;
+}
 
+vector<vector<int> > matrixPower(const vector<vector<int>>& matrix, const int n) {
+    vector<vector<int>> ans(matrix.size(), vector<int>(matrix[0].size(), 0));
+    // 将结果设为单位阵
+    for (int i = 0; i < matrix.size(); i++) {
+        ans[i][i] = 1;
+    }
+
+    vector<vector<int>> tmp = matrix;
+    for (int i = n; i != 0; i >> 1) {
+        if (p & 0x01) {
+            ans = multiMatrix(ans, tmp);
+        }
+        tmp = multiMatrix(tmp, tmp);
+    }
+    return ans;
 }

@@ -11,5 +11,12 @@
 using namespace std;
 
 int removeDuplicates(vector<int>& nums) {
-
+    for (int i = 0, j = 0; i < nums.size(); i++) {
+        while (i == j || (j > i && nums[i] == nums[j])) j++;
+        if (j > i) {
+            nums.erase(nums.begin()+i+1, nums.begin()+j-1);
+            j = i;
+        }
+    }
+    return nums.size();
 }
