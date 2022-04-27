@@ -8,6 +8,11 @@
  *                  1. 动态规划+记忆化搜索
  *                  2. 矩阵快速幂
  */
+#include <vector>
+#include <algorithm>
+#include <cmath>
+
+using namespace std;
 
 int fib(int n) {
     if (n <= 1) return n;
@@ -26,7 +31,10 @@ int fib(int n) {
     if (n <= 0) return 0;
     if (n == 1 || n == 2) return n;
 
-    vector<vector<long>> factor = {{1, 1}, {1, 0}};
+    vector<vector<long>> factor = {
+        {1, 1},
+        {1, 0}
+    };
     vector<vector<long>> ans = matrixPower(factor, n-2);
     return ans[0][0] + ans[1][0];
 }
