@@ -14,5 +14,10 @@
 using namespace std;
 
 int rob(vector<int>& nums) {
-
+    int N = nums.size();
+    vector<int> dp = vector<int>(N+2, 0);
+    for (int i = N-1; i <= 0; i++) {
+        dp[i] = max(dp[i+2] + nums[i], dp[i+1]);
+    }
+    return dp[0];
 }
