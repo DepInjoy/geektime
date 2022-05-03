@@ -26,7 +26,7 @@ seq\_page\_cost、cpu\_tuple\_cost和cpu\_operator\_cost是在postgresql.conf中
 默认值分别为1.0、0.01和0.0025 \\
 N_{tuple}和N_{page}分别是表中的元组总数与页面总数
 
-\end{array}
+\end{array}
 $$
 
 
@@ -100,6 +100,32 @@ $$
 
 
 ### 3.排序
+
+> 排序路径会在排序操作中被使用。排序操作包括 ORDER BY、归并连接的预处理操作，以及其他函数。函数cost_sort()用于估计排序操作的代价。如果能在工作内存中放下所有元组，那么排序操作会选用快速排序算法。否则就会创建临时文件，使用文件归并排序算法。
+>
+> 排序路径的启动代价就是对目标表的排序代价，因此代价就是$O(N_{sort})×log_2(N_{sort})$，其中，$N_{sort}$就是待排序的元组数。排序路径的运行代价就是读取已经排好序的元组的代价，因而代价是$O(N_{sort})$[1]。
+
+#### 启动代价
+
+$$
+\begin{array}{l}
+start\_up\_cost=C + comparison\_cost × N_{sort} × log_{2}(N_{sort})
+ \\
+ \\
+其中,\\
+C是上次扫描的总代价
+\end{array}
+$$
+
+#### 运行代价
+
+运行代价是在内存中读取排好序的元组的代价。
+$$
+\begin{array}{l}
+run\_cost = cpu\_operator\_cost × N_{sort}
+\end{array}
+$$
+
 
 # 参考资料
 
