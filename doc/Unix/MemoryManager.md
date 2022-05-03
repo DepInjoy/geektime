@@ -28,6 +28,7 @@ Linux大部分申请内存的请求都回复"yes"，以便能跑更多更大的�
 
 
 
+
 如何查询和设置内存分配策略，它由`sysctl`指令支持对其操作
 
 ```shell
@@ -47,7 +48,17 @@ echo 1 > /proc/sys/vm/overcommit_memory
 
 > 当oom-killer发生时，linux会选择杀死哪些进程 选择进程的函数是oom_badness函数(在mm/oom_kill.c中)，该函数会计算每个进程的点数(0~1000)。 点数越高，这个进程越有可能被杀死。 每个进程的点数跟oom_score_adj有关，而且oom_score_adj可以被设置(-1000最低，1000最高)[1]。
 
-
+>/proc/[pid]/oom_score (since Linux 2.6.11)
+>
+>This file displays the current score that the kernel gives to this process for the purpose of selecting a process for the OOM-killer.  A higher score means that the process is more likely to be selected by the OOM-killer.  The basis for this score is the amount of memory used by the process, with increases (+) or decreases (-) for factors including.
+>* whether the process is privileged (-).
+>Before kernel 2.6.36 the following factors were also used in the calculation of oom_score:
+>* whether the process creates a lot of children usingfork(2) (+);
+>* whether the process has been running a long time, or has used a lot of CPU time (-);
+>* whether the process has a low nice value (i.e., > 0) (+); and
+>* whether the process is making direct hardware access (-).
+>
+>The oom_score also reflects the adjustment specified by the oom_score_adj or oom_adj setting for the process.[3]
 
 ## 内存使用信息
 
@@ -61,3 +72,5 @@ echo 1 > /proc/sys/vm/overcommit_memory
 
 1. [sysctl 中 vm.overcommit_memory 的含义](https://blog.51cto.com/lookingdream/1933132)
 2. [Linux vm运行参数之(一):overcommit相关的参数](http://www.wowotech.net/memory_management/overcommit.html)
+3. [proc(5) — Linux manual page](https://man7.org/linux/man-pages/man5/proc.5.html)
+
