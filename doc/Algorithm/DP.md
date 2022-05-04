@@ -1,6 +1,150 @@
 
 # 动态规划
-## 
+## 斐波那契数列问题
+> [LeetCode 509](https://leetcode-cn.com/problems/fibonacci-number)：斐波那契数 （通常用 F(n) 表示）形成的序列称为斐波那契数列 。该数列由 0 和 1 开始，后面的每一项数字都是前面两项数字的和。也就是：
+> F(0) = 0，F(1) = 1
+> F(n) = F(n - 1) + F(n - 2)，其中 n > 1
+> 给定 n ，请计算 F(n)
+该问题可以通过以下种方式来实现：
+- 1. 递归实现，时间复杂度为$O(2^N)$
+```C++
+int fib(int n) {
+    if (n <= 1) return n;
+    if (n == 2) return 1;
+    return fib(n-1)+fib(n-2);
+}
+```
+我们在计算$F(N)$的时候前面已经计算过$F(n-1)$可以通过记忆$F(n-1)$来降低计算的复杂度。
+
+- 2. 动态规划。时间复杂度为$O(N)$,空间复杂度为$O(N)$
+```C++
+int fib(int n) {    
+    vector<int> dp = vector<int>(n+2);
+    dp[0] = 0, dp[1] = 1;
+    for (int i = 2; i <= n; i++) {
+        dp[i] = dp[i-1] + dp[i-2];
+    }
+    return dp[n];
+}
+```
+$f[n]$只依赖$f[n-1]$和$f[n-2]$可以进行空间压缩，来降低空间复杂度。
+
+- 3. 动态规划+空间压缩,时间复杂度为$O(N)$,空间复杂度为$O(1)$
+```C++
+int fib(int n) {
+    if (n <= 1) return n;
+
+    int pre = 1, prepre = 0;
+    int cur = 1;
+    for (int i = 2; i <= n; i++) {
+        cur = pre + prepre;
+        prepre = pre;
+        pre = cur;
+    }
+    return cur;
+}
+```
+- 4. 矩阵快速幂,时间复杂度为$O(log_{2}N)$,空间复杂度为$O(1)$
+$$
+\begin{array}{l}
+\begin{bmatrix}
+  F(N)\\
+  F(N-1)
+\end{bmatrix}  = \begin{bmatrix}
+F(N-1) + F(N-2) \\
+F(N-1)
+\end{bmatrix} = \begin{bmatrix}
+ 1 & 1\\
+ 1 & 0
+\end{bmatrix} \begin{bmatrix}
+F(N-1) \\
+F(N-2)
+\end{bmatrix}
+\\
+\\
+可以推出：\\
+\begin{bmatrix}
+  F(N)\\
+  F(N-1)
+\end{bmatrix} = \begin{bmatrix}
+  1 & 1\\
+  1 & 0
+\end{bmatrix}^{N-1} \begin{bmatrix}
+ F(1)\\
+ F(0)
+\end{bmatrix}
+\end{array}
+$$
+快速幂算法可以快速计算$M^N$在$O(log_{2}N)$的时间复杂度内计算得到结果。
+快速幂算法源码较长，可以参考[实现Github源码](https://github.com/DepInjoy/geektime/blob/main/algorithm/CPP/topic/DP/00_FibonacciNumber/L509_FibonacciNumber.cpp)
+
+- 5. 通项公式
+$$
+\begin{array}{l}
+斐波那契数F(n)是齐次线性递推，根据递推方程F(N) = F(N-1) + F(N-2),可得到特征方程\\
+x^2=x+1
+\\
+求得x_1=\frac{1+\sqrt{5}}{2},x_1=\frac{1-\sqrt{5}}{2},设通解为 F(n)=c_1x_1^n+c_2x_2^n\\
+初始值F(0)=0,F(1)=1，代入计算得到c_1=\frac{1}{\sqrt{5}},c_2=-\frac{1}{\sqrt{5}}\\
+由此得：F(n)=\frac{1}{\sqrt{5}} \left[\left( \frac{1+\sqrt{5}}{2}\right)^n - \left( \frac{1-\sqrt{5}}{2}\right)^n \right ]
+\end{array}
+$$
+
+```c++
+int fib(int n) {
+    double sqrt5 = sqrt(5);
+    double fibN = pow((1 + sqrt5) / 2, n) - pow((1 - sqrt5) / 2, n);
+    return round(fibN / sqrt5);
+}
+```
+### 类似扩展
+> [LeetCode 70：爬楼梯问题](https://leetcode-cn.com/problems/climbing-stairs/) 设你正在爬楼梯。需要 n 阶你才能到达楼顶。每次你可以爬 1 或 2 个台阶。
+这就是一个斐波那契额数列问题，状态转移方程：$F(n)=F(n-1)+F(n-2)$
+
+[实现github源码](https://github.com/DepInjoy/geektime/blob/main/algorithm/CPP/topic/DP/00_FibonacciNumber/L70_ClimbStairs.cpp)
+
+> [LeetCode1137 第 N 个泰波那契数](https://leetcode-cn.com/problems/n-th-tribonacci-number) 泰波那契序列 Tn 定义如下： T0=0, T1=1, T2=1, 且在n>= 0 的条件下Tn+3=Tn+Tn+1+Tn+2。给你整数n，请返回第n个泰波那契数Tn的值
+
+快速幂算法递归公式
+$$
+\begin{array}{l}
+\begin{bmatrix}
+ T_n\\
+ T_{n-1}\\
+ T_{n-2}
+\end{bmatrix} = \begin{bmatrix}
+ T_{n-3} + T_{n-2} + T_{n-1}\\
+ T_{n-1}\\
+ T_{n-2}
+\end{bmatrix} = \begin{bmatrix}
+1 & 1 & 1 \\
+1 & 0 & 0 \\
+0 & 1 & 0
+\end{bmatrix} \begin{bmatrix}
+T_{n-1} \\
+T_{n-2} \\
+T_{n-3}
+\end{bmatrix}
+\\
+\\
+从而，可以推出：\\
+\begin{bmatrix}
+ T_n\\
+ T_{n-1}\\
+ T_{n-2}
+\end{bmatrix} = \left (\begin{bmatrix}
+1 & 1 & 1 \\
+1 & 0 & 0 \\
+0 & 1 & 0
+\end{bmatrix} \right )^{n-2}\begin{bmatrix}
+ T_2\\
+ T_{1}\\
+ T_{0}
+\end{bmatrix} \\
+其中：T_0=0, T_1=1, T_2=1
+\end{array} 
+$$
+[动态规划和快速幂等实现github源码](https://github.com/DepInjoy/geektime/blob/main/algorithm/CPP/topic/DP/00_FibonacciNumber/L1137_tribonacci.cpp)
 
 ## 背包问题
 背包问题是一类经典的可以应用动态规划来解决的问题。背包问题的基本描述如下：给定一组物品，每种物品都有其重量和价格，在限定的总重量内如何选择才能使物品的总价格最高。由于问题是关于如何选择最合适的物品放置于给定的背包中，因此这类问题通常被称为背包问题。根据物品的特点，背包问题还可以进一步细分。
