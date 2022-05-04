@@ -5,15 +5,35 @@
  *              链接：https://leetcode-cn.com/problems/fibonacci-number
  * 
  *              实现思想：
- *                  1. 动态规划+记忆化搜索
- *                  2. 矩阵快速幂
+ *                  1. 递归实现,复杂度为O(2^N)
+ *                  2. 动态规划
+ *                  3. 动态规划+滚动数组
+ *                  4. 矩阵快速幂
+ *                  5. 通项公式
  */
 #include <vector>
 #include <algorithm>
 #include <cmath>
 
 using namespace std;
+// 1. 递归实现
+int fib(int n) {
+    if (n <= 1) return n;
+    if (n == 2) return 1;
+    return fib(n-1)+fib(n-2);
+}
 
+// 2. 动态规划,f[n]只依赖f[n-1]和f[n-2]可以进行空间压缩
+int fib(int n) {    
+    vector<int> dp = vector<int>(n+2);
+    dp[0] = 0, dp[1] = 1;
+    for (int i = 2; i <= n; i++) {
+        dp[i] = dp[i-1] + dp[i-2];
+    }
+    return dp[n];
+}
+
+// 3. 动态规划+滚动数组
 int fib(int n) {
     if (n <= 1) return n;
 
@@ -27,6 +47,7 @@ int fib(int n) {
     return cur;
 }
 
+// 4. 矩阵快速幂
 int fib(int n) {
     if (n <= 0) return 0;
     if (n == 1 || n == 2) return n;
@@ -67,4 +88,11 @@ vector<vector<long> > matrixPower(const vector<vector<long>>& matrix, const int 
         tmp = multiMatrix(tmp, tmp);
     }
     return ans;
+}
+
+// 5. 通项公式
+int fib(int n) {
+    double sqrt5 = sqrt(5);
+    double fibN = pow((1 + sqrt5) / 2, n) - pow((1 - sqrt5) / 2, n);
+    return round(fibN / sqrt5);
 }
