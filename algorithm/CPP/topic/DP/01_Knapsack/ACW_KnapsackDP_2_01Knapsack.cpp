@@ -15,3 +15,29 @@
  *              链接：
  *              https://www.acwing.com/problem/content/2/
  */
+
+#include <iostream>
+#include <vector>
+using namespace std;
+
+const int N = 1010;
+int v[N], w[N];
+int dp[N];
+
+int main() {
+    // 获取输入
+    int n, m; // 分别表示物品数量和背包体积
+    cin >> n >> m;
+    for (int i = 0; i < n; i++) {
+        cin >> v[i] >> w[i];
+    }
+    
+    // 动态规划主体
+    for (int i = 0; i < n; i++) {
+        for (int j = m; j >= 0 && j - v[i] >= 0; j--) {
+            dp[j] = max(dp[j], dp[j - v[i]] + w[i]);
+        }
+    }
+    cout << dp[m];
+    return 0;
+}
