@@ -9,6 +9,7 @@
  *              1. 记忆化搜索+动态规划
  *              2. 矩阵快速幂
  */
+
 #include <vector>
 #include <algorithm>
 #include <cmath>
@@ -31,30 +32,16 @@ int tribonacci(int n) {
 }
 
 int tribonacci(int n) {
-    if (n <= 1) return n;
-    if (n == 2) return 1;
-
-    int pre = 1, prepre = 0;
-    int cur = 1;
-    for (int i = 2; i <= n; i++) {
-        cur = pre + prepre;
-        prepre = pre;
-        pre = cur;
-    }
-    return cur;
-}
-
-int fib(int n) {
     if (n <= 0) return 0;
-    if (n == 1 || n == 2) return n;
+    if (n == 1 || n == 2) return 1;
 
     vector<vector<long>> factor = {
         {1, 1, 1},
-        {0, 0, 1},
+        {1, 0, 0},
         {0, 1, 0}
     };
     vector<vector<long>> ans = matrixPower(factor, n-2);
-    return ans[0][0] + ans[1][0];
+    return ans[0][0] + ans[0][1];
 }
 
 vector<vector<long>> multiMatrix(const vector<vector<long>>& m1,
