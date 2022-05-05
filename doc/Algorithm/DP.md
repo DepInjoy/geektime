@@ -182,7 +182,7 @@ $$
 dp[i][j] = max(dp[i-1][j], \\
 dp[i-1][j-v[i]]+w[i], dp[i-1][j-2*v[i]] + 2*w[i], ....., dp[i-1][j-k*v[i]] + k*w[i], ......)\\
 \\
-dp[i][j-v[i]] = max(\\
+dp[i-1][j-v[i]] = max(\\
 dp[i-1][j-v[i]], dp[i-1][j-2*v[i]]+w[i], dp[i-1][j-3*v[i]] + 2*w[i], ....., dp[i-1][j-(k+1)*v[i]] + k*w[i], ......)\\
 \\
 \\
@@ -218,6 +218,9 @@ for (int i = 0; i < n; i++) {
 - [329. 矩阵中的最长递增路径](https://leetcode-cn.com/problems/longest-increasing-path-in-a-matrix/)
 - [51. N 皇后](https://leetcode-cn.com/problems/n-queens/)
 - [52. N皇后 II](https://leetcode-cn.com/problems/n-queens-ii/)
+
+# 练习题
+- [LeetCode 42. 接雨水(H)](https://leetcode-cn.com/problems/trapping-rain-water/)
 
 # 参考资料
 - 1 《剑指Offer(专项突破版)：数据结构与算法名企面试题精讲》
