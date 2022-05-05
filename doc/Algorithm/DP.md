@@ -98,11 +98,13 @@ int fib(int n) {
 }
 ```
 ### 类似扩展
+- 1. **爬楼梯问题**
 > [LeetCode 70：爬楼梯问题](https://leetcode-cn.com/problems/climbing-stairs/) 设你正在爬楼梯。需要 n 阶你才能到达楼顶。每次你可以爬 1 或 2 个台阶。
 这就是一个斐波那契额数列问题，状态转移方程：$F(n)=F(n-1)+F(n-2)$
 
 [实现github源码](https://github.com/DepInjoy/geektime/blob/main/algorithm/CPP/topic/DP/00_FibonacciNumber/L70_ClimbStairs.cpp)
 
+- 2. 第N个泰波那契数
 > [LeetCode1137 第 N 个泰波那契数](https://leetcode-cn.com/problems/n-th-tribonacci-number) 泰波那契序列 Tn 定义如下： T0=0, T1=1, T2=1, 且在n>= 0 的条件下Tn+3=Tn+Tn+1+Tn+2。给你整数n，请返回第n个泰波那契数Tn的值
 
 快速幂算法递归公式
@@ -151,6 +153,63 @@ $$
 - 如果每种物品只有一个，可以选择将之放入或不放入背包，那么可以将这类问题称为0-1背包问题。0-1背包问题是最基本的背包问题，其他背包问题通常可以转化为0-1背包问题。
 - 如果第i种物品最多有$M_i$个，也就是每种物品的数量都是有限的，那么这类背包问题称为有界背包问题（也可以称为多重背包问题）。
 - 如果每种物品的数量都是无限的，那么这类背包问题称为无界背包问题（也可以称为完全背包问题）[1]
+### 0-1背包问题
+$$
+\begin{array}{l}
+状态转移方程:\\
+dp[i][j] = max(dp[i-1][j], dp[i-1][j-v[i]] + w[i])
+\\
+\\
+对于j的遍历，从大到小进行更新，可以进行空间压缩到一维dp[j] \\
+dp[j] = max(dp[j], dp[j-v[i]] + w[i])
+\end{array}
+$$
+```C++
+// n为物品数量, m为背包体积
+for (int i = 0; i < n; i++) {
+    for (int j = m; j >= 0 && j - v[i] >= 0; j--) {
+        dp[j] = max(dp[j], dp[j - v[i]] + w[i]);
+    }
+}
+//最终结果为dp[m];
+```
+
+### 完全背包问题
+$$
+\begin{array}{l}
+状态转移方程:\\
+第i个物品可被选择的数量为0, 1, 2 ......, k ...\\
+dp[i][j] = max(dp[i-1][j], \\
+dp[i-1][j-v[i]]+w[i], dp[i-1][j-2*v[i]] + 2*w[i], ....., dp[i-1][j-k*v[i]] + k*w[i], ......)\\
+\\
+dp[i][j-v[i]] = max(\\
+dp[i-1][j-v[i]], dp[i-1][j-2*v[i]]+w[i], dp[i-1][j-3*v[i]] + 2*w[i], ....., dp[i-1][j-(k+1)*v[i]] + k*w[i], ......)\\
+\\
+\\
+可以得出：\\
+dp[i][j] = max(dp[i-1][j], dp[i-1][j-v[i]] + w[i])
+\\
+\\
+和01背包类似，将j从0到m遍历，可以进行空间压缩\\
+dp[j] = max(dp[j], dp[j-v[i]]+w[i])
+\end{array}
+$$
+```c++
+// n为物品数量, m为背包体积
+for (int i = 0; i < n; i++) {
+    for (int j = v[i]; j <= m; j++) {
+        dp[j] = max(dp[j], dp[j - v[i]] + w[i]);
+    }
+}
+// 最终结果为dp[m];
+```
+### 多重背包问题
+
+#### 二进制优化
+
+#### 单调栈优化
+
+### 分组背包问题
 
 
 ## 记忆搜索
