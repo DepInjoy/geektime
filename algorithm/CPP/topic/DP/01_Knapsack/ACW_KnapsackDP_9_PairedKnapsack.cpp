@@ -14,3 +14,34 @@
  *          数据范围：0<N,V≤100, 0<Si≤100, 0<vij,wij≤100
  *          链接：https://www.acwing.com/problem/content/9/
  */
+
+#include <iostream>
+using namespace std;
+const int N = 110;
+
+int v[N][N], w[N][N], s[N];
+int dp[N];
+
+int main() {
+    int m, n;
+    cin >> n >> m;
+    
+    for (int i = 0; i < n; i++) {
+        cin >> s[i];
+        for (int j = 0; j < s[i]; j++) {
+            cin >> v[i][j] >> w[i][j];
+        }
+    }
+    
+    for (int i = 0; i < n; i++) {
+        for (int j = m; j >= 0; j--) {
+            for (int k = 0; k <= s[i]; k++) {
+                if (j - v[i][k] >= 0) {
+                    dp[j] = max(dp[j], dp[j - v[i][k]] + w[i][k]);
+                }
+            }
+        }
+    }
+    cout << dp[m] << endl;
+    return 0;
+}
