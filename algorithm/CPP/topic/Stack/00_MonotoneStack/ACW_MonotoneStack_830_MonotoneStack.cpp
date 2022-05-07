@@ -8,3 +8,25 @@
  *          数据范围:1≤N≤105, 1≤数列中元素≤109
  *          链接：https://www.acwing.com/problem/content/832/
  */
+
+#include<iostream>
+using namespace std;
+
+const int N = 100000;
+int stack[N], tt = 0;
+int main() {
+    int n;
+    cin >> n;
+    for (int i = 0; i < n; i++) {
+        int x;
+        cin >> x;
+        while(tt && stack[tt] >= x) tt--;
+        if (!tt) {
+            cout << -1 << " ";
+        } else{
+            cout << stack[tt] << " ";
+        }
+        stack[++tt]=x;
+    }
+    return 0;
+}
