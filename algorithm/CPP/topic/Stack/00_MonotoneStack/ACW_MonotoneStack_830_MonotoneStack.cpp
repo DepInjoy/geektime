@@ -30,3 +30,25 @@ int main() {
     }
     return 0;
 }
+
+#if 0
+#include<iostream>
+#include<stack>
+using namespace std;
+
+const int N = 100000;
+stack<int> stk;
+int main() {
+    int n;
+    cin >> n;
+    stk.push(-1);
+    for (int i = 0; i < n; i++) {
+        int x;
+        cin >> x;
+        while(stk.size() && stk.top() >= x) stk.pop();
+        cout << stk.top() << " ";
+        stk.push(x);
+    }
+    return 0;
+}
+#endif
