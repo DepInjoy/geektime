@@ -243,10 +243,15 @@ int uniquePaths(int m, int n) {
 ```
 [LeetCode 63 不同路径 II](https://leetcode.cn/problems/unique-paths-ii)此问题会有路障
 $$
+\begin{array}{l}
+状态初始化: f[0][0] = (matrix[0][0] == 0)\\
+\\
+状态转移方程： \\
 f[i][j] = \begin{cases}
   & 0 & matrix[i][j] = 0 \\
   & f[i-1][j]+f[i][j-1] & matrix[i][j] \ne 0
 \end{cases}
+\end{array}
 $$
 ## 记忆搜索
 
