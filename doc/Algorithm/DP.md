@@ -1,5 +1,9 @@
 
 # 动态规划
+动态规划的题目分为两大类
+- 一种是求最优解类，典型问题是背包问题，此类问题的地推性质具有一个名字-最优子结构，即当前问题的最优解取决于子问题的最优解。
+- 另一种是计数类，比如[LeetCode 63.不同路径 II](https://leetcode.cn/problems/unique-paths-ii/)统计方案数的问题，它们都存在一定的递推性质。当前问题的方案数取决于子问题的方案数。
+
 ## 斐波那契数列问题
 > [LeetCode 509](https://leetcode-cn.com/problems/fibonacci-number)：斐波那契数 （通常用 F(n) 表示）形成的序列称为斐波那契数列 。该数列由 0 和 1 开始，后面的每一项数字都是前面两项数字的和。也就是：
 > F(0) = 0，F(1) = 1
@@ -211,7 +215,39 @@ for (int i = 0; i < n; i++) {
 
 ### 分组背包问题
 
+## 矩阵路径问题
+> 矩阵路径是一类常见的可以用动态规划来解决的问题。这类问题通常输入的是一个二维的格子，一个机器人按照一定的规则从格子的某个位置走到另一个位置，要求计算路径的条数或找出最优路径。
+> 
+> 矩阵路径相关问题的状态方程通常有两个参数，即f(i,j)是机器人当前的位置，需要根据路径的特点找出到达坐标(i，j)之前的位置，通常是坐标(i-1，j-1), (i-1, j), (i, j-1)中的一个或多个。相应地，状态转移方程就是找出f(i,j)与f(i-1，j-1), f(i-1, j), f(i, j-1)之间的关系。可以根据状态转移方程写出递归代码，但值得注意的是一定要将f(i, j)的计算结果用一个二维数组缓存，以避免不必要的重复计算。也可以将计算所有f(i, j)看成填充二维表格的过程，相应地，可以创建一个二维数组并逐一计算每个元素的值。
+> 
+> **通常，矩阵路径相关问题的代码都可以优化空间效率，用一个一维数组就能保存所有必需的数据**[1]。
 
+### 路径的数目
+[LeetCode 62 不同路径](https://leetcode.cn/problems/unique-paths)
+$$
+\begin{array}{l}
+f[i][j]=f[i-1][j]+f[i][j-1]
+\end{array}
+$$
+滚动数组实现
+```c
+int uniquePaths(int m, int n) {
+    vector<int> dp(n, 1);
+    for (int i = 1; i < m; i++) {
+        for (int j = 1; j < n; j++) {
+            dp[j] += dp[j-1];
+        }
+    }
+    return dp[n-1];
+}
+```
+[LeetCode 63 不同路径 II](https://leetcode.cn/problems/unique-paths-ii)此问题会有路障
+$$
+f[i][j] = \begin{cases}
+  & 0 & matrix[i][j] = 0 \\
+  & f[i-1][j]+f[i][j-1] & matrix[i][j] \ne 0
+\end{cases}
+$$
 ## 记忆搜索
 
 - [516.最长回文子序列](https://leetcode-cn.com/problems/longest-palindromic-subsequence/)
