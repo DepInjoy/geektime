@@ -6,7 +6,9 @@
  *          链接：https://leetcode.cn/problems/delete-and-earn
  *          
  *          实现思想：
- *              1. 动态规划
+ *              1. 动态规划,时间复杂度O(N), 空间复杂度为O(N+M)
+ *                  N为数组的长度，M为数组的最大长度
+ *              2. 动态规划+分组，时间复杂度为O(NlogN),空间复杂度为O(N)
  */
 
 int deleteAndEarn(vector<int>& nums) {
