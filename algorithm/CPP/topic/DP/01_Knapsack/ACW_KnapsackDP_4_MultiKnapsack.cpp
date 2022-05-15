@@ -99,8 +99,11 @@ int main() {
             int hh = 0, tt = -1;
             for (int k = j; k <= m; k += v) { // k表示m%v的第几个数
                 f[k] = g[k];
+                // 最多s+1个元素，超出个数限制则移除队首元素
                 if (hh <= tt && k-s*v > q[hh]) hh++;
+                // 队首肯定是最大的
                 if (hh <= tt) f[k] = max(f[k], g[q[hh]]+(k-q[hh])/v*w);
+                //将k压入队列前，先把所有比它小的出队
                 while(hh <= tt && g[q[tt]]-(q[tt]-j)/v*w <= g[k]-(k-j)/v*w) tt--;
                 q[++tt] = k;
             }
