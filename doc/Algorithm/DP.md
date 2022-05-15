@@ -1,5 +1,7 @@
 
 # 动态规划
+在采用动态规划时总是用递归的思路分析问题，即把大问题分解成小问题，再把小问题的解合起来形成大问题的解。找出描述大问题的解和小问题的解之间递归关系的状态转移方程是采用动态规划解决问题的关键所在。
+
 动态规划的题目分为两大类
 - 一种是求最优解类，典型问题是背包问题，此类问题的地推性质具有一个名字-最优子结构，即当前问题的最优解取决于子问题的最优解。
 - 另一种是计数类，比如[LeetCode 63.不同路径 II](https://leetcode.cn/problems/unique-paths-ii/)统计方案数的问题，它们都存在一定的递推性质。当前问题的方案数取决于子问题的方案数。
@@ -158,6 +160,7 @@ $$
 - 如果第i种物品最多有$M_i$个，也就是每种物品的数量都是有限的，那么这类背包问题称为有界背包问题（也可以称为多重背包问题）。
 - 如果每种物品的数量都是无限的，那么这类背包问题称为无界背包问题（也可以称为完全背包问题）[1]
 ### 0-1背包问题
+> 有 N 件物品和一个容量是 V 的背包。每件物品只能使用一次.第 i 件物品的体积是 vi，价值是 wi。求解将哪些物品装入背包,可使这些物品的总体积不超过背包容量，且总价值最大。输出最大价值
 $$
 \begin{array}{l}
 状态转移方程:\\
@@ -179,6 +182,8 @@ for (int i = 0; i < n; i++) {
 ```
 
 ### 完全背包问题
+> 有 N 种物品和一个容量是 V 的背包，每种物品都有无限件可用。第 i 种物品的体积是 vi，价值是 wi。求解将哪些物品装入背包,可使这些物品的总体积不超过背包容量，且总价值最大。输出最大价值。
+
 $$
 \begin{array}{l}
 状态转移方程:\\
@@ -208,11 +213,93 @@ for (int i = 0; i < n; i++) {
 // 最终结果为dp[m];
 ```
 ### 多重背包问题
-
+> 有 N 种物品和一个容量是 V 的背包。第 i 种物品最多有 si 件，每件体积是 vi，价值是 wi。求解将哪些物品装入背包，可使物品体积总和不超过背包容量，且价值总和最大。
+$$
+\begin{array}{l}
+dp[i][j] = max(dp[i-1][j], dp[i-1][j-v_i]+w[i], dp[i-1][j-2*v_i] + 2*w[i], ....., dp[i-1][j-k*v_i] + k*w[i]) \\
+其中，k <= s[i]且j - k * v_i >= 0
+\end{array}
+$$
 #### 二进制优化
+将这$s_i$件物品拆成系数构成一组价值和体积和系数乘积的物品，便可以将高问题转化为01背包问题。这些系数分别为$1, 2, 4, ......, 2^{k-1}, n - 2^{k}+1$,其中，k是满足$n-2^k+1$的最大正整数。
 
-#### 单调栈优化
+例如，13可以拆解为$1, 2, 4, 6$。
 
+```c++
+#include <iostream>
+#include <vector>
+using namespace std;
+
+const int N = 12010, M= 2010;
+int v[N], w[N];
+int dp[M];
+
+int main() {
+    int n, m;
+    cin >> n >> m;
+    int cnt = 0;
+    for (int i = 0; i < n; i++) {
+        int vi, wi, si;
+        cin >> vi >> wi >> si;
+        // 系数拆解
+        for (int k = 1; k <= si; k *= 2) {
+            v[++cnt] = vi * k;
+            w[cnt] = wi * k;
+            si -= k;
+        }
+        if (si > 0) {
+            v[++cnt] = vi * si;
+            w[cnt] = wi * si;
+        }
+    }
+
+    // 转化为01背包问题
+    n = cnt;
+    for (int i = 1; i <= n; i++) {
+        for (int j = m; j >= v[i]; j--) {
+            dp[j] = max(dp[j], dp[j - v[i]] + w[i]);
+        }
+    }
+    cout << dp[m];
+    return 0;
+}
+```
+#### 单调队列优化
+
+```C++
+#include <iostream>
+#include<cstring>
+
+using namespace std;
+
+const int N = 20010;
+
+int n, m;
+int f[N], g[N], q[N];
+
+int main() {
+    cin >> n >> m;
+    for (int i = 0; i < n; i++) {
+        int v, w, s;
+        cin >> v >> w >> s;
+        memcpy(g, f, sizeof(f));
+        
+        for (int j = 0; j < v; j++) {
+            int hh = 0, tt = -1;
+            for (int k = j; k <= m; k += v) { // k表示m%v的第几个数
+                f[k] = g[k];
+                if (hh <= tt && k-s*v > q[hh]) hh++;
+                if (hh <= tt) f[k] = max(f[k], g[q[hh]]+(k-q[hh])/v*w);
+                while(hh <= tt && g[q[tt]]-(q[tt]-j)/v*w <= g[k]-(k-j)/v*w) tt--;
+                q[++tt] = k;
+            }
+        }
+    }
+
+    cout << f[m] << endl;
+    return 0;
+}
+```
 ### 分组背包问题
 
 ## 矩阵路径问题
@@ -253,6 +340,11 @@ f[i][j] = \begin{cases}
 \end{cases}
 \end{array}
 $$
+
+## 双序列问题
+
+## 单序列问题
+
 ## 记忆搜索
 
 - [516.最长回文子序列](https://leetcode-cn.com/problems/longest-palindromic-subsequence/)
