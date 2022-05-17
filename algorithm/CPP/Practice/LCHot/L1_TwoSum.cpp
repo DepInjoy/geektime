@@ -12,6 +12,7 @@
  * 
  */
 
+// Hash表实现
 vector<int> twoSum(vector<int>& nums, int target) {
     unordered_map<int, int> valmap;
     for (int i = 0; i < nums.size(); i++) {
