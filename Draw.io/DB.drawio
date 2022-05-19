@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2022-05-18T12:59:26.569Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36" etag="WoMkohqsOhS2O8LbfVT4" version="18.0.1" type="github" pages="5">
+<mxfile host="app.diagrams.net" modified="2022-05-19T10:34:18.755Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36" etag="9k2hCagwv8rOMHz_0DMh" version="18.0.1" type="github" pages="5">
   <diagram id="m-U73xjPtrYBY18f9X35" name="页空间">
     <mxGraphModel dx="653" dy="752" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -948,7 +948,7 @@
     </mxGraphModel>
   </diagram>
   <diagram id="v4zK8CS9iN7JGlFnrTZx" name="PG-Plan">
-    <mxGraphModel dx="2489" dy="1921" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="4152" dy="1931" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -1326,6 +1326,39 @@
         </mxCell>
         <mxCell id="KHQBoaJ28ttdN96sJKeJ-17" value="&lt;h1&gt;执行器、缓冲管理器和临时文件间关系&lt;/h1&gt;&lt;p&gt;执行器会通过将在缓冲区管理器来访问数据库集簇的表和索引。当处理一个查询时，执行器会使用预先分配的内存空间，比如temp_buffers和work_mem，必要时还会创建临时文件。&lt;br&gt;&lt;/p&gt;" style="text;html=1;strokeColor=none;fillColor=none;spacing=5;spacingTop=-20;whiteSpace=wrap;overflow=hidden;rounded=0;fontSize=15;" vertex="1" parent="1">
           <mxGeometry x="-1480" y="-200" width="560" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-18" value="Page(默认8K)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="-1880" y="-40" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-19" value="Page(默认8K)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="-1880" y="1" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-20" value=".&lt;br&gt;.&lt;br&gt;." style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="-1880" y="41" width="200" height="79" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-21" value="Page(默认8K)" style="rounded=0;whiteSpace=wrap;html=1;fontSize=15;strokeWidth=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="-1880" y="201" width="200" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-22" value="" style="shape=singleArrow;direction=north;whiteSpace=wrap;html=1;fontSize=15;strokeWidth=1;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-1810" y="131" width="60" height="59" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-23" value="" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.annotation_2;align=left;labelPosition=right;pointerEvents=1;fontSize=15;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="-1980" y="-19" width="50" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-24" value="0th" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="-1920" y="-29" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-25" value="1th" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="-1920" y="10" width="30" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-26" value="Nth" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="-1920" y="200" width="30" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-27" value="Block Number" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="-2100" y="86" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="KHQBoaJ28ttdN96sJKeJ-28" value="&lt;h1&gt;堆表文件页面布局&lt;/h1&gt;&lt;p&gt;L&lt;/p&gt;" style="text;html=1;strokeColor=none;fillColor=none;spacing=5;spacingTop=-20;whiteSpace=wrap;overflow=hidden;rounded=0;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="-2090" y="-170" width="410" height="120" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
