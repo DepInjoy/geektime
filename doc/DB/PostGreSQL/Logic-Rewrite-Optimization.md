@@ -33,9 +33,9 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
 
 逻辑优化被划可以划分为逻辑重写优化和逻辑分解优化。划分依据是：逻辑重写优化阶段主要还是对查询树重写，即在查询树上进行改造，改造后还是一颗查询树，在逻辑分解阶段，会将查询树打散，重新建立等价于查询树的逻辑关系。
 
-## 逻辑重写优化
+# 逻辑重写优化
 
-### 通用表达式
+## 通用表达式
 
 通用表达式对应的是WITH语句，作用和子查询类似，是一个单独的逻辑操作，DB不对通用表达式做提升优化。因为通用表达式实现的字表常会被多次使用，具有“一次求值，多次使用”的特点。
 
@@ -65,11 +65,11 @@ typedef struct WithClause
 
 
 
-### 子查询提升
+## 子查询提升
 
 
 
-#### 提升子连接
+### 提升子连接
 
 PostgreSQL数据库依据不同谓词区分SUBLINK的类型。
 
@@ -140,19 +140,19 @@ select * from student where exists (select sno from score);
 
 
 
-#### 提升子查询
+### 提升子查询
 
-### UNION ALL优化
+## UNION ALL优化
 
-### 展开继承表
+## 展开继承表
 
-### 预处理表达式
+## 预处理表达式
 
-###  处理HAVING子句
+##  处理HAVING子句
 
-### GROUP BY键值消除
+## GROUP BY键值消除
 
-### 外连接消除
+## 外连接消除
 
 
 
