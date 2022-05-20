@@ -94,9 +94,90 @@ typedef ItemIdData *ItemId;
 
 ### 元组结构
 
- ### 普通元组
+ #### 普通元组
 
- ### 增、删、改
+堆元组由三个部分组成，由`HeapTupleHeaderData` 结构、空值位图及用户数据.
+
+堆元组由` HeapTupleHeaderData` 表示，相关实现在`src\include\access\htup_details.h`。
+
+```c
+typedef struct HeapTupleFields
+{
+	TransactionId t_xmin;		// 插入此元组的事务的ID即txid
+	TransactionId t_xmax;		// 删除或更新此元组的事务的txid
+	union {
+		CommandId	t_cid;		// 插入或删除的命令ID(Command id,cid)
+        						// cid指当前事务中，执行当前命令前执行了多少SQL，从零开始计数
+		TransactionId t_xvac;	// 老式VACUUM FULL的事务ID
+	} t_field3;
+} HeapTupleFields;
+
+typedef struct DatumTupleFields
+{
+	int32		datum_len_;		// 可变首部的长度
+	int32		datum_typmod;	// -1或者是记录类型的标识
+	Oid			datum_typeid;	// 复杂类型的oid或记录ID
+} DatumTupleFields;
+
+struct HeapTupleHeaderData
+{
+	union {
+		HeapTupleFields t_heap;
+		DatumTupleFields t_datum;
+	} t_choice;
+	
+    ItemPointerData 	t_ctid; // 当前元组或更新元组的TID
+    							// 更新该元组时，t_ctid会指向新版本的元组，否则t_ctid指向自己
+
+	/* 下面的字段必须与结构MinimalTupleData相匹配 */
+	uint16		t_infomask2;	/* number of attributes + various flags */
+	uint16		t_infomask;		/* various flag bits, see below */
+	uint8		t_hoff;			/* sizeof header incl. bitmap, padding */
+	/* ^ - 23 bytes - ^ */
+	bits8		t_bits[FLEXIBLE_ARRAY_MEMBER];	// NULL值的位图,变长数组
+	/* MORE DATA FOLLOWS AT END OF STRUCT */
+};
+```
+
+##### 增删改
+
+将新元组插入目标表的页面，扩展模块`pageinspect`，可用于检查数据库页面的具体内容。假设元组是由`txid=99`的事务插入页面中的，在这种情况下，被插入元组的首部字段会依以下步骤设置，`Tuple_1`：
+
+-  `t_xmin`设置为99，因为此元组由`txid=99`的事务所插入。
+-  `t_xmax`设置为0，因为此元组尚未被删除或更新。
+- `t_cid`设置为0，因为此元组是由`txid=99`的事务所执行的第一条命令插入的。
+- ` t_ctid`设置为(0,1)，指向自身，因为这是该元组的最新版本。
+
+![](./img/insert-tuple.png)
+
+
+
+在删除操作中，目标元组只是在逻辑上被标记为删除。目标元组的`t_xmax` 字段将被设置为执行DELETE命令事务的`txid`，假设Tuple_1被`txid=111`的事务删除。在这种情况下，`Tuple_1`的首部字段`t_xmax`被设为111。如果`txid=111`的事务已经提交，就不一定要`Tuple_1`。通常不需要的元组被称为死元组（Dead Tuple）。死元组最终将从页面中被移除。清除死元组的过程被称为清理（VACUUM）过程
+
+![](./img/delete-tuple.png)
+
+
+
+在更新操作中，逻辑上实际执行的是删除最新的元组，并插入一条新的元组。假设由`txid=99`的事务插入的行，被`txid=100`的事务更新两次。
+
+当执行第一条UPDATE命令时，Tuple_1的`t_xmax`被设为`txid 100`，在逻辑上被删除，然后Tuple_2被插入，接下来重写Tuple_1的`t_ctid`以指向Tuple_2。Tuple_1和Tuple_2的头部字段设置如下:
+
+- 对于Tuple_1：` t_xmax`被设置为100, `t_ctid`从(0,1)被改写为(0,2)。
+
+- 对于Tuple_2: `t_xmin`被设置为100, `t_xmax`被设置为0, `t_cid`被设置为0, ` t_ctid`被设置为(0,2)。
+
+当执行第二条UPDATE命令时，和第一条UPDATE命令类似，Tuple_2被逻辑删除，Tuple_3被插入。Tuple_2和Tuple_3的首部字段设置如下。
+
+- 对于`Tuple_2`, ` t_xmax`设置为100, `t_ctid`从(0,2)被改写为(0,3)。
+- 对于`Tuple_3`,  `t_xmin`设置为100，`t_xmax`设置为0,  `t_cid`设置为1, ` t_ctid`设置为(0,3)。
+
+与删除操作类似，如果`txid=100`的事务已经提交，那么Tuple_1和Tuple_2成死元组，而如果`txid=100`的事务中止，`Tuple_2`和`Tuple_3`成死元组。
+
+![](./img/update-tuple.png)
+
+##### 空闲空间映射
+
+插入堆或索引元组时，PostgreSQL使用表与索引相应的FSM来选择可供插入的页面。每个FSM存储着相应表或索引文件中每个页面可用空间容量的信息。所有FSM都以后缀fsm存储，在需要时它们会被加载到共享内存中。扩展 pg_freespacemap能提供特定表或索引上的空闲空间信息。
 
 
 
