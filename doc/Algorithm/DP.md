@@ -302,6 +302,10 @@ int main() {
 ```
 ### 分组背包问题
 
+### 练习题
+- [剑指 Offer II 101. 分割等和子集](https://leetcode.cn/problems/NUPfPr/)
+- [剑指 Offer II 102. 加减的目标值](https://leetcode.cn/problems/YaVDxD/)
+- [剑指 Offer II 103. 最少的硬币数目](https://leetcode.cn/problems/gaM7Ch/)
 ## 矩阵路径问题
 > 矩阵路径是一类常见的可以用动态规划来解决的问题。这类问题通常输入的是一个二维的格子，一个机器人按照一定的规则从格子的某个位置走到另一个位置，要求计算路径的条数或找出最优路径。
 > 
