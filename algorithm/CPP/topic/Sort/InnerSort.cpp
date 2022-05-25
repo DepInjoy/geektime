@@ -49,7 +49,29 @@ void QuickSort(std::vector<int>& d) {
     quickSort(d, 0, d.size()-1);
 }
 
+void MergeSort(std::vector<int>& q, int l, int r) {
+    if (l >= r) return;
 
+    std::vector<int> tmp(r-l+1);
+    int mid = (l + r) >> 1;
+    MergeSort(q, l, mid), MergeSort(q, mid+1, r);
+
+    int i = l, j = mid + 1, k = 0;
+    while (i <= mid && j <= r) {
+        if (q[i] <= q[j]) tmp[k++] = q[i++];
+        else tmp[k++] = q[j++];
+    }
+    while(i <= mid) tmp[k++] = q[i++];
+    while(j <= r) tmp[k++] = q[j++];
+
+    for (i = l, j = 0; i <= r; i++, j++) {
+        q[i] = tmp[j];
+    }
+}
+
+void MergeSort(std::vector<int>& d) {
+    MergeSort(d, 0, d.size()-1);
+}
 /********************** For Test **********************/
 void copyArray(const std::vector<int>& d1, std::vector<int>& d2) {
     d2.reserve(d1.size());
@@ -95,16 +117,21 @@ int main(int argc, char* argv[]) {
         copyArray(data, sortedData);
         std::sort(sortedData.begin(), sortedData.end());
 
-        std::vector<int> d1, d2, d3;
+        std::vector<int> d1, d2, d3, d4;
         copyArray(data, d1);
         QuickSort(d1);
+
+        copyArray(data, d4);
+        MergeSort(d4);
 
         copyArray(data, d2);
         BubbleSort(d2);
 
         copyArray(data, d3);
         InsertionSort(d3);
-        if (!isEqual(d1, sortedData) || !isEqual(d2, sortedData) || !isEqual(d3, sortedData)) {
+
+        if (!isEqual(d1, sortedData) || !isEqual(d2, sortedData) || !isEqual(d3, sortedData)
+            || !isEqual(d4, sortedData)) {
             printArray(data);
             std::cout << "Opps, Error" << std::endl;
             return -1;

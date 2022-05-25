@@ -15,6 +15,8 @@ void X_Sort ( ElementType A[], int N )
 |冒泡排序|稳定|$O(N^2)$|O(N)，数据已经有序|$O(N^2)$数据恰好逆序|O(1)|
 |插入排序|稳定|$O(N^2)$|O(N)，数据已经有序|$O(N^2)$数据恰好逆序|O(1)|
 |快排|不稳定|$\Theta (NlogN)$|$\Omega(NlogN)$每次都正好中分|$O(N^2)$|$O(logN)$|
+|归并排序|稳定|$\Theta (NlogN)$|$\Omega(NlogN)$|$O(NlogN)$|O(N)|
+|堆排序|
 ### 简单排序
 
 #### 冒泡排序
