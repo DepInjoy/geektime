@@ -5,10 +5,10 @@ PostgreSQl将语句划分为两类：
 # 语法树
 ## 基表数据结构
 相关结果定义位于`src\include\nodes\primnodes.h`或`src\include\nodes\parsenodes.h`。
-- `struct Query`分析器对解析器产出的语法解析树进行语义分析，产出一棵查询树, 查询树的根节点用该Query结构表示。
-- `struct SelectStmt`SELECT型查询语句。
-- `struct TargetEntry`描述目标列中的每一列。
-- `struct FromExpr`
+- `Query`表示查询树，分析器对解析器产出的语法解析树进行语义分析，产出一棵查询树, 查询树的根节点用该Query结构表示。
+- `SelectStmt`SELECT型查询语句。
+- `TargetEntry`描述目标列中的每一列。
+- `FromExpr`
 - `RangeTblEntry/RangeTblRef`描述范围表，通常SQL中FROM子句给出的语法元素。
 - `JoinExpr`描述语句的Join操作。
 - `RangeSubselect`From语句总子查询
