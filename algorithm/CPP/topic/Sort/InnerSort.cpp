@@ -68,10 +68,35 @@ void MergeSort(std::vector<int>& q, int l, int r) {
         q[i] = tmp[j];
     }
 }
-
+/**
+ * @brief   归并排序
+ */
 void MergeSort(std::vector<int>& d) {
     MergeSort(d, 0, d.size()-1);
 }
+
+// 堆排序元素下推
+void down(std::vector<int>& heap, const int i, const int size) {
+    int t = i;
+    if (2*i+1 <= size && heap[2*i+1] > heap[t]) t = 2*i+1;
+    if (2*i+2 <= size && heap[2*i+2] > heap[t]) t = 2*i+2;
+    if (t != i) {
+        std::swap(heap[i], heap[t]);
+        down(heap, t, size);
+    }
+}
+
+// 堆排序
+void HeapSort(std::vector<int>& d) {
+    int n = d.size();
+    // 构建大顶堆
+    for (int i = n/2-1; i >= 0; i--) down(d, i, n-1);
+    for (int i = n-1; i > 0; i--) {
+        std::swap(d[0], d[i]);
+        down(d, 0, i-1);
+    }
+}
+
 /********************** For Test **********************/
 void copyArray(const std::vector<int>& d1, std::vector<int>& d2) {
     d2.reserve(d1.size());
@@ -103,11 +128,10 @@ void generateRandomData(const int dmax, const int len, std::vector<int>& data) {
     }
 }
 
-
 int main(int argc, char* argv[]) {
     int maxLen = 32;
     int testTimes = 100000;
-    int maxData = 100;
+    int maxData = 1000;
 
     for (int i = 0; i < testTimes; i++) {
         int maxd = std::rand() % maxData;
@@ -117,12 +141,15 @@ int main(int argc, char* argv[]) {
         copyArray(data, sortedData);
         std::sort(sortedData.begin(), sortedData.end());
 
-        std::vector<int> d1, d2, d3, d4;
+        std::vector<int> d1, d2, d3, d4, d5;
         copyArray(data, d1);
         QuickSort(d1);
 
         copyArray(data, d4);
         MergeSort(d4);
+
+        copyArray(data, d5);
+        HeapSort(d5);
 
         copyArray(data, d2);
         BubbleSort(d2);
@@ -131,7 +158,7 @@ int main(int argc, char* argv[]) {
         InsertionSort(d3);
 
         if (!isEqual(d1, sortedData) || !isEqual(d2, sortedData) || !isEqual(d3, sortedData)
-            || !isEqual(d4, sortedData)) {
+            || !isEqual(d4, sortedData) || !isEqual(d5, sortedData)) {
             printArray(data);
             std::cout << "Opps, Error" << std::endl;
             return -1;
