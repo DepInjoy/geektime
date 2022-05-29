@@ -54,6 +54,20 @@
 ## 实现模板
 模板中堆的表示，小根堆
 - `heap[N]`存储堆中的值, `heap[1]`是堆顶，`i`的左儿子是`2i`, 右儿子是`2i + 1`. 
+
+堆中元素交换
+```C++
+// h[N]存储堆中的值, h[1]是堆顶，x的左儿子是2x, 右儿子是2x + 1
+// hp[k]存储第k个插入的点在堆中的位置
+// ph[k]存储堆中下标是k的点是第几个插入的
+// 主要为模拟删除或修改堆中任意元素，其中ph和hp也可以采用其他结构进行存储
+void heap_swap(int a, int b) {
+    swap(hp[ph[a]], hp[ph[b]]);
+    swap(ph[a], ph[b]);
+    swap(h[a], h[b]);
+}
+```
+
 元素下推
 ```C++
 void down(int i) {
@@ -61,8 +75,18 @@ void down(int i) {
     if (2*i <= size && heap[2*i] < heap[t]) t = 2*i;
     if (2*i+1 <= size && heap[2*i+1] < heap[t]) t = 2*i+1;
     if (t != i) {
-        std::swap(heap[i], heap[t]);
+        heap_swap(i, t);
         down(t);
+    }
+}
+```
+
+元素上推
+```C++
+void up(int i) {
+    while(i/2 && h[i/2] > h[i]) {
+        heap_swap(i/2, i);
+        i = i >> 1;
     }
 }
 ```
