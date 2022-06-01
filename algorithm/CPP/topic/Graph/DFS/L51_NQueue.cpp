@@ -11,3 +11,88 @@
  *          链接: https://www.acwing.com/problem/content/845/
  */
 
+#include <iostream>
+
+
+// 逐行尝试
+#if 0
+const int N = 20;
+char q[N][N];
+bool col[N], dg[N], udg[N];
+
+void dfs(const int u, const int n) {
+    if (u == n) {
+        for (int i = 0; i < n; i++) puts(q[i]);
+        printf("\n");
+        return;
+    }
+
+    for (int i = 0; i < n; i++) {
+        if (!col[i] && !dg[i+u] && !udg[n-u+i]) {
+            q[u][i] = 'Q';
+            col[i] = dg[i+u] = udg[n-u+i] = true;
+            dfs(u+1, n);
+            q[u][i] = '.';
+            col[i] = dg[i+u] = udg[n-u+i] = false;
+        }
+    }
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            q[i][j] = '.';
+        }
+    }
+    dfs(0, n);
+}
+#endif
+
+// 逐个点尝试
+#if 0
+#include <iostream>
+
+const int N = 20;
+char q[N][N];
+bool row[N], col[N], dg[N], udg[N];
+
+void dfs(int x, int y, int s, const int n) {
+    if (s > n) return;
+    if (y == n) y = 0, x++;
+
+    if (x == n) {
+        if (s == n) {
+            for (int i = 0; i < n; i++) puts(q[i]);
+            printf("\n");
+        }
+        return;
+    }
+    
+    q[x][y] = '.';
+    dfs(x, y+1, s, n);
+
+    if (!row[x] && !col[y] && !dg[x+y] && !udg[n+x-y]) {
+        //std::cout << "x= " << x << " y= " << y << std::endl;
+        q[x][y] = 'Q';
+        row[x] = col[y] = dg[x+y] = udg[n+x-y] = true;
+        dfs(x, y+1, s+1, n);
+        q[x][y] = '.';
+        row[x] = col[y] = dg[x+y] = udg[n+x-y] = false;
+    }
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            q[i][j] = '.';
+        }
+    }
+
+    dfs(0, 0, 0, n);
+    return 0;
+}
+#endif
