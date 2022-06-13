@@ -18,6 +18,11 @@ bool oneEditAway(string first, string second) {
         } else {
             if (flag) return false;
             flag = true;
+            /*
+                if (diff > 0) i++;          // 删除/插入字符
+                if (diff == 0) i++, j++;    // 编辑字符
+                if (diff < 0) j++;          // 删除/插入字符
+            */
             (diff > 0) ? i++ : ((diff < 0) ? j++ : (i++, j++));
         }
         if (i - j > 1 || j - i > 1) return false;
