@@ -6,6 +6,21 @@
  */
 
 bool findWhetherExistsPath(int n, vector<vector<int>>& graph, int start, int target) {
+    if (start >= n || target >= n) return false;
+    if (start == target) return true;
+
+    std::unordered_set<int> path;
+    for (int i = 0; i < graph.size(); ++i) {
+        if (graph[i][0] == start || path.count(graph[i][0])) {
+            if (graph[i][1] == target) return true;
+            path.insert(graph[i][1]);
+        }
+    }
+    return false;
+}
+
+// 宽度优先遍历
+bool findWhetherExistsPath(int n, vector<vector<int>>& graph, int start, int target) {
     if (start == target) return true;
     if (start >= n || target >= n) return false;
 
