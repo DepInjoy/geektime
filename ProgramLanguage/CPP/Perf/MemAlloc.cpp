@@ -60,14 +60,14 @@ void Rational2::expandTheFreeList() {
         runner->next = reinterpret_cast<NextOnFreeList *>(new char[size]);
         runner = runner->next;
     }
-    runner->next = 0;
+    runner->next = nullptr;
 }
 
 void Rational2::deleteMemPool() {
     NextOnFreeList *nextPtr;
     for (nextPtr = freeList; nextPtr != NULL; nextPtr = freeList) {
         freeList = freeList->next;
-        delete [] nextPtr;
+        delete [] reinterpret_cast<char*>(nextPtr);
     }
 }
 /********** 单线程专用Rational2 new/delete operator End ******/
@@ -85,8 +85,10 @@ public:
 
 private:
     // 空闲列表的下一元素
-    MemoryPool<T>*  next{ nullptr };  // 如果空闲列表为空，按该大小扩展它
-    enum { EXPANSION_SIZE = 32};  // 添加空闲元素至空闲列表
+    MemoryPool<T>*  next{ nullptr };
+    // 如果空闲列表为空，按该大小扩展它
+    enum { EXPANSION_SIZE = 32};
+    // 添加空闲元素至空闲列表
     void expandTheFreeList(int howMany = EXPANSION_SIZE);
 };
 
@@ -124,7 +126,7 @@ inline void MemoryPool<T>::free(void* doomed) {
 
 template <class T>
 void MemoryPool<T>::expandTheFreeList(int howMany) {
-    //  必须分配足够大的对象以包含下一个指针
+    // 必须分配足够大的对象以包含下一个指针
     size_t size = (sizeof(T) > sizeof(MemoryPool<T>*)) ? sizeof(T) : sizeof(MemoryPool<T>*);
     MemoryPool<T>* runner = reinterpret_cast<MemoryPool<T>*>(new char[size]);
     next = runner;
@@ -171,13 +173,13 @@ public:
 
 private:
     MemoryChunk *next;
-    void *mem;            // 一个内存块的默认大小
-    size_t chunkSize;            // 当前内存块中已分配的字节数
+    void *mem;                      // 一个内存块的默认大小
+    size_t chunkSize;               // 当前内存块中已分配的字节数
     size_t bytesAlreadyAllocated;
 };
 
 MemoryChunk::MemoryChunk(MemoryChunk *nextChunk, size_t reqSize) {
-    chunkSize = (reqSize> DEFAULT_CHUNK_SIZE) ? reqSize : DEFAULT_CHUNK_SIZE;
+    chunkSize = (reqSize > DEFAULT_CHUNK_SIZE) ? reqSize : DEFAULT_CHUNK_SIZE;
     next = nextChunk;
     bytesAlreadyAllocated = 0;
     mem = reinterpret_cast<void*>(new char[chunkSize]);
@@ -191,7 +193,7 @@ void* MemoryChunk::alloc(size_t requestSize) {
     return addr;
 }
 
-inline void MemoryChunk ::free(void *doomed) {}
+inline void MemoryChunk::free(void *doomed) {}
 
 class ByteMemoryPool {
 public:
@@ -204,14 +206,10 @@ public:
 
 private:
     // 内存块列表。它是我们的私有存储空间
-    MemoryChunk *listOfMemoryChunks;
+    MemoryChunk *listOfMemoryChunks{nullptr};
     // 向我们的私有存储空间添加一个内存块
     void expandStorage(size_t reqSize);
 };
-
-void ByteMemoryPool::expandStorage(size_t reqSize) {
-    listOfMemoryChunks  =  new  MemoryChunk(listOfMemoryChunks, reqSize);
-}
 
 // 创建ByteMemoryPool对象。生成私有存储空间
 ByteMemoryPool::ByteMemoryPool(size_t initSize) {
@@ -222,9 +220,13 @@ ByteMemoryPool::~ByteMemoryPool() {
     MemoryChunk *memChunk = listOfMemoryChunks;
     while (memChunk) {
         listOfMemoryChunks = memChunk->nextMemChunk();
-        delete memChunk;
+        delete [] reinterpret_cast<char*>(memChunk);
         memChunk = listOfMemoryChunks;
     }
+}
+
+void ByteMemoryPool::expandStorage(size_t reqSize) {
+    listOfMemoryChunks = new MemoryChunk(listOfMemoryChunks, reqSize);
 }
 
 void* ByteMemoryPool::alloc(size_t requestSize) {
