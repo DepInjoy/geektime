@@ -163,7 +163,7 @@ public:
     MemoryChunk(MemoryChunk *nextChunk, size_t chunkSize);
     ~MemoryChunk();
     inline void *alloc(size_t size);
-    inline void free(void* someElement);
+    inline void free(void* someElement, const size_t size);
     // 指向列表下一内存块的指针
     MemoryChunk *nextMemChunk() { return next; }
     // 当前内存块剩余空间大小
@@ -193,7 +193,9 @@ void* MemoryChunk::alloc(size_t requestSize) {
     return addr;
 }
 
-inline void MemoryChunk::free(void *doomed) {}
+inline void MemoryChunk::free(void *doomed, const size_t size) {
+    bytesAlreadyAllocated -= size;
+}
 
 class ByteMemoryPool {
 public:
@@ -202,7 +204,7 @@ public:
     // 从私有内存池分配内存
     inline void *alloc(size_t size);
     // 释放先前从内存池中分配的内存
-    inline void free(void* someElement);
+    inline void free(void* someElement, const size_t size);
 
 private:
     // 内存块列表。它是我们的私有存储空间
@@ -229,7 +231,7 @@ void ByteMemoryPool::expandStorage(size_t reqSize) {
     listOfMemoryChunks = new MemoryChunk(listOfMemoryChunks, reqSize);
 }
 
-void* ByteMemoryPool::alloc(size_t requestSize) {
+inline void* ByteMemoryPool::alloc(size_t requestSize) {
     size_t space = listOfMemoryChunks->spaceAvailable();
     if (space <requestSize) {
         expandStorage(requestSize);
@@ -237,15 +239,15 @@ void* ByteMemoryPool::alloc(size_t requestSize) {
     return listOfMemoryChunks->alloc(requestSize);
 }
 
-inline void ByteMemoryPool::free(void *doomed) {
-    listOfMemoryChunks->free(doomed);
+inline void ByteMemoryPool::free(void *doomed, const size_t size) {
+    listOfMemoryChunks->free(doomed, size);
 }
 
 class Rational4 {
 public:
     explicit Rational4(int a = 0, int b = 1) : n(a), d(b) {}
     void *operator new(size_t size) { return memPool->alloc(size); }
-    void operator delete(void *doomed, size_t size) { memPool->free(doomed); }
+    void operator delete(void *doomed, size_t size) { memPool->free(doomed, size); }
     static void newMemPool() { memPool = new ByteMemoryPool; }
     static void deleteMemPool() { delete memPool; }
 
