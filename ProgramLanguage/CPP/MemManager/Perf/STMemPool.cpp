@@ -117,9 +117,10 @@ ByteMemoryPool* Rational4::memPool = nullptr;
 int main() {
     oneRoundCost<Rational>("Stannd CPP Global new/delete operator");
     oneRoundCost<Rational2>("Stannd CPP Global new/delete operator");
+
     Rational3::newMemPool();
     oneRoundCost<Rational3>("Template MemPool new/delete operator");
-    Rational3::deleteMemPool(); // 内存释放存在一些问题
+    Rational3::deleteMemPool();  // 内存释放存在一些问题
 
     Rational4::newMemPool();
     oneRoundCost<Rational3>("Unfixed size MemPool new/delete operator");

@@ -18,19 +18,14 @@ class PrimitiveLock : public ABCLock {
 public:
     ~PrimitiveLock() {}
     inline void lock() {  // 旋转锁
-        int expected = LOCK_FREE;
-        while (!lock_.compare_exchange_weak(expected, LOCK_BUSY)) {}
+        while (lock_.test_and_set(std::memory_order_acquire)) {}
     }
     inline void unlock() {
-        lock_.store(LOCK_FREE);
+        lock_.clear(std::memory_order_release);
     }
 
 private:
-    std::atomic_int lock_{LOCK_FREE};
-    enum {
-        LOCK_FREE = 0,
-        LOCK_BUSY = 1
-    };
+    std::atomic_flag    lock_{ATOMIC_FLAG_INIT};
 };
 
 class MTRational {
