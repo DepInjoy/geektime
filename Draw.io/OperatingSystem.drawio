@@ -1,1 +1,46 @@
-<mxfile host="app.diagrams.net" modified="2022-07-18T14:07:16.480Z" agent="5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36" version="19.0.2" etag="nj166DTveFXR1S-c_v4o" type="github"><diagram id="90Nq6x2tdCnxJy_07rz6">UzV2zq1wL0osyPDNT0nNUTV2VTV2LsrPL4GwciucU3NyVI0MMlNUjV1UjYwMgFjVyA2HrCFY1qAgsSg1rwSLBiADYTaQg2Y1AA==</diagram></mxfile>
+<mxfile host="app.diagrams.net" modified="2022-07-18T14:15:03.324Z" agent="5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36" etag="ytTyVge6hE4Ju4RTQVdG" version="19.0.2" type="github">
+  <diagram id="90Nq6x2tdCnxJy_07rz6" name="内存管理">
+    <mxGraphModel dx="796" dy="461" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="QtSbq6Br4k7f91_72cH2-1" value="用户程序&lt;br&gt;in RAM" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="80" y="40" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-2" value="&lt;span style=&quot;&quot;&gt;操作系统&lt;/span&gt;&lt;br style=&quot;&quot;&gt;&lt;span style=&quot;&quot;&gt;in RAM&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="80" y="120" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-3" value="操作系统&lt;br&gt;in RAM" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="240" y="40" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-4" value="&lt;span style=&quot;&quot;&gt;用户程序&lt;/span&gt;&lt;br style=&quot;&quot;&gt;&lt;span style=&quot;&quot;&gt;in RAM&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="240" y="120" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-5" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;仅有RAM时操作系统与用户程序的内存分配&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="70" y="220" width="280" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-6" value="0xFFF..." style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="20" y="40" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-7" value="操作系统&lt;br&gt;in ROM" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="440" y="40" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-8" value="用户程序&lt;br&gt;in RAM" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="440" y="80" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-9" value="操作系统&lt;br&gt;in ROM" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="600" y="40" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-10" value="用户程序&lt;br&gt;in RAM" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="600" y="80" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-11" value="操作系统&lt;br&gt;in RAM" style="rounded=0;whiteSpace=wrap;html=1;fontSize=14;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="600" y="160" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="QtSbq6Br4k7f91_72cH2-12" value="备有ROM时操作系统和用户程序之内存分配" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="440" y="210" width="280" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
