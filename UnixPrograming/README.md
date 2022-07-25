@@ -26,3 +26,9 @@ int sockfd = socket(domain, type, protocol)
 ### UDP编程
 
 ### 本地Socket编程
+
+
+Always overcommit. Appropriate for some scientific
+		applications. Classic example is code using sparse arrays
+		and just relying on the virtual memory consisting almost
+		entirely of zero pages.

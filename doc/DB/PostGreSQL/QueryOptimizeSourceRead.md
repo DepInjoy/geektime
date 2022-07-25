@@ -3,6 +3,14 @@ PostgreSQl将语句划分为两类：
 - 不可优化语句(Non-Optimizable Statements), 通常工具语句(Utility Statement)属于该范畴。此类语句不会经过analyze、rewriting和planning三个阶段。
 
 # 语法树
+Lex主要功能是生成一个词法分析器（Scanner）的C源码，描述规则采用正则表达式描述词法分析器的文件*．l经过Lex编译后，生成一个`lex.yy.c`的文件，然后由C编译器编译生成一个可执行的词法分析器。简单来说，词法分析器的任务就是将输入的各种符号转化成相应的标识符(Tokens)，而转化后的标识符很容易被后续阶段处理。Lex程序通常由三部分构成：
+- 定义段(Definitions)
+- 规则段(Rules Section)
+- 用户定义子程序段(Procedures Section)
+PostgreSQL词法分析文件为`src\backend\parser\scan.l`，
+
+Yacc（Yet Another Compiler Compiler）是一个经典的生成语法分析器的工具。Yacc生成的语法解析器（Parser）需要与词法解析器Lex配合一起使用，并将两者产生出来的程序一并编译。与Lex一样，Yacc也由三部分构成：定义段、规则段以及用户定义子程序段。规则段描述了当Yacc遇到某个单词时需采取的动作说明
+
 ## 基表数据结构
 相关结果定义位于`src\include\nodes\primnodes.h`或`src\include\nodes\parsenodes.h`。
 - `Query`表示查询树，分析器对解析器产出的语法解析树进行语义分析，产出一棵查询树, 查询树的根节点用该Query结构表示。

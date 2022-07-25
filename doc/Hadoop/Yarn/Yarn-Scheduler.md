@@ -18,6 +18,7 @@
 
 （1） 可插拔性实现
 YARN中的资源调度器是插拔式的，ResourceManager在初始化时会根据用户的配置创建一个资源调度器对象。
+
 ```java
   /**
    * @brief:    根据用户的配置创建一个资源调度器对象，默认采用Capacity Scheduler
@@ -221,7 +222,228 @@ YARN的资源管理器实际上是一个事件处理器，它需要处理`Schedu
 - CONTAINER_EXPIRED：当资源调度器将一个Container分配给某个Application-Master后，如果该ApplicationMaster在一定时间间隔内没有使用该Container，则资源调度器会对该Container进行（回收后）再分配。
 - NODE_UPDATE：ResourceManager收到NodeManager通过心跳机制汇报的信息后，会触发一个NODE_UDDATE事件，由于此时可能有新的Container得到释放，因此该事件会触发资源分配。也就是说，该事件是6个事件中最重要的事件，它会触发资源调度器最核心的资源分配机制。
 
+首先在ResourceManager中创建一个`EventHandler`
+
+```java
+  protected EventHandler<SchedulerEvent> createSchedulerEventDispatcher() {
+    String dispatcherName = "SchedulerEventDispatcher";
+    EventDispatcher dispatcher;
+    int threadMonitorRate = conf.getInt(
+        YarnConfiguration.YARN_DISPATCHER_CPU_MONITOR_SAMPLES_PER_MIN,
+        YarnConfiguration.DEFAULT_YARN_DISPATCHER_CPU_MONITOR_SAMPLES_PER_MIN);
+
+    if (threadMonitorRate > 0) {
+      dispatcher = new SchedulerEventDispatcher(dispatcherName,
+          threadMonitorRate);
+      ClusterMetrics.getMetrics().setRmEventProcMonitorEnable(true);
+    } else {
+      dispatcher = new EventDispatcher(this.scheduler, dispatcherName);
+    }
+    dispatcher.
+        setMetrics(GenericEventTypeMetricsManager.
+            create(dispatcher.getName(), SchedulerEventType.class));
+    return dispatcher;
+  }
+```
+
+
+
+
+
+```java
+  @Override
+  public void handle(SchedulerEvent event) {
+    switch(event.getType()) {
+    case NODE_ADDED:
+    {
+      NodeAddedSchedulerEvent nodeAddedEvent = (NodeAddedSchedulerEvent)event;
+      addNode(nodeAddedEvent.getAddedRMNode());
+      recoverContainersOnNode(nodeAddedEvent.getContainerReports(),
+        nodeAddedEvent.getAddedRMNode());
+    }
+    break;
+    case NODE_REMOVED:
+    {
+      NodeRemovedSchedulerEvent nodeRemovedEvent = (NodeRemovedSchedulerEvent)event;
+      removeNode(nodeRemovedEvent.getRemovedRMNode());
+    }
+    break;
+    case NODE_RESOURCE_UPDATE:
+    {
+      NodeResourceUpdateSchedulerEvent nodeResourceUpdatedEvent =
+          (NodeResourceUpdateSchedulerEvent)event;
+      updateNodeAndQueueResource(nodeResourceUpdatedEvent.getRMNode(),
+        nodeResourceUpdatedEvent.getResourceOption());
+    }
+    break;
+    case NODE_LABELS_UPDATE:
+    {
+      NodeLabelsUpdateSchedulerEvent labelUpdateEvent =
+          (NodeLabelsUpdateSchedulerEvent) event;
+
+      updateNodeLabelsAndQueueResource(labelUpdateEvent);
+    }
+    break;
+    case NODE_ATTRIBUTES_UPDATE:
+    {
+      NodeAttributesUpdateSchedulerEvent attributeUpdateEvent =
+          (NodeAttributesUpdateSchedulerEvent) event;
+
+      updateNodeAttributes(attributeUpdateEvent);
+    }
+    break;
+    case NODE_UPDATE:
+    {
+      NodeUpdateSchedulerEvent nodeUpdatedEvent = (NodeUpdateSchedulerEvent)event;
+      updateSchedulerNodeHBIntervalMetrics(nodeUpdatedEvent);
+      nodeUpdate(nodeUpdatedEvent.getRMNode());
+    }
+    break;
+    case APP_ADDED:
+    {
+      AppAddedSchedulerEvent appAddedEvent = (AppAddedSchedulerEvent) event;
+      String queueName = resolveReservationQueueName(
+          getAddedAppQueueName(appAddedEvent), appAddedEvent.getApplicationId(),
+          appAddedEvent.getReservationID(), appAddedEvent.getIsAppRecovering());
+      if (queueName != null) {
+        if (!appAddedEvent.getIsAppRecovering()) {
+          addApplication(appAddedEvent.getApplicationId(), queueName,
+              appAddedEvent.getUser(), appAddedEvent.getApplicatonPriority(),
+              appAddedEvent.getPlacementContext(),
+              appAddedEvent.isUnmanagedAM());
+        } else {
+          addApplicationOnRecovery(appAddedEvent.getApplicationId(), queueName,
+              appAddedEvent.getUser(), appAddedEvent.getApplicatonPriority(),
+              appAddedEvent.getPlacementContext(),
+              appAddedEvent.isUnmanagedAM());
+        }
+      }
+    }
+    break;
+    case APP_REMOVED:
+    {
+      AppRemovedSchedulerEvent appRemovedEvent = (AppRemovedSchedulerEvent)event;
+      doneApplication(appRemovedEvent.getApplicationID(),
+        appRemovedEvent.getFinalState());
+    }
+    break;
+    case APP_ATTEMPT_ADDED:
+    {
+      AppAttemptAddedSchedulerEvent appAttemptAddedEvent =
+          (AppAttemptAddedSchedulerEvent) event;
+      addApplicationAttempt(appAttemptAddedEvent.getApplicationAttemptId(),
+        appAttemptAddedEvent.getTransferStateFromPreviousAttempt(),
+        appAttemptAddedEvent.getIsAttemptRecovering());
+    }
+    break;
+    case APP_ATTEMPT_REMOVED:
+    {
+      AppAttemptRemovedSchedulerEvent appAttemptRemovedEvent =
+          (AppAttemptRemovedSchedulerEvent) event;
+      doneApplicationAttempt(appAttemptRemovedEvent.getApplicationAttemptID(),
+        appAttemptRemovedEvent.getFinalAttemptState(),
+        appAttemptRemovedEvent.getKeepContainersAcrossAppAttempts());
+    }
+    break;
+    case CONTAINER_EXPIRED:
+    {
+      ContainerExpiredSchedulerEvent containerExpiredEvent =
+          (ContainerExpiredSchedulerEvent) event;
+      ContainerId containerId = containerExpiredEvent.getContainerId();
+      if (containerExpiredEvent.isIncrease()) {
+        rollbackContainerUpdate(containerId);
+      } else {
+        completedContainer(getRMContainer(containerId),
+            SchedulerUtils.createAbnormalContainerStatus(
+                containerId,
+                SchedulerUtils.EXPIRED_CONTAINER),
+            RMContainerEventType.EXPIRE);
+      }
+    }
+    break;
+    case RELEASE_CONTAINER:
+    {
+      RMContainer container = ((ReleaseContainerEvent) event).getContainer();
+      completedContainer(container,
+          SchedulerUtils.createAbnormalContainerStatus(
+            container.getContainerId(),
+            SchedulerUtils.RELEASED_CONTAINER),
+          RMContainerEventType.RELEASED);
+    }
+    break;
+    case KILL_RESERVED_CONTAINER:
+    {
+      ContainerPreemptEvent killReservedContainerEvent =
+          (ContainerPreemptEvent) event;
+      RMContainer container = killReservedContainerEvent.getContainer();
+      killReservedContainer(container);
+    }
+    break;
+    case MARK_CONTAINER_FOR_PREEMPTION:
+    {
+      ContainerPreemptEvent preemptContainerEvent =
+          (ContainerPreemptEvent)event;
+      ApplicationAttemptId aid = preemptContainerEvent.getAppId();
+      RMContainer containerToBePreempted = preemptContainerEvent.getContainer();
+      markContainerForPreemption(aid, containerToBePreempted);
+    }
+    break;
+    case MARK_CONTAINER_FOR_KILLABLE:
+    {
+      ContainerPreemptEvent containerKillableEvent = (ContainerPreemptEvent)event;
+      RMContainer killableContainer = containerKillableEvent.getContainer();
+      markContainerForKillable(killableContainer);
+    }
+    break;
+    case MARK_CONTAINER_FOR_NONKILLABLE:
+    {
+      if (isLazyPreemptionEnabled) {
+        ContainerPreemptEvent cancelKillContainerEvent =
+            (ContainerPreemptEvent) event;
+        markContainerForNonKillable(cancelKillContainerEvent.getContainer());
+      }
+    }
+    break;
+    case MANAGE_QUEUE:
+    {
+      QueueManagementChangeEvent queueManagementChangeEvent =
+          (QueueManagementChangeEvent) event;
+      ParentQueue parentQueue = queueManagementChangeEvent.getParentQueue();
+      try {
+        final List<QueueManagementChange> queueManagementChanges =
+            queueManagementChangeEvent.getQueueManagementChanges();
+        ((ManagedParentQueue) parentQueue)
+            .validateAndApplyQueueManagementChanges(queueManagementChanges);
+      } catch (SchedulerDynamicEditException sde) {
+        LOG.error("Queue Management Change event cannot be applied for "
+            + "parent queue : " + parentQueue.getQueuePath(), sde);
+      } catch (IOException ioe) {
+        LOG.error("Queue Management Change event cannot be applied for "
+            + "parent queue : " + parentQueue.getQueuePath(), ioe);
+      }
+    }
+    break;
+    case AUTO_QUEUE_DELETION:
+      try {
+        AutoCreatedQueueDeletionEvent autoCreatedQueueDeletionEvent =
+            (AutoCreatedQueueDeletionEvent) event;
+        removeAutoCreatedQueue(autoCreatedQueueDeletionEvent.
+            getCheckQueue());
+      } catch (SchedulerDynamicEditException sde) {
+        LOG.error("Dynamic queue deletion cannot be applied for "
+            + "queue : ", sde);
+      }
+      break;
+    default:
+      LOG.error("Invalid eventtype " + event.getType() + ". Ignoring!");
+    }
+  }
+```
+
+
+
 ## 资源表示模型
+
 NodeManager启动时会向ResourceManager注册，注册信息中包含该节点可分配的CPU和内存总量，这两个值均可通过配置选项设置
 |配置参数|默认值|描述|
 |:--:|:--:|:--:|
@@ -242,6 +464,7 @@ YARN支持的调度语义和不支持的调度语义：
 - 请求任意节点上的特定资源量。比如，请求任意节点上5个这样的Container：虚拟CPU个数为3，内存量为1GB。
 - 请求任意机架上的特定资源量。比如，请求同一个机架上（具体哪个机架并不关心，但是必须来自同一个机架）3个这样的Container：虚拟CPU个数为1，内存量为6GB。
 - 请求一组或几组符合某种特质的资源
+  
   > 比如，请求来自两个机架上的4个Container，其中，一个机架上2个这样的Container：虚拟CPU个数为2，内存量为2GB；另一个机架上2个这样的资源：虚拟CPU个数为2，内存量为3GB。如果目前集群没有这样的资源，要从其他应用程序处抢占资源。
 - 超细粒度资源。比如CPU性能要求、绑定CPU等。
 - 动态调整Container资源，应允许根据需要动态调整Container资源量（对于长作业尤其有用）。

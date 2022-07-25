@@ -5,3 +5,8 @@
  *          可乐的价格是x(x是10的倍数), 请计算出需要投入硬币次数？
  * 
  */
+
+
+int putTimes(int m, int a, int b, int c, int x) {
+
+}
