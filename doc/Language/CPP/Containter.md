@@ -1,5 +1,9 @@
 # bitset
 `std::bitset`构造出一个内含bit或Boolean值且大小固定的array. C程序和传统C++程序通常使用类型long来作为bit array，再借由&、|、~等位操作符操作各个bit. `std::bitset`可以容纳任意个数的bit，并提供`&, |, ^, ~, &=, |=, ^=`等操作，但它不可以动态修改个数，如果需要一个可变长度的bit容器，可考虑使用`vector<bool>`。
+```C++
+// Since C++11, bitset的Hash支持
+std::hash<std::bitset>
+```
 
 ## 常用操作
 ```C++
