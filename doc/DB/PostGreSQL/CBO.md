@@ -84,4 +84,47 @@ PG_STATISTIC_EXT系统表保存多列的统计信息 用户需要显式地使用
 #define DEFAULT_PARALLEL_SETUP_COST  1000.0
 ```
 ## 选择率
-### 
+## 示例
+
+```sql
+DELETE FROM student
+insert into student values(1, 'zs', 1); 
+insert into student values(2, 'ls', 1);
+insert into student values(3, 'ww', 1);
+insert into student values(4, 'zl', 1);
+insert into student values(5, 'zs', 2);
+insert into student values(6, 'ls', 2);
+insert into student values(7, null, null); 
+
+SELECT * FROM student
+SELECT relname, oid, relpages, reltuples
+	FROM PG_CLASS
+	WHERE relname='student';
+
+-- PG_CLASS含两项统计信息
+-- relpages, reltuples分别记录当前表占用多少页面以及多少元组
+SELECT relname, oid, relpages, reltuples FROM PG_CLASS
+	WHERE relname='student'; -- oid=24691
+
+-- 对student表做统计
+ANALYZE student;
+-- 查询单列的统计信息
+-- staatnum分别对应表的列编号
+-- stanullfrac表示NULL值率
+-- stawidth表示列平均宽度
+-- stadistinct 属性消重后数据的个数或比例
+-- stop 统计计算过程中设计的操作符
+-- stanumbers 存放统计信息的高频值数组或者存放相关系数
+SELECT * FROM PG_STATISTIC WHERE starelid=24691;
+
+-- 对一个表创建多列统计信息
+CREATE STATISTICS statxt_student ON sno, sname, ssex FROM student;
+-- 生成多列统计信息
+ANALYZE student(sno, sname, ssex);
+-- 查询多列统计信息
+-- stxkind 多列统计类型
+SELECT * FROM PG_STATISTIC_EXT WHERE stxname='statxt_student';
+```
+
+
+
