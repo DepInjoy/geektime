@@ -83,7 +83,182 @@ PG_STATISTIC_EXT系统表保存多列的统计信息 用户需要显式地使用
 #define DEFAULT_PARALLEL_TUPLE_COST 0.1
 #define DEFAULT_PARALLEL_SETUP_COST  1000.0
 ```
+### 单列统计信息生成源码
+
+```C++
+/*
+	数据采样实现，采用两阶段采样算法进行数据采样
+	1. 第一阶段采用S算法对表中的页面随机采样
+		1.1 S算法赋初值, nblocks = BlockSampler_Init
+		1.2 随机选择下一块,S算法核心. targblock = BlockSampler_Next(&bs);
+	2. 第二阶段使用Z(Vitter)算法，在第一阶段采出来的页面基础上对元祖进行采样
+*/
+static int
+acquire_sample_rows(Relation onerel, int elevel,
+					HeapTuple *rows, int targrows,
+					double *totalrows, double *totaldeadrows)
+// 选择统计方法
+bool
+std_typanalyze(VacAttrStats *stats)
+```
+
+```c
+/*
+	数据采样实现，采用两阶段采样算法进行数据采样
+	1. 第一阶段采用S算法对表中的页面随机采样
+		1.1 S算法赋初值, nblocks = BlockSampler_Init
+		1.2 随机选择下一块,S算法核心. targblock = BlockSampler_Next(&bs);
+	2. 第二阶段使用Z(Vitter)算法，在第一阶段采出来的页面基础上对元祖进行采样
+*/
+static int
+acquire_sample_rows(Relation onerel, int elevel,
+					HeapTuple *rows, int targrows,
+					double *totalrows, double *totaldeadrows)
+{
+	int			numrows = 0;	/* # rows now in reservoir */
+	double		samplerows = 0; /* total # rows collected */
+	double		liverows = 0;	/* # live rows seen */
+	double		deadrows = 0;	/* # dead rows seen */
+	double		rowstoskip = -1;	/* -1 means not set yet */
+	uint32		randseed;		/* Seed for block sampler(s) */
+	BlockNumber totalblocks;
+	TransactionId OldestXmin;
+	BlockSamplerData bs;
+	ReservoirStateData rstate;
+	TupleTableSlot *slot;
+	TableScanDesc scan;
+	BlockNumber nblocks;
+	BlockNumber blksdone = 0;
+
+	totalblocks = RelationGetNumberOfBlocks(onerel);
+
+	/* Need a cutoff xmin for HeapTupleSatisfiesVacuum */
+	OldestXmin = GetOldestNonRemovableTransactionId(onerel);
+
+	/* Prepare for sampling block numbers */
+	randseed = pg_prng_uint32(&pg_global_prng_state);
+	// 1.1 S算法赋初值
+	nblocks = BlockSampler_Init(&bs, totalblocks, targrows, randseed);
+
+	/* Report sampling block numbers */
+	pgstat_progress_update_param(PROGRESS_ANALYZE_BLOCKS_TOTAL,
+								 nblocks);
+
+	// 2.1 Z算法赋初值，产生随机变量种子
+	reservoir_init_selection_state(&rstate, targrows); 
+
+	scan = table_beginscan_analyze(onerel);
+	slot = table_slot_create(onerel, NULL);
+
+	// 当表的块(页面)还没处理完或蓄水池还没满
+	while (BlockSampler_HasMore(&bs))
+	{
+		bool		block_accepted;
+		// 1.2 随机选择下一块,S算法核心.
+		BlockNumber targblock = BlockSampler_Next(&bs);
+		vacuum_delay_point();
+
+		block_accepted = table_scan_analyze_next_block(scan, targblock, vac_strategy);
+		if (!block_accepted)
+			continue;
+
+		while (table_scan_analyze_next_tuple(scan, OldestXmin, &liverows, &deadrows, slot))
+		{
+			if (numrows < targrows) // 蓄水池未满
+				// 记录Tuple到蓄水池，先把蓄水池填满
+				rows[numrows++] = ExecCopySlotHeapTuple(slot);
+			else
+			{
+				/*
+				 * t in Vitter's paper is the number of records already
+				 * processed.  If we need to compute a new S value, we must
+				 * use the not-yet-incremented value of samplerows as t.
+				 */
+				if (rowstoskip < 0)
+					// 重新生成随机变量
+					rowstoskip = reservoir_get_next_S(&rstate, samplerows, targrows);
+
+				if (rowstoskip <= 0) 
+				{
+					// 随机替换蓄水池中的元组
+					int			k = (int) (targrows * sampler_random_fract(&rstate.randstate));
+
+					Assert(k >= 0 && k < targrows);
+					heap_freetuple(rows[k]);
+					rows[k] = ExecCopySlotHeapTuple(slot);
+				}
+
+				rowstoskip -= 1;
+			}
+			samplerows += 1;
+		}
+		pgstat_progress_update_param(PROGRESS_ANALYZE_BLOCKS_DONE, ++blksdone);
+	}
+
+	ExecDropSingleTupleTableSlot(slot);
+	table_endscan(scan);
+	if (numrows == targrows)
+		// 3. 排序(qsort+compare_rows)来改变蓄水池中元组顺序，达到和物理存储一致的效果
+		qsort((void *) rows, numrows, sizeof(HeapTuple), compare_rows);
+
+	if (bs.m > 0)
+	{
+		*totalrows = floor((liverows / bs.m) * totalblocks + 0.5);
+		*totaldeadrows = floor((deadrows / bs.m) * totalblocks + 0.5);
+	}
+	else
+	{
+		*totalrows = 0.0;
+		*totaldeadrows = 0.0;
+	}
+
+	return numrows;
+}
+```
+
+
+
+
+
+```C
+BlockNumber BlockSampler_Next(BlockSampler bs) {
+    // S1 设置变量，设置K=N-t表示尚未处理的块数, k=n-m表示还差多少块
+	BlockNumber K = bs->N - bs->t;	/* remaining blocks */
+	int			k = bs->n - bs->m;	/* blocks still to sample */
+	double		p;				/* probability to skip block */
+	double		V;				/* random */
+
+	if ((BlockNumber) k >= K) { /* need all the rest */
+		bs->m++;
+		return bs->t++;
+	}
+
+    // S2 生成随机数V,0到1间的均匀分布的随机数V
+	V = sampler_random_fract(&bs->randstate);
+	// S3 生成跳过的条件p=1-k/K
+	p = 1.0 - (double) k / (double) K;
+    // S4 检测,如果V < p，执行S5
+	while (V < p) {
+		// S6 跳过,不纳入样本，t++(跳过该块),K--, p*=1-k/K
+		bs->t++;
+		K--;					/* keep K == N - t */
+		p *= 1.0 - (double) k / (double) K; // 减小p来满足S4
+	}
+
+	// S5 纳入样本, 将下一个记录选为样本,m和t加1
+	bs->m++;
+	return bs->t++;
+}
+```
+
+
+
+
+
 ## 选择率
+
+
+
 ## 示例
 
 ```sql
