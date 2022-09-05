@@ -3,4 +3,5 @@
 
 template<typename T>
 T const& Max(const T& t1, const T& t2);
+
 #endif

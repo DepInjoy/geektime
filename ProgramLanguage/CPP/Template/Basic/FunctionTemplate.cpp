@@ -7,8 +7,6 @@
 #include "MaxInc.h"
 #endif
 
-// https://www.cnblogs.com/zpcdbky/p/16329886.html
-
 int main(int argc, char* argv[]) {
     int i1 = 42, i2 = 8;
     std::cout << "max(i1, i2):  " << Max(i1, i2) << std::endl;
