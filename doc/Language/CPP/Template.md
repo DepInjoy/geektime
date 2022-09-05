@@ -8,41 +8,89 @@ template <typename 类型参数1, typename 类型参数2, ...>
     函数体
 }
 ```
-## 使用
-```C++
-#include <iostream>
 
-// T为模板参数
-// t1和t2为调用参数
+## 使用方式
+**1. 将模板函数的实现也放在头文件中。**
+ 
+该方式可以按需生成需要的实例。由于编译器即知道函数模板的定义有知道具体的函数模板的类型参数，因此可以按需生成需要的实例，缺点是必须将实现细节暴露给用户。
+
+```C++
+// MaxInc.h
+// T为模板参数, t1和t2为调用参数
 template<typename T>
-T const& max(const T& t1, const T& t2) {
+T const& Max(const T& t1, const T& t2) {
     return (t1 < t2) ? t2 : t1;
 }
 
+// FunctionTemplate.cpp
+#include <iostream>
+#include "MaxInc.h"
+
 int main(int argc, char* argv[]) {
     int i1 = 42, i2 = 8;
-    std::cout << "max(i1,i2):  " << ::max(i1,i2) << std::endl;
+    std::cout << "max(i1, i2):  " << Max(i1, i2) << std::endl;
 
     double f1 = 3.4, f2 = -6.7;
-    std::cout << "max(f1,f2):  " << ::max(f1,f2) <<std::endl;
-    
+    std::cout << "max(f1, f2):  " << Max(f1, f2) <<std::endl;
+
     std::string s1 = "mathematics", s2 = "math";
-    std::cout << "max(s1,s2):  " << ::max(s1,s2) <<std::endl;
+    std::cout << "max(s1, s2):  " << Max(s1, s2) <<std::endl;
     return 0;
 }
 ```
-通常而言，并不是把模板编译成一个可以处理任何类型的单一实体；而是对于实例化模板参数的每种类型，都从模板产生出一个不同的实体。
-例如`max(i1,i2)`的调用，调用的是如下代码的语义
+**2. 采取声明和实现分离的方案。**
+
+在CPP文件中添加特定版本的实例化，该方案能可以隐藏实现细节,也可以限制只实例化特定的版本,缺点是只能使用特定实例化的几个版本，根据具体的调用情况按需生成。
+```C++
+// Max.h
+template<typename T>
+T const& Max(const T& t1, const T& t2);
+
+// Max.cpp
+#include "Max.h"
+#include <string>
+
+template<typename T>
+T const& Max(const T& t1, const T& t2) {
+    return (t1 < t2) ? t2 : t1;
+}
+
+// 函数模板的实例化(Function Template Instantiation)
+template int const& Max(const int& t1, const int& t2);
+template double const& Max(const double& t1, const double& t2);
+template std::string const& Max(const std::string& t1, const std::string& t2);
+
+// FunctionTemplate.cpp
+#include <iostream>
+#include "Max.h"
+
+int main(int argc, char* argv[]) {
+    int i1 = 42, i2 = 8;
+    std::cout << "max(i1, i2):  " << Max(i1, i2) << std::endl;
+
+    double f1 = 3.4, f2 = -6.7;
+    std::cout << "max(f1, f2):  " << Max(f1, f2) <<std::endl;
+
+    std::string s1 = "mathematics", s2 = "math";
+    std::cout << "max(s1, s2):  " << Max(s1, s2) <<std::endl;
+    return 0;
+}
+```
+
+[两种方案实现代码通过DECLARE_IMPL_SEPARATION进行条件编译](https://github.com/DepInjoy/geektime/blob/main/ProgramLanguage/CPP/Template/Basic/FunctionTemplate.cpp)
+
+通常而言，并不是把模板编译成一个可以处理任何类型的单一实体；而是对于实例化模板参数的每种类型，都从模板产生出一个不同的实体。例如`max(i1,i2)`的调用，调用的是如下代码的语义
 ```C++
 int const& max(const int& t1, const int& t2) {
     return (t1 < t2) ? t2 : t1;
 }
 ```
-用具体类型代替模板参数的过程叫做实例化(instantiation)，它产生了一个模板的实例。只要使用函数模板，编译器会自动地引发这样一个实例化过程。
+C++模板是通过实例化(instantiation)来实现多态(polymorphism)的，用具体类型代替模板参数的过程叫做实例化(instantiation)，它产生了一个模板的实例。只要使用函数模板，编译器会自动地引发这样一个实例化过程。
 
 模板被编译两次，分别发生在
 1. 实例化之前，先检查模板代码本身，查看语法是否正确；在这里会发现错误的语法，如遗漏分号等。
 2. 在实例化期间，检查模板代码，查看是否所有的调用都有效。如该实例化类型不支持某些函数调用等。
+
 因此，当使用函数模板，并且引发模板实例化的时候，编译器需要查看模板的定义。这不同于普通函数中编译和链接之间的区别，因为对于普通函数而言，只要有该函数的声明（即不需要定义），就可以顺利通过编译。
 
 ## 实参演绎(deduction)
@@ -167,3 +215,7 @@ int const& max(const int& t1, const int& t2) {
 上述实现如果发生`max(5, 6, 7)`的函数调用，执行的模板函数实例化出来的实体。
 
 因此，需要注意**函数的所有重载版本的声明都应该位于该函数被调用的位置之前。**
+
+# 参考资料
+- C++ Templates(中文版)书籍
+- [原理：C++为什么一般把模板实现放入头文件](https://www.cnblogs.com/zpcdbky/p/16329886.html)
