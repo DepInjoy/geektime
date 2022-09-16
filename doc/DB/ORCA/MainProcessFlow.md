@@ -19,7 +19,7 @@
 	);
 ```
 
-删除`COptimizer::PdxlnOptimize`的代码来了解一下主流程。
+删除`COptimizer::PdxlnOptimize`的部分非主要代码来了解一下主流程。
 ```C++
 // COptimizer的主要流程
 CDXLNode* COptimizer::PdxlnOptimize(
@@ -31,6 +31,7 @@ CDXLNode* COptimizer::PdxlnOptimize(
        query_output_dxlnode_array, cte_producers);
   
   // Expr Tree -> Query context
+  // 在CQueryContext构造调用CExpressionPreprocessor::PexprPreprocess
   CQueryContext *pqc = CQueryContext::PqcGenerate(mp, pexprTranslated, pdrgpul, pdrgpmdname, true /*fDeriveStats*/);
   
   // optimize logical expression tree into physical expression tree.
@@ -57,7 +58,81 @@ COptimizer -> COptimizer: CreateDXLNode
 note right of COptimizer : translate plan into DXL
 @enduml
 ```
-查询优化主要的调用流程在`COptimizer::PexprOptimize`，执行流程
+查询优化主要的调用流程在`COptimizer::PexprOptimize`
+主要执行代码
+```C++
+//		Optimize query in given query context
+//
+//---------------------------------------------------------------------------
+CExpression *
+COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
+						  CSearchStageArray *search_stage_array)
+{
+    CEngine eng(mp);
+    eng.Init(pqc, search_stage_array);
+    eng.Optimize();
+
+    CExpression *pexprPlan = eng.PexprExtractPlan();
+
+    CheckCTEConsistency(mp, pexprPlan);
+
+    PrintQueryOrPlan(mp, pexprPlan);
+    return pexprPlan;
+}
+```
+
+```C++
+void
+CEngine::Optimize()
+{
+    const ULONG ulJobs =
+        std::min((ULONG) GPOPT_JOBS_CAP,
+                    (ULONG)(m_pmemo->UlpGroups() * GPOPT_JOBS_PER_GROUP));
+    CJobFactory jf(m_mp, ulJobs);
+    CScheduler sched(m_mp, ulJobs);
+    CSchedulerContext sc;
+    sc.Init(m_mp, &jf, &sched, this);
+
+    const ULONG ulSearchStages = m_search_stage_array->Size();
+    for (ULONG ul = 0; !FSearchTerminated() && ul < ulSearchStages; ul++)
+    {
+        PssCurrent()->RestartTimer();
+
+        // optimize root group
+        m_pqc->Prpp()->AddRef();
+        COptimizationContext *poc = GPOS_NEW(m_mp) COptimizationContext(
+            m_mp, PgroupRoot(), m_pqc->Prpp(),
+            // pass empty required relational properties initially
+            GPOS_NEW(m_mp) CReqdPropRelational(GPOS_NEW(m_mp) CColRefSet(m_mp)),
+            // pass empty stats context initially
+            GPOS_NEW(m_mp) IStatisticsArray(m_mp),
+            m_ulCurrSearchStage);
+
+        // schedule main optimization job
+        ScheduleMainJob(&sc, poc);
+
+        // run optimization job
+        CScheduler::Run(&sc);
+
+        poc->Release();
+
+        // extract best plan found at the end of current search stage
+        CExpression *pexprPlan = m_pmemo->PexprExtractPlan(
+            m_mp, m_pmemo->PgroupRoot(), m_pqc->Prpp(),
+            m_search_stage_array->Size());
+        PssCurrent()->SetBestExpr(pexprPlan);
+
+        FinalizeSearchStage();
+    }
+
+    if (CEnumeratorConfig::FSample())
+    {
+        SamplePlans();
+    }
+}
+
+```
+执行流程
 ```plantuml
 @startuml
 COptimizer -> CEngine:Init
@@ -144,6 +219,132 @@ end
 ```
 - `Memo::PexprExtractPlan`从当前的SearchStage中提取最优的计划。
 
+# CTranslatorDXLToExpr
+```C++
+CExpression *
+CTranslatorDXLToExpr::PexprTranslateQuery(
+	const CDXLNode *dxlnode, const CDXLNodeArray *query_output_dxlnode_array,
+	const CDXLNodeArray *cte_producers)
+{
+        ......
+	CExpression *pexpr =
+		Pexpr(dxlnode, query_output_dxlnode_array, cte_producers);
+	MarkUnknownColsAsUnused();
+    return pexpr;
+}
+```
+```C++
+// Translate a DXL tree into an Expr Tree
+CExpression *
+CTranslatorDXLToExpr::Pexpr(const CDXLNode *dxlnode,
+        const CDXLNodeArray *query_output_dxlnode_array,
+        const CDXLNodeArray *cte_producers)
+{
+        .......
+	// translate main DXL tree
+	CExpression *pexpr = Pexpr(dxlnode);
+        ......
+
+	return pexpr;
+}
+```
+```C++
+// Translates a DXL tree into a Expr Tree
+CExpression *
+CTranslatorDXLToExpr::Pexpr(const CDXLNode *dxlnode)
+{
+	CDXLOperator *dxl_op = dxlnode->GetOperator();
+	CExpression *pexpr = nullptr;
+	switch (dxl_op->GetDXLOperatorType())
+	{
+		case EdxloptypeLogical:
+			pexpr = PexprLogical(dxlnode);
+			break;
+
+		case EdxloptypeScalar:
+			pexpr = PexprScalar(dxlnode);
+			break;
+
+		default:
+			GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiUnsupportedOp,
+					   dxlnode->GetOperator()->GetOpNameStr()->GetBuffer());
+	}
+
+	return pexpr;
+}
+```
+```plantuml
+class CDXLNode {
+	- CDXLOperator *m_dxl_op
+	- CDXLProperties *m_dxl_properties
+	- CDXLNodeArray *m_dxl_array
+	- CDXLDirectDispatchInfo *m_direct_dispatch_info
+}
+```
+# Property
+Enforceable Property
+```plantuml
+@startuml
+class CEnfdProp {
+
+}
+class CEnfdDistribution
+class CEnfdOrder
+class CEnfdPartitionPropagation
+class CEnfdRewindability
+
+CEnfdDistribution <|-- CEnfdProp
+CEnfdOrder <|-- CEnfdProp
+CEnfdPartitionPropagation <|-- CEnfdProp
+CEnfdRewindability <|-- CEnfdProp
+note right of CEnfdProp : Abstract base class for all enforceable properties.
+@enduml
+```
+
+Derived Properties
+```plantuml
+@startuml
+class CDrvdProp {
+    + virtual EPropType Ept() = 0
+    + virtual void Derive(CMemoryPool *mp, CExpressionHandle &exprhdl, CDrvdPropCtxt *pdppropctxt) = 0
+    + virtual BOOL FSatisfies(const CReqdPropPlan *prpp) const = 0
+}
+
+class CDrvdPropScalar
+
+note right of CDrvdProp : Abstract base class for all derived properties
+note right of CDrvdPropRelational : Derived logical properties container
+note right of CDrvdPropPlan : Derived plan properties container
+
+CDrvdPropScalar <|-- CDrvdProp
+CDrvdPropRelational <|-- CDrvdProp
+CDrvdPropPlan <|-- CDrvdProp
+
+CDrvdPropCtxtRelational <|-- CDrvdPropCtxt
+CDrvdPropCtxtPlan <|-- CDrvdPropCtxt
+@enduml
+```
+
+# Config
+```C++
+class CConfigParamMapping
+{
+private:
+    // Unit describing the mapping of a single GPDB config param to a trace flag
+    struct SConfigMappingElem
+    {
+        // trace flag
+        EOptTraceFlag m_trace_flag;
+
+        // config param address
+        BOOL *m_is_param;
+              
+        // if true, we negate the config param value before setting traceflag value
+        BOOL m_negate_param;
+        const WCHAR *description_str;
+    };
+}
+```
 # Job Search
 任务调度的入口函数在`libgpopt\src\search\CScheduler.cpp`的`CScheduler::FExecute`
 ```C++
