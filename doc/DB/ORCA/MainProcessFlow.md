@@ -58,15 +58,12 @@ COptimizer -> COptimizer: CreateDXLNode
 note right of COptimizer : translate plan into DXL
 @enduml
 ```
-查询优化主要的调用流程在`COptimizer::PexprOptimize`
-主要执行代码
+查询优化主要的调用流程在`COptimizer::PexprOptimize`, 主要执行代码
 ```C++
-//		Optimize query in given query context
-//
-//---------------------------------------------------------------------------
+// Optimize query in given query context
 CExpression *
 COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
-						  CSearchStageArray *search_stage_array)
+        CSearchStageArray *search_stage_array)
 {
     CEngine eng(mp);
     eng.Init(pqc, search_stage_array);
@@ -282,6 +279,8 @@ class CDXLNode {
 }
 ```
 # Property
+EnfdProp负责增加属性算子，DrvdProp用来计算算子所能提供的属性，PropSpec为算子属性描述类，ReqdProp用来计算对孩子的属性请求
+
 Enforceable Property
 ```plantuml
 @startuml
@@ -324,7 +323,36 @@ CDrvdPropCtxtRelational <|-- CDrvdPropCtxt
 CDrvdPropCtxtPlan <|-- CDrvdPropCtxt
 @enduml
 ```
+required properties
+```plantuml
+class CReqdProp {
+    + virtual BOOL FRelational() const
+    + virtual BOOL FPlan() const
+    + virtual void Compute(CMemoryPool *mp, CExpressionHandle &exprhdl,
+            CReqdProp *prpInput, ULONG child_index,
+            CDrvdPropArray *pdrgpdpCtxt, ULONG ulOptReq) = 0;
+}
+class CReqdPropPlan
+class CReqdPropRelational
 
+note right of CReqdProp : Abstract base class for all required properties
+
+CReqdPropPlan <|-- CReqdProp
+CReqdPropRelational <|-- CReqdProp
+
+```
+Property specification
+```plantuml
+@startuml
+class CPropSpec
+note right of CPropSpec : Property specification
+
+CRewindabilitySpec <|-- CPropSpec
+CDistributionSpec <|-- CPropSpec
+COrderSpec <|-- CPropSpec
+CPartitionPropagationSpec <|-- CPropSpec
+@enduml
+```
 # Config
 ```C++
 class CConfigParamMapping
