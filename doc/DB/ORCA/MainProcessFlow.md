@@ -39,15 +39,14 @@ CDXLNode* COptimizer::PdxlnOptimize(
   
   // translate plan into DXL
   CDXLNode *pdxlnPlan = NULL;
-  pdxlnPlan = CreateDXLNode(mp, md_accessor, pexprPlan,
-                            pqc->PdrgPcr(), pdrgpmdname, ulHosts);
-  
+  pdxlnPlan = CreateDXLNode(mp, md_accessor, pexprPlan, pqc->PdrgPcr(), pdrgpmdname,ulHosts);
 }
 ```
 执行的主流程,从
 ```plantuml
 @startuml
 COptimizer -> CTranslatorDXLToExpr:PexprTranslateQuery
+CTranslatorDXLToExpr --> COptimizer : CExpression(expr treee)
 note right of CTranslatorDXLToExpr : translate DXL Tree -> Expr Tree
 COptimizer -> CQueryContext:PqcGenerate
 note right of CQueryContext : Generate the query context for the given \nexpression and array of output column ref ids
@@ -133,7 +132,7 @@ CEngine::Optimize()
 ```plantuml
 @startuml
 COptimizer -> CEngine:Init
-== CEngine:Init ==
+group CEngine:Init
 CEngine -> CSearchStage:PdrgpssDefault
 note right of CSearchStage : Generate default search strategy
 CEngine -> CEngine:InitLogicalExpression
@@ -142,9 +141,10 @@ group InitLogicalExpression
 CEngine -> CEngine:PgroupInsert
 CEngine -> CMemo:SetRoot
 end
-== CEngine:Optimize ==
+end
+
 COptimizer -> CEngine:Optimize
-group Optimize
+group CEngine::Optimize
 	CEngine -> CJobFactory:CJobFactory
 	note left of CJobFactory: new CScheduler as jf
 	CEngine -> CScheduler: CScheduler
