@@ -110,6 +110,11 @@ CJobGroupExploration -> CJobGroupExploration:**EevtExploreChildren(状态机)**
 
 CJobGroupExploration -> CJobGroupExpressionExploration:EevtExploreChildren
 CJobGroupExpressionExploration -> CJobGroupExpressionExploration:EevtExploreSelf
+group EevtExploreSelf
+CJobGroupExpressionExploration -> CJobGroupExpressionExploration:ScheduleApplicableTransformations
+CJobGroupExpressionExploration -> CJobGroupExpression:ScheduleTransformations
+CJobGroupExpression -> CJobTransformation:ScheduleJob
+end
 CJobGroupExpressionExploration -> CJobGroupExpressionExploration:EevtFinalize
 note right of CJobGroupExpressionExploration :GroupExpression State = estExplored
 
@@ -124,6 +129,12 @@ CJobGroupImplementation -> CJobGroupImplementation:**EevtImplementChildren(状�
 CJobGroupImplementation -> CJobGroupExpressionImplementation:EevtImplementChildren
 CJobGroupExpressionImplementation -> CJobGroupExpressionImplementation:ScheduleChildGroupsJobs
 CJobGroupExpressionImplementation ->  CJobGroupExpressionImplementation:EevtImplementSelf
+group EevtImplementSelf:
+CJobGroupExpressionImplementation ->  CJobGroupExpressionImplementation:ScheduleApplicableTransformations
+CJobGroupExpressionImplementation ->  CJobGroupExpression:ScheduleTransformations
+CJobGroupExpression -> CJobTransformation:ScheduleJob
+end
+
 CJobGroupExpressionImplementation -> CJobGroupExpressionImplementation:EevtFinalize
 note left of CJobGroupExpressionImplementation : GroupExpression State = estImplemented
 CJobGroupImplementation -> CJobGroupImplementation:FScheduleGroupExpressions(返回true)
@@ -142,7 +153,7 @@ note right of CJobGroupExpressionOptimization : Add required enforcers to owning
 CJobGroupExpressionOptimization -> CJobGroupExpressionOptimization:EevtOptimizeSelf
 CJobGroupExpressionOptimization -> CJobGroupExpressionOptimization:EevtFinalize
 
-CJobGroupOptimization -> CJobGroupOptimization:FScheduleGroupExpressions(返回false)
+CJobGroupOptimization -> CJobGroupOptimization:FScheduleGroupExpressions(false)
 note right of CJobGroupOptimization : 无法执行其他新的Job
 
 CJobGroupOptimization -> CJobGroupOptimization:**EevtCompleteOptimization(状态机)**
