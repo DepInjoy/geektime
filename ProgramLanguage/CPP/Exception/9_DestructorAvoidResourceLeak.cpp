@@ -22,20 +22,11 @@ public:
     }
 };
 
-class Kitte : public ALA {
-public:
-    ~Kitte() {
-        std::cout << "~Kitte" << std::endl;
-    }
-
-    void processAdoption() override {
-        std::cout << "Kitte::processAdoption" << std::endl;
-    }
-};
-
-
-class WindowHandle;
 class WINDOW_HANDLE {
+public:
+    void displayInfo() {
+        std::cout << "Display Info" << std::endl;
+    }
 };
 
 WINDOW_HANDLE createWindow() {
@@ -52,16 +43,20 @@ class WindowHandle {
 public:
     explicit WindowHandle(WINDOW_HANDLE handle) : w(handle) {}
     ~WindowHandle() { destroyWindow(w); }
-    operator WINDOW_HANDLE() { return w; }
-    void displayInfo() {
-        std::cout << "Display Info" << std::endl;
-    }
+    // 隐式转换,将WindowHandle转换为WINDOW_HANDLE
+    operator WINDOW_HANDLE() const { return w; }
+
 private:
     WINDOW_HANDLE w;
     WindowHandle(const WindowHandle&);
     WindowHandle& operator=(const WindowHandle&);
 };
 
+// 展示隐式转换带来的方便之处
+// 由于WindowHandle支持隐式转换为WINDOW_HANDLE, 函数入参可以为WindowHandle
+void ConvenientWindowHandlerDisplay(WINDOW_HANDLE winHandle) {
+    winHandle.displayInfo();
+}
 void CloseFile(std::FILE* fd) {
     std::cout << "close file" << std::endl;
     std::fclose(fd);
@@ -80,7 +75,8 @@ int main(int argc, char* argv[]) {
         {
             std::cout << "\n2) 将WINDOW_HANDLE封装在WindowHandle对象内来避免资源泄漏" << std::endl;
             WindowHandle wh2(createWindow());
-            wh2.displayInfo();
+            static_cast<WINDOW_HANDLE>(wh2).displayInfo();
+            ConvenientWindowHandlerDisplay(wh2);
         }
 
         // follow see: https://en.cppreference.com/w/cpp/memory/unique_ptr
@@ -107,3 +103,4 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
+
