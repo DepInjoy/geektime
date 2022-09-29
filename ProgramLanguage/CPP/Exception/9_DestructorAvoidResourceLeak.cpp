@@ -1,3 +1,6 @@
+/**
+ * @brief   条款9：利用destructors避免泄漏资
+ */
 #include <iostream>
 #include <memory>
 #include <exception>
