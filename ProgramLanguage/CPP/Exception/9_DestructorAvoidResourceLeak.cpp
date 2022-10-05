@@ -22,6 +22,7 @@ public:
     }
     void processAdoption() override {
         std::cout << "Puppy::processAdoption" << std::endl;
+        // throw std::runtime_error("just for test");
     }
 };
 
@@ -29,6 +30,7 @@ class WINDOW_HANDLE {
 public:
     void displayInfo() {
         std::cout << "Display Info" << std::endl;
+        // throw std::runtime_error("displayInfo exception just for test");
     }
 };
 
@@ -60,6 +62,7 @@ private:
 void ConvenientWindowHandlerDisplay(WINDOW_HANDLE winHandle) {
     winHandle.displayInfo();
 }
+
 void CloseFile(std::FILE* fd) {
     std::cout << "close file" << std::endl;
     std::fclose(fd);
@@ -68,11 +71,20 @@ void CloseFile(std::FILE* fd) {
 int main(int argc, char* argv[]) {
     try {
         {
+            ALA* puppy(new Puppy);
+            try {
+                puppy->processAdoption();
+            } catch (std::exception& e) {
+                std::cerr << e.what() << '\n';
+                delete puppy;   // 捕获异常调用delete来避免资源泄漏
+            }
+            delete puppy;
+        }
+
+        {
             std::cout << "1) 采用unique_ptr包装裸指针,避免资源泄漏,同时支持多态" << std::endl;
-            // ALA* puppy(new Puppy);
             std::unique_ptr<ALA> puppy(new Puppy);
             puppy->processAdoption();
-            // throw std::runtime_error("just for test");
         }
 
         {
@@ -99,7 +111,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "destroying from a custom deleter...\n";
                 delete ptr;
             });
-            // throw std::runtime_error("just for test");
+            // throw std::runtime_error("custom lambda-expression deleter : just for test");
         }
     } catch(const std::exception& e) {
         std::cerr << e.what() << '\n';
