@@ -177,7 +177,7 @@ int main(int argc, char* argv[]) {
 
 ```
 
-上述实现[完整实现代码](https://github.com/DepInjoy/geektime/blob/main/ProgramLanguage/CPP/Exception/9_DestructorAvoidResourceLeak.cpp)
+上述实现[完整实现代码](https://github.com/DepInjoy/geektime/blob/main/ProgramLanguage/CPP/Exception/09_DestructorAvoidResourceLeak.cpp)
 
 ## 参考资料
 
