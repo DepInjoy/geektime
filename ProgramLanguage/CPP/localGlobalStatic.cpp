@@ -62,8 +62,9 @@ int main(int argc, char* argv[]) {
     auto f_static = std::bind((int(*)(int, int, int))&Foo::foo_static, 1, 2, 3);
     f_nonstatic(66, 6);
     f_static(6, 6, 6);
-    
-    // 
+
+    // 2. C++ static initialization order
+    std::cout << "\n\nC++ static initialization order demo start:" << std::endl;
     B b;
     return 0;
 }
