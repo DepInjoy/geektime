@@ -1,6 +1,8 @@
 /**
  * @brief   static相关的内容
- *          1. static类型的成员函数按照非成员函数进行std::bind
+ *          1. The address of a static member function may be stored in a regular pointer to function,
+ *             but not in a pointer to member function.(see https://en.cppreference.com/w/cpp/language/static)
+ *          使用示例:static类型的成员函数按照非成员函数进行std::bind
  *          https://stackoverflow.com/questions/21401552/stdbind-a-static-member-function-inside-the-class
  * 
  *          2. C++ static initialization order:
