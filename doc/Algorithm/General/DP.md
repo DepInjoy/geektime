@@ -306,6 +306,87 @@ int main() {
 - [剑指 Offer II 101. 分割等和子集](https://leetcode.cn/problems/NUPfPr/)
 - [剑指 Offer II 102. 加减的目标值](https://leetcode.cn/problems/YaVDxD/)
 - [剑指 Offer II 103. 最少的硬币数目](https://leetcode.cn/problems/gaM7Ch/)
+
+## 矩阵最小路径和
+> 给定一个包含非负整数的mxn网格grid,请找出一条从左上角到右下角的路径，使得路径上的数字总和为最小。[LeetCode链接](https://leetcode.cn/problems/minimum-path-sum/description/)
+
+对于第一行的第i个元素只能从左边走到右边，因此有：
+$$
+dp[0][0] = grid[0][0] \\
+dp[0][i] = dp[0][i-1] + grid[0][i]
+$$
+同样，对于第一列的第i个元素只能从其上边走到当前位置，因此有
+$$
+dp[i][0] = dp[i-1][0] + grid[i][0]
+$$
+对于$(i, j)$可以从上边或左边的位置走到当前位置，寻找最短路径，因此有:
+$$
+dp[i][j] = min(dp[i-1][j], dp[i][j-1]) + grid[i][j]
+$$
+
+C++实现代码如下
+```C++
+int minPathSum(std::vector<std::vector<int>>& grid) {
+    if (grid.size() == 0 || grid[0].size() == 0) {
+        return 0;
+    }
+
+    int m = grid.size(), n = grid[0].size();
+    std::vector<std::vector<int>> dp(m, std::vector<int>(n));
+    dp[0][0] = grid[0][0];
+    for (int i = 1; i < m; ++i) {
+        dp[i][0] = dp[i-1][0] + grid[i][0];
+    }
+    for (int i = 1; i < n; ++i) {
+        dp[0][i] = dp[0][i-1] + grid[0][i]; 
+    }
+
+    for (int i = 1; i < m; ++i) {
+        for (int j = 1; j < n; ++j) {
+            dp[i][j] = std::min(dp[i-1][j], dp[i][j-1]) + grid[i][j];
+        }
+    }
+    return dp[m-1][n-1];
+}
+```
+实现的时间和空间复杂度为$O(M*N)$
+
+对于(i, j)位置在实际执行时只关心正上方和左方位置的值
+```
+           x   x   x   x
+           x   x   .   x
+           x   .   o   x
+           x   x   x   x
+```
+因此，可以进行空间压缩，采用$min(M, N)$的来存储动态规划的过程信息，假设行数(M)较小，那么按列执行动态规划，其中$dp[i]$代表的便是到达左边位置的最小路径和，$dp[i-1]$代表的是到达正上方位置所需要的最小路径和，因此可以有如下的实现:
+```C++
+// 动态规划+空间压缩
+// 时间复杂度为O(MxN),空间复杂度为O(Min(M,N))
+int minPathSum(vector<vector<int>>& grid) {
+    if (grid.size() == 0 || grid[0].size() == 0) {
+        return 0;
+    }
+
+    int m = grid[0].size(), n = grid.size();
+    bool isSmallRow = (m <= n); // 行数<列数为true,否则false
+    // 行列中较
+    int N = (isSmallRow ? m : n);
+    std::vector<int> dp(N);
+    dp[0] = grid[0][0];
+    for (int i = 1; i < N; ++i) {
+        dp[i] = dp[i-1] + (isSmallRow ? grid[0][i] : grid[i][0]);
+    }
+
+    int M = (isSmallRow ? n : m); // 行列中较大者
+    for (int i = 1; i < M; ++i) {
+        dp[0] = dp[0] + (isSmallRow ? grid[i][0] : grid[0][i]);
+        for (int j = 1; j < N; ++j) {
+            dp[j] = std::min(dp[j-1], dp[j]) + (isSmallRow ? grid[i][j] : grid[j][i]);
+        }
+    }
+    return dp[N-1];
+}
+```
 ## 矩阵路径问题
 > 矩阵路径是一类常见的可以用动态规划来解决的问题。这类问题通常输入的是一个二维的格子，一个机器人按照一定的规则从格子的某个位置走到另一个位置，要求计算路径的条数或找出最优路径。
 > 
