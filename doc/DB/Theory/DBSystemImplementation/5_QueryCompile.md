@@ -28,6 +28,35 @@
    3. 检查类型。所有属性的类型必须与其使用相适应。
 
 ## 预处理涉及视图的查询
+如果查询中运算对象是虚视图，预处理器需要将这个运算对象替换成表示这个视图是怎样由基本表构造出来的语法树。
+
+# 用于改进查询计划的代数定律
+
+## 交换律与结合律
+
+关系代数的多个运算符同时满足结合律与交换律
+$$
+\begin{array}{l}
+R \times S = S \times R; (R \times S)T = R \times (S \times T) \\
+R \Join S = S \Join R; (R \Join S) \Join T = R \Join (S \Join T)\\
+R \cup S = S \cup R; (R \cup S) \cup T = R \cup (S \cup T)\\
+R \cap S = S \cap R; (R \cap S) \cap T = R \cap (S \cap T)\\
+\end{array}
+$$
+这些定律对于集合与包都成立。
+$\theta$连接可交换
+$$
+R \Join_C S = S \Join_C R
+$$
+
+包与集合的定律可能不同
+$$
+A \cap_s(B \cup_s C) = (A \cap_s B) \cup_s (A \cap_s C)
+$$
+即交对并的分配律，适合于集合运算，对包不成立
+
+## 涉及选择的定律
+
 
 # 运算代价的估算
 
