@@ -56,7 +56,54 @@ $$
 即交对并的分配律，适合于集合运算，对包不成立
 
 ## 涉及选择的定律
+选择可以明显地减少关系的大小，因此进行有效查询处理最重要的规则之一就是只要不改变表达式的结果，就把选择在语法树上尽可能地下移。
+$\sigma$运算符的分解定律：
+$$
+\begin{array}{l}
+\sigma_{C_1 AND C_2}(R) = \sigma_{C_1}(\sigma_{C_2}(R)) \\
+\sigma_{C_1 OR C_2}(R) = (\sigma_{C_1}(R)) \cup_S (\sigma_{C_2}(R)),其中R是集合才成立\\
+\end{array}
+$$
 
+更一般地，我们可以任意交换$\sigma$运算符的顺序
+$$
+\begin{array}{l}
+\sigma_{C_1}(\sigma_{C_2}(R)) = \sigma_{C_2}(\sigma_{C_1}(R))
+\end{array}
+$$
+
+$$
+\begin{array}{l}
+\sigma_C(R \cup S) = \sigma_C(R) \cup \sigma_C(S)\\
+\sigma_C(R - S) = \sigma_C(R) - S \\
+\sigma_C(R - S) = \sigma_C(R) - \sigma_C(S) \\
+\end{array}
+$$
+
+假设关系R具有C中提及的全部属性，可以有如下的定律：
+$$
+\begin{array}{l}
+\sigma_C(R \times S) = \sigma_C(R) \times S \\
+\sigma_C(R \Join S) = \sigma_C(R) \Join S \\
+\sigma_C(R \Join_D S) = \sigma_C(R) \Join_D  S \\
+\sigma_C(R \cap S) = \sigma_C(R) \cap S \\
+\end{array}
+$$
+如果C只涉及S的属性，则可以有：
+$$
+\sigma_C(R \times S) = R \times \sigma_C(S) \\
+$$
+如果关系R和S恰好都包含了C属性，则有如下的定律：
+$$
+\begin{array}{l}
+\sigma_C(R \Join S) = \sigma_C(R) \Join \sigma_C(S) \\
+\sigma_C(R \Join_D S) = \sigma_C(R) \Join_D  \sigma_C(S) \\
+\sigma_C(R \cap S) = \sigma_C(R) \cap \sigma_C(S) \\
+\end{array}
+$$
+
+## 下推选择
+## 涉及投影的定律
 
 # 运算代价的估算
 
