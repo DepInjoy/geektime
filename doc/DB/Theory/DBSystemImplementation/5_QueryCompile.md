@@ -109,9 +109,9 @@ $$
 下推投影有用，但一般情况下不如下推选择那么有用，原因是选择通常以较大的因子减少关系的大小，儿投影不改变元组数，只减少元组长度。
 
 为描述使用扩展投影的转换，引入一些术语。考虑投影列表中的项$E \longrightarrow x$,其中$E$是一个属性或含有属性与常量的一个表达式。我们称$E$中提到的全部属性是投影的输入属性，$x$是一个输出属性。若一个项是单个属性的，则它即是输入属性又是输出属性。如果一个投影列表的属性构成不包含更名或不是单个属性的表达式，则我们称该投影是简单的。
-例：投影$\pi_{a, b, c}(R)是简单的，$a, b, c$既是输入属性又是输出属性，但$$\pi_{A+b \longrightarrow x, c}(R)$不是简单的，其输入属性是$a, b, c$，而输出属性是$x和c$。
+例：投影$\pi_{a, b, c}(R)是简单的，$a, b, c$既是输入属性又是输出属性，但$$\pi_{a+b \longrightarrow x, c}(R)$不是简单的，其输入属性是$a, b, c$，而输出属性是$x和c$。
 
-eg1. 投影$\pi_{a, b, c}(R)$是简单的，$a, b, c$既是输入属性又是输出属性，但$\pi_{a+b \longrightarrow x, c}(R)$不是简单的，其输入属性是$a, b, c$，输出属性是$x和c$
+例1. 投影$\pi_{a, b, c}(R)$是简单的，$a, b, c$既是输入属性又是输出属性，但$\pi_{a+b \longrightarrow x, c}(R)$不是简单的，其输入属性是$a, b, c$，输出属性是$x和c$
 
 **投影定律背后隐藏的原理是：我们可以在表达式树上的任何地方引入投影，只要它所消除的属性是其上的运算符从来不会用到的，并且也不在整个表达式的结果之中。**
 
@@ -121,10 +121,52 @@ eg1. 投影$\pi_{a, b, c}(R)$是简单的，$a, b, c$既是输入属性又是输
 
 - $\pi_{L}(R \times S) = \pi_{L}(\pi_{M}(R) \times \pi_{N}(S))$其中$M$和$N$分别是包含在L的输入属性中的$R$和$S$的全部属性。
 
-eg2. 令关系$R(a, b, c)$与$S(c, d, e)$是关系，考虑连接与投影$\pi_{a+b \longrightarrow x, d+e \longrightarrow y}(R \Join S)$。可以将$a+b$更名为x直接转移到关系R上，类似将$d+e$转移到S上，得到等价表达式$\pi_{x, y}(\pi_{a+b \longrightarrow x, c}(R) \Join \pi_{d+e \longrightarrow y, c}(S)) $
+例2. 令关系$R(a, b, c)$与$S(c, d, e)$是两个关系，考虑表达式$\pi_{a+e \longrightarrow x, b \longrightarrow y}(R \Join S)$,投影输入属性是$a, b, e$,而C是仅有的连接属性，可以应用投影下推到连接之下的定律得到以下等价表达式
+$$
+\begin{array}{l}
+\pi_{a+e \longrightarrow x, b \longrightarrow y}(\pi_{a, b, c}(R) \Join \pi_{c, e}(S))\\
+\pi_{a+e \longrightarrow x, b \longrightarrow y}(R \Join \pi_{c, e}(S))
+\end{array}
+$$
+
+可以在包并之前进行投影，即
+$$
+\begin{array}{l}
+\pi_L(R \cup_B S) = \pi_L(R) \cup_B \pi_L(S)
+\end{array}
+$$
+与此相反，投影不能被下推到集合并或集合、包的交或差之下。例如：
+令$R(a, b)$由一个元组${(1, 2)}$组成，$S(a, b)$由一个元组${(1, 3)}$组成，则$\pi_a(R \cap S) = \pi(\oslash)= \oslash $，然而，$\pi_a(R) \cap \pi_a(S) = {(1)} \cap {(1)} = {(1)}$
+
+例3. 令关系$R(a, b, c)$与$S(c, d, e)$是关系，考虑连接与投影$\pi_{a+b \longrightarrow x, d+e \longrightarrow y}(R \Join S)$。可以将$a+b$更名为x直接转移到关系R上，类似将$d+e$转移到S上，得到等价表达式$\pi_{x, y}(\pi_{a+b \longrightarrow x, c}(R) \Join \pi_{d+e \longrightarrow y, c}(S)) $
 
 下推投影待选择之下也是可能的
 $\pi_{L}(\sigma_{c}(R)) = \pi_L(\sigma_{c}(\pi_{M}(R)))$,其中M是L的输入数字哪个列表或是条件C中提到的属性列表。
+
+# 有关连接与积的定律
+$$
+\begin{array}{l}
+R \Join_c S = \sigma_{c}(R \times S) \\
+R \Join S = \pi_L(\sigma_c(R \times S)),其中条件C是R和S中具有相同名字的属性对进行等值比较，L是包含R与S中每一个等值对中一个属性以及其他所有属性的列表。
+\end{array}
+$$
+
+# 有关消除重复的定律
+运算符$\delta$用于从包中消除重复。一般而言，将$\delta$移到树的下边减少了种间关系的大小从而可能是有益的，此外，有时会把$\delta$移到一个可以完全消除的位置，因为它作用于一个不含重复元组的关系上。
+- 若$R$没有重复，则$\delta(R)=R$,这样的关系$R$的几个重要的情形有：
+   - 声明了主键的一个存储关系
+   - 属于$\gamma$运算结果的一个关系，因为分组创建一个没有重复的关系
+   - 集合的一个并、交、差运算结果
+- $\delta(R \times S) = \delta(R) \times \delta(S)$
+- $\delta(R \Join S) = \delta(R) \Join \delta(S)$
+- $\delta(R \Join_c S) = \delta(R) \Join_c \delta(S)$
+- $\delta(\sigma_c(R)) = \sigma_c(\delta(R))$
+- $\delta(R \cap_B S) = \delta(R) \cap_B S = R \cap_B \delta(S) = \delta(R) \cap_B \delta(S)$可以将$\delta$移到交运算的其中一个或两个参数上
+
+# 涉及分组与聚集的定律
+考虑到$\gamma$时，很多变换应用取决于所用聚集运算符的细节，因此，一般不能像运用其他运算符定律那样描述它的通用定律。而下面的定律是通用的
+- $\gamma$吸收$\delta$,即$\delta(\gamma_L(R)) = \gamma_L(R)$
+- 在运用$\gamma$运算符前，只要需要，可以用投影在参数中去除无用的属性。即$\gamma_L(R) = \gamma_L(\pi_M(R))$，其中$M$是至少包含$L$中所提到的所有R属性的列表。
 
 # 运算代价的估算
 
