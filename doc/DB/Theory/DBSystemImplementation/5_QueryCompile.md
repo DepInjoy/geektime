@@ -174,8 +174,28 @@ $$
 $\gamma_L(R) = \gamma_L(\delta(R))$,其中$\gamma_L$是不受重复值影响的。
 
 # 从语法分析树到逻辑查询计划
+构造完成查询语句的语法分析树接下来需要把语法分析树转换成逻辑查询计划，这需要分两步：
+1. 按适当的群组用一个或多个关系代数运算符替换语法树上的结点与结构。
+2. 利用第1步产生的关系代数表达式将其转换成我们期望的表达式，它可被转换成最有效的物理查询计划。
 
 ## 1. 转换成关系代数
+我们非正式地说明将SQL语法树转换成代数的逻辑查询计划的一些规则，第一条规则使我们能直接将所有简单的“select-from-where”结构转换成关系代数，非正式地陈述为：
+- 如果我们有一个含有<Condition>的没有子查询的<Query>，则可以用一个关系代数表达式来替换整个成分--选择列表、from列表以及条件，其中代数表达式自底向上由以下内容组成：
+   - <FromList>中提及的全部关系的积食以下运算符的参数
+   - 选择$\sigma_c $,其中C就是要被替换成分中<Condition>表达式，同时选择又是下线运算符的参数
+   - 投影$\pi_L$，其中L是<SelList>中属性列表。
+
+例如：
+```sql
+SELECT movietitle
+   FROM startin, moviestar
+   WHERE startname = name AND birthdate LIKE '%1960';
+```
+ParserTree-LogicalPlan.png
+<center>
+   <img src="./img/ParserTree-LogicalPlan.png">
+   <div><b>语法分析树转换成代数表达式树，在代数表达式树应用代数定律重写实现对逻辑查询计划的改进和丰富</b></div>
+</center>
 
 ## 2. 从条件中去除子查询
 
