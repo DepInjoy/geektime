@@ -212,5 +212,4 @@ AsyncDispatcher ->> eventDispatchers : take
 Note left of eventDispatchers : 根据event获取相应的EventHandler,记为handler
 AsyncDispatcher ->> EventHandler : handle
 Note left of EventHandler : 执行事件处理
-
 ```
