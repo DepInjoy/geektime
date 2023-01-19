@@ -21,6 +21,20 @@ $$
 | Range类型基于长度的直方图统计信息 | 用户可以自定义Range类型，PG提供了`range_typanalyze`系统函数负责生成该类型的统计信息 |
 | Range类型基于边界的直方图         | Range类型生基于边界的直方图,这种类型直方图通过`range_typanalyze`系统函数来进行统计 |
 
+相关系数的计算公式
+$$
+\begin{array}{l}
+
+\rho = \frac{n\sum{xy} - \sum{x}\sum{y}}{\sqrt{n\sum{x^2} - ({\sum{x}})^2} \sqrt{n\sum{y^2}-(\sum {y})^2}} \\
+假设排序前的编号为x，排序后的编号为y，则编号有如下特点：\\
+\sum{x} = \sum{y} \\
+\sqrt{n\sum{x^2} - ({\sum{x}})^2} = \sqrt{n\sum{y^2}-(\sum {y})^2} \\
+\\
+因此：\\
+\rho = \frac{n\sum{xy} - {\sum{x}}^2}{n\sum{x^2} - ({\sum{x}})^2}
+\end{array}
+$$
+
 `PostgreSQL`使用`PG_STATISTIC`系统表保存单列的统计信息， 如果用户要给某一个表成生统计信息使用`ANALYZE`语句进行统计分析，给该表生成统计信息并且保存在`PG_STATISTIC`系统表中。`PostgreSQL`对每一个属性（列）的统计目前最多只能应用 `STATISTIC_NUM_SLOTS`=5种方法，因此在 PG_STATISTIC 会有 `stakind(l-5)`、 `staop(l-5 )`、` stanumbers[1](1-5)`、`stavalues(1-5)`分别是 槽位。如果`stakind` 不为0 ，那么表明这个槽位有统计信息。
 
 ```C
@@ -84,6 +98,14 @@ PG_STATISTIC_EXT系统表保存多列的统计信息 用户需要显式地使用
 #define DEFAULT_PARALLEL_SETUP_COST  1000.0
 ```
 ### 单列统计信息生成源码
+
+```c
+
+```
+
+
+
+
 
 ```C++
 /*
@@ -249,6 +271,69 @@ BlockNumber BlockSampler_Next(BlockSampler bs) {
 	bs->m++;
 	return bs->t++;
 }
+```
+
+统计方法
+
+```c
+// 选择统计方法
+bool
+std_typanalyze(VacAttrStats *stats) {
+    		......
+    if (OidIsValid(eqopr) && OidIsValid(ltopr)) {
+		stats->compute_stats = compute_scalar_stats;
+		stats->minrows = 300 * attr->attstattarget;
+	} else if (OidIsValid(eqopr)) {
+		stats->compute_stats = compute_distinct_stats;
+		stats->minrows = 300 * attr->attstattarget;
+	} else {
+		stats->compute_stats = compute_trivial_stats;
+		stats->minrows = 300 * attr->attstattarget;
+	}
+	return true;
+}
+```
+
+### 多列统计信息
+
+```C
+/**
+ *	位于src/backend/statistics/extended_stats.c 
+ *	
+ *	创建多列统计信息
+ *	
+*/
+void
+BuildRelationExtStatistics(Relation onerel, bool inh, double totalrows,
+						   int numrows, HeapTuple *rows,
+						   int natts, VacAttrStats **vacattrstats)
+```
+
+```c
+/**
+ * 	位于src/backend/statistics/dependencies.c
+ *	
+ *	获取函数依赖度
+*/
+static double
+dependency_degree(StatsBuildData *data, int k, AttrNumber *dependency)
+```
+
+```c
+typedef struct MVDependency
+{
+	double		degree;			/* 函数依赖度degree of validity (0-1) */
+	AttrNumber	nattributes;	/* number of attributes */
+	AttrNumber	attributes[FLEXIBLE_ARRAY_MEMBER];	/* attribute numbers */
+} MVDependency;
+
+typedef struct MVDependencies
+{
+	uint32		magic;			/* magic constant marker */
+	uint32		type;			/* type of MV Dependencies (BASIC) */
+	uint32		ndeps;			/* number of dependencies */
+	MVDependency *deps[FLEXIBLE_ARRAY_MEMBER];	/* dependencies */
+} MVDependencies;
 ```
 
 

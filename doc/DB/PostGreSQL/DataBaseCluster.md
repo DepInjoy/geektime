@@ -1,3 +1,78 @@
+# 元组
+
+
+
+堆元组由三部分构成
+
+```c
+// 位于src/include/access/htup.h
+typedef struct HeapTupleData {
+	uint32		t_len;			/* length of *t_data */
+	ItemPointerData t_self;		/* SelfItemPointer */
+	Oid			t_tableOid;		/* table the tuple came from */
+#define FIELDNO_HEAPTUPLEDATA_DATA 3
+	HeapTupleHeader t_data;		/* -> tuple header and data */
+} HeapTupleData;
+```
+
+```c
+// 位于src\include\access\htup_details.h
+typedef struct HeapTupleFields {
+	TransactionId t_xmin;		/* inserting xact ID */
+	TransactionId t_xmax;		/* deleting or locking xact ID */
+	union {
+		CommandId	t_cid;		/* inserting or deleting command ID, or both */
+		TransactionId t_xvac;	/* old-style VACUUM FULL xact ID */
+	}			t_field3;
+} HeapTupleFields;
+
+typedef struct DatumTupleFields {
+	int32		datum_len_;		/* varlena header (do not touch directly!) */
+	int32		datum_typmod;	/* -1, or identifier of a record type */
+	Oid			datum_typeid;	/* composite type OID, or RECORDOID */
+
+	/*
+	 * datum_typeid cannot be a domain over composite, only plain composite,
+	 * even if the datum is meant as a value of a domain-over-composite type.
+	 * This is in line with the general principle that CoerceToDomain does not
+	 * change the physical representation of the base type value.
+	 *
+	 * Note: field ordering is chosen with thought that Oid might someday
+	 * widen to 64 bits.
+	 */
+} DatumTupleFields;
+
+struct HeapTupleHeaderData {
+	union {
+		HeapTupleFields t_heap;
+		DatumTupleFields t_datum;
+	} t_choice;
+
+	ItemPointerData t_ctid;		/* current TID of this or newer tuple (or a
+								 * speculative insertion token) */
+
+	/* Fields below here must match MinimalTupleData! */
+
+#define FIELDNO_HEAPTUPLEHEADERDATA_INFOMASK2 2
+	uint16		t_infomask2;	/* number of attributes + various flags */
+
+#define FIELDNO_HEAPTUPLEHEADERDATA_INFOMASK 3
+	uint16		t_infomask;		/* various flag bits, see below */
+
+#define FIELDNO_HEAPTUPLEHEADERDATA_HOFF 4
+	uint8		t_hoff;			/* sizeof header incl. bitmap, padding */
+
+	/* ^ - 23 bytes - ^ */
+
+#define FIELDNO_HEAPTUPLEHEADERDATA_BITS 5
+	bits8		t_bits[FLEXIBLE_ARRAY_MEMBER];	/* bitmap of NULLs */
+
+	/* MORE DATA FOLLOWS AT END OF STRUCT */
+};
+```
+
+
+
 ## 堆表文件内部布局
 
 数据文件（堆表、索引，也包括空闲空间映射和可见性映射）内部被划分为固定长度的页，或者叫区块，大小默认为`8192B(8KB)`。每个文件中的页从0开始按顺序编号，这些数字称为区块号。如果文件已填满，`PostgreSQL`就通过在文件末尾追加一个新的空页来增加文件长度。页面内部的布局取决于数据文件的类型。

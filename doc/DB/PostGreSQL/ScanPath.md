@@ -20,15 +20,13 @@ $$
 \begin{array}{l}
 run\_cost \\
 = cpu\_run\_cost+disk\_run\_cost \\
-= (cpu\_tuple\_cost+cpu\_operator\_cost)×N_{tuple} + seq\_page\_cost × N_{page} \\
+= (cpu\_tuple\_cost+cpu\_operator\_cost)×N_{tuple} + seq\_page\_cost × N_{page}\\
 \\
 seq\_page\_cost、cpu\_tuple\_cost和cpu\_operator\_cost是在postgresql.conf中配置的参数\\
 默认值分别为1.0、0.01和0.0025 \\
 N_{tuple}和N_{page}分别是表中的元组总数与页面总数
-
 \end{array}
 $$
-
 
 ### 2. 索引扫描
 
