@@ -102,6 +102,23 @@ note right of CPropSpec : Property specification
 
 CRewindabilitySpec <|-- CPropSpec
 CDistributionSpec <|-- CPropSpec
+
+CDistributionSpecStrictSingleton <|-- CDistributionSpecSingleton
+
+CDistributionSpecRandom <|-- CDistributionSpec
+CDistributionSpecNonSingleton <|-- CDistributionSpec
+CDistributionSpecReplicated <|-- CDistributionSpec
+CDistributionSpecRouted <|-- CDistributionSpec
+CDistributionSpecUniversal  <|-- CDistributionSpec
+CDistributionSpecSingleton <|-- CDistributionSpec
+CDistributionSpecAny <|-- CDistributionSpec
+
+CDistributionSpecStrictHashed <|-- CDistributionSpecHashed
+CDistributionSpecHashed <|-- CDistributionSpecRandom
+CDistributionSpecStrictRandom <|-- CDistributionSpecRandom
+
+CDistributionSpecHashedNoOp <|-- CDistributionSpecHashed
+
 COrderSpec <|-- CPropSpec
 CPartitionPropagationSpec <|-- CPropSpec
 @enduml
