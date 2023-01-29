@@ -1,3 +1,84 @@
+orca对于子查询可以采用去关联化和相关执行两种方式实现：
+- **去关联化(Decoorelation或Unnesting)**，理论上可以对任意一个查询去关联化。
+例如，对于非相关查询:
+
+```sql
+EXPLAIN
+    SELECT (SELECT sum(a) FROM test_a) FROM test_b;
+```
+去关联，将其转化为一个` Nested Loop Left Join`
+```
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..1324032.55 rows=1 width=8)
+   ->  Nested Loop Left Join  (cost=0.00..1324032.55 rows=1 width=8)
+         Join Filter: true
+         ->  Seq Scan on test_b  (cost=0.00..431.00 rows=1 width=1)
+         ->  Materialize  (cost=0.00..431.00 rows=1 width=8)
+               ->  Broadcast Motion 1:3  (slice2)  (cost=0.00..431.00 rows=1 width=8)
+                     ->  Finalize Aggregate  (cost=0.00..431.00 rows=1 width=8)
+                           ->  Gather Motion 3:1  (slice3; segments: 3)  (cost=0.00..431.00 rows=1 width=8)
+                                 ->  Partial Aggregate  (cost=0.00..431.00 rows=1 width=8)
+                                       ->  Seq Scan on test_a  (cost=0.00..431.00 rows=1 width=4)
+ Optimizer: Pivotal Optimizer (GPORCA)
+```
+相关查询
+```sql
+EXPLAIN
+    SELECT (SELECT sum(a) FROM test_a where test_a.a=test_b.a) FROM test_b
+```
+得到`Hash Left Join`执行计划
+```
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..862.00 rows=1 width=8)
+   ->  Hash Left Join  (cost=0.00..862.00 rows=1 width=8)
+         Hash Cond: (test_b.a = test_a.a)
+         ->  Seq Scan on test_b  (cost=0.00..431.00 rows=1 width=4)
+         ->  Hash  (cost=431.00..431.00 rows=1 width=12)
+               ->  GroupAggregate  (cost=0.00..431.00 rows=1 width=12)
+                     Group Key: test_a.a
+                     ->  Sort  (cost=0.00..431.00 rows=1 width=4)
+                           Sort Key: test_a.a
+                           ->  Seq Scan on test_a  (cost=0.00..431.00 rows=1 width=4)
+ Optimizer: Pivotal Optimizer (GPORCA)
+```
+- **相关执行(Correlated Execution)**(配置subplan，将结果集物化，再执行外层查询)，可以将`optimizer_enforce_subplans`配置参数设置为true，来强制采取此方式()的方式执行，默认该参数为false。例如，非相关子查询
+```sql
+-- Enforce correlated execution in the optimizer
+SET optimizer_enforce_subplans=on;
+
+EXPLAIN
+    SELECT (SELECT sum(a) FROM test_a) FROM test_b;
+```
+可以将`SELECT sum(a) FROM test_a`设置为subplan先执行，将其结果物化，再执行外层的查询
+```
+ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..1324047.16 rows=1 width=8)
+   ->  Seq Scan on test_b  (cost=0.00..1324047.16 rows=334 width=8)
+         SubPlan 1
+           ->  Materialize  (cost=0.00..431.00 rows=1 width=8)
+                 ->  Broadcast Motion 1:3  (slice2)  (cost=0.00..431.00 rows=1 width=8)
+                       ->  Finalize Aggregate  (cost=0.00..431.00 rows=1 width=8)
+                             ->  Gather Motion 3:1  (slice3; segments: 3)  (cost=0.00..431.00 rows=1 width=8)
+                                   ->  Partial Aggregate  (cost=0.00..431.00 rows=1 width=8)
+                                         ->  Seq Scan on test_a  (cost=0.00..431.00 rows=1 width=4)
+ Optimizer: Pivotal Optimizer (GPORCA
+```
+
+对于相关查询也可以采用subplan+物化的方式执行
+```sql
+EXPLAIN
+    SELECT (SELECT sum(a) FROM test_a where test_a.a=test_b.a) FROM test_b
+```
+相关执行的执行计划
+```
+Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..1324047.00 rows=1 width=8)
+   ->  Seq Scan on test_b  (cost=0.00..1324047.00 rows=334 width=8)
+         SubPlan 1
+           ->  Aggregate  (cost=0.00..431.00 rows=1 width=8)
+                 ->  Result  (cost=0.00..431.00 rows=1 width=4)
+                       Filter: (test_a.a = test_b.a)
+                       ->  Materialize  (cost=0.00..431.00 rows=1 width=4)
+                             ->  Broadcast Motion 3:3  (slice2; segments: 3)  (cost=0.00..431.00 rows=1 width=4)
+                                   ->  Seq Scan on test_a  (cost=0.00..431.00 rows=1 width=4)
+ Optimizer: Pivotal Optimizer (GPORCA)
+```
 
 ```C++
 // Scalar subquery
@@ -64,7 +145,16 @@ class CXformImplementLeftOuterCorrelatedApply
     : public CXformImplementCorrelatedApply<CLogicalLeftOuterCorrelatedApply,
                                             CPhysicalCorrelatedLeftOuterNLJoin> {}
 ```
+# 相关执行
+```plantuml
+@startuml
+CXformSimplifySelectWithSubquery -up-|> CXformSimplifySubquery
+CXformSimplifyProjectWithSubquery -up-|> CXformSimplifySubquery
+CXformSimplifySubquery -up-|> CXformExploration
+@enduml
+```
 
+# 去关联
 ```plantuml
 @startuml
 CXformGbAgg2Apply -down-|> CXformSubqueryUnnest
