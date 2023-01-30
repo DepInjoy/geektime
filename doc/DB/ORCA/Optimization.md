@@ -20,6 +20,47 @@ public:
 }
 ```
 ## Property
+```C++
+// Abstract base class for all enforceable properties.
+class CEnfdProp {}
+
+// Enforceable order property;
+class CEnfdOrder : public CEnfdProp {}
+
+// Enforceable distribution property;
+class CEnfdDistribution : public CEnfdProp{}
+
+// Enforceable distribution property
+class CEnfdPartitionPropagation : public CEnfdProp {}
+
+// Enforceable rewindability property;
+class CEnfdRewindability : public CEnfdProp {}
+```
+
+```C++
+// Derived logical properties container
+class CDrvdPropRelational : public CDrvdProp {}
+
+// Derived scalar properties container.
+class CDrvdPropScalar : public CDrvdProp {}
+
+// Derived plan properties container.
+class CDrvdPropPlan : public CDrvdProp
+```
+
+```C++
+// Required plan properties container.
+class CReqdPropPlan : public CReqdProp {}
+
+// Required relational properties container.
+class CReqdPropRelational : public CReqdProp {}
+
+// Required plan properties container.
+class CReqdPropPlan : public CReqdProp {
+private:
+    CEnfdOrder *m_peo; // required sort order
+}
+```
 EnfdProp负责增加属性算子，DrvdProp用来计算算子所能提供的属性，PropSpec为算子属性描述类，ReqdProp用来计算对孩子的属性请求
 
 Enforceable Property
@@ -53,8 +94,8 @@ class CDrvdProp {
 class CDrvdPropScalar
 
 note right of CDrvdProp : Abstract base class for all derived properties
-note right of CDrvdPropRelational : Derived logical properties container
-note right of CDrvdPropPlan : Derived plan properties container
+note top of CDrvdPropRelational : Derived logical properties container
+note top of CDrvdPropPlan : Derived plan properties container
 
 CDrvdPropScalar <|-- CDrvdProp
 CDrvdPropRelational <|-- CDrvdProp

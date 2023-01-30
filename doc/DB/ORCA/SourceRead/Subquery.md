@@ -1,5 +1,6 @@
 orca对于子查询可以采用去关联化和相关执行两种方式实现：
 - **去关联化(Decoorelation或Unnesting)**，理论上可以对任意一个查询去关联化。
+
 例如，对于非相关查询:
 
 ```sql
@@ -39,7 +40,7 @@ EXPLAIN
                            ->  Seq Scan on test_a  (cost=0.00..431.00 rows=1 width=4)
  Optimizer: Pivotal Optimizer (GPORCA)
 ```
-- **相关执行(Correlated Execution)**(配置subplan，将结果集物化，再执行外层查询)，可以将`optimizer_enforce_subplans`配置参数设置为true，来强制采取此方式()的方式执行，默认该参数为false。例如，非相关子查询
+- **相关执行(Correlated Execution)**(配置subplan，将结果集物化，再执行外层查询)，可以将`optimizer_enforce_subplans`配置参数设置为true，来强制采取此方式执行，默认该参数为false。例如，非相关子查询
 ```sql
 -- Enforce correlated execution in the optimizer
 SET optimizer_enforce_subplans=on;
