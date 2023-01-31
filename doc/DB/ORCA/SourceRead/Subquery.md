@@ -158,10 +158,10 @@ CXformSimplifySubquery -up-|> CXformExploration
 # 去关联
 ```plantuml
 @startuml
-CXformGbAgg2Apply -down-|> CXformSubqueryUnnest
 CXformProject2Apply -down-|> CXformSubqueryUnnest
 CXformSelect2Apply -down-|> CXformSubqueryUnnest
 CXformSequenceProject2Apply -down-|> CXformSubqueryUnnest
+CXformGbAgg2Apply -down-|> CXformSubqueryUnnest
 
 CXformSubqJoin2Apply -left-|> CXformSubqueryUnnest
 CXformSubqNAryJoin2Apply -left-|> CXformSubqJoin2Apply
