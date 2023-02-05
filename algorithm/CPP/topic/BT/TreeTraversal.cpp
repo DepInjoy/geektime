@@ -18,19 +18,21 @@ void ProcessNode(TreeNode* node) {
 }
 
 /**
- * @brief   二叉树深度优先前序遍历的递归遍历
+ * @brief   二叉树深度优先前序遍历的递归遍历和非递归遍历
+ *          [144.二叉树的前序遍历](https://leetcode.cn/problems/binary-tree-preorder-traversal/description/)
  */
+// 二叉树深度优先前序遍历的非递归遍历
 void PreorderTraversal(TreeNode* node) {
-    if (node) {
-        ProcessNode(node);
-        PreorderTraversal(node->left);
-        PreorderTraversal(node->right);
+    if (!node) {
+        return;
     }
+
+    ProcessNode(node);
+    PreorderTraversal(node->left);
+    PreorderTraversal(node->right);
 }
 
-/**
- * @brief   二叉树深度优先前序遍历的非递归遍历
- */
+// 二叉树深度优先前序遍历的非递归遍历
 void PreorderTraversalNonRecursive(TreeNode* node) {
     if (!node) return;
 
@@ -51,19 +53,21 @@ void PreorderTraversalNonRecursive(TreeNode* node) {
 }
 
 /**
- * @brief   二叉树深度优先中序遍历的递归遍历
+ * @brief   二叉树深度优先中序遍历的递归遍历和非递归遍历
+ *          [LeetCode-94.二叉树的中序遍历](https://leetcode.cn/problems/binary-tree-inorder-traversal/description/)
  */
+// 二叉树深度优先中序遍历的递归遍历
 void InorderTraversal(TreeNode* node) {
     if (node) {
-        InorderTraversal(node->left);
-        ProcessNode(node);
-        InorderTraversal(node->right);
+        return;
     }
+
+    InorderTraversal(node->left);
+    ProcessNode(node);
+    InorderTraversal(node->right);
 }
 
-/**
- * @brief   二叉树深度优先中序遍历的非递归遍历
- */
+// 二叉树深度优先中序遍历的非递归遍历
 void InorderTraversalNonRecursive(TreeNode* node) {
     if (!node) return;
 
