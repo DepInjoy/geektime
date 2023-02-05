@@ -17,6 +17,7 @@ int countCompressLength(string S) {
     }
     return compressLen;
 }
+
 string compressString(string S) {
     int compressLen = countCompressLength(S);
     if (compressLen >= S.size()) return S;

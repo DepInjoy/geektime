@@ -7,29 +7,29 @@
  * 
  */
 
-    vector<ListNode*> listOfDepth(TreeNode* tree) {
-        if (!tree) return vector<ListNode*>();
-        vector<ListNode*> ans;
-        std::list<TreeNode*> cur{tree};
-        while(cur.size()) {
-            std::list<TreeNode*> nexts;
-            ListNode* head = nullptr;
-            ListNode* last = nullptr;
-            while(!cur.empty()) {
-                TreeNode* item = cur.front();
-                if (item->left) nexts.push_back(item->left);
-                if (item->right) nexts.push_back(item->right);
-                if (!head) {
-                    head = new ListNode(item->val);
-                    last = head;
-                } else {
-                    last->next = new ListNode(item->val);
-                    last = last->next;
-                }
-                cur.pop_front();
+vector<ListNode*> listOfDepth(TreeNode* tree) {
+    if (!tree) return vector<ListNode*>();
+    vector<ListNode*> ans;
+    std::list<TreeNode*> cur{tree};
+    while(cur.size()) {
+        std::list<TreeNode*> nexts;
+        ListNode* head = nullptr;
+        ListNode* last = nullptr;
+        while(!cur.empty()) {
+            TreeNode* item = cur.front();
+            if (item->left) nexts.push_back(item->left);
+            if (item->right) nexts.push_back(item->right);
+            if (!head) {
+                head = new ListNode(item->val);
+                last = head;
+            } else {
+                last->next = new ListNode(item->val);
+                last = last->next;
             }
-            cur = nexts;
-            ans.push_back(head);
+            cur.pop_front();
         }
-        return ans;
+        cur = nexts;
+        ans.push_back(head);
     }
+    return ans;
+}
