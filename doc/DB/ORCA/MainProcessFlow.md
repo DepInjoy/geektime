@@ -412,3 +412,42 @@ CXform <|-- CXformImplementation
 CXformFactory *-- CXform
 @enduml
 ```
+
+
+```plantuml
+@startuml
+class XformFactory{
+    + static XformFactory& GetInstance();
+    + XformPtrType GetXform(Xform::XFormID xformId) const;
+    + XformPtrType GetXform(std::string& szXformName) const;
+}
+
+class XformImplementation {
+    + CXformImplementation(Expression *)
+    + BOOL IsImplementation() const override // true
+}
+
+class Xform {
+    - Expression *m_pexpr
+    + Xform(Expression *pexpr);
+    + virtual XFormID XformId() const = 0
+    + virtual const std::string XformName() const = 0
+    + virtual BOOL IsExploration() const
+    + virtual BOOL IsImplementation()
+    + CExpression * ExprPattern() const;// For Pattern
+    + virtual void Transform(XformContext *xformCtx, XformResult* xformRes, Expression *expression) const = 0
+}
+
+XformImplementation <|-- XformImplementNarySublink
+Xform <|-- XformImplementation
+XformFactory *-- Xform
+@enduml
+```
+
+```plantuml
+LogicalNarySublink --|> Logical
+PhysicalNarySublink --|> Physical
+
+Physical --|> Operator
+Logical --|> Operator
+```

@@ -80,6 +80,88 @@ Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..1324047.00 rows=1 width=8)
                                    ->  Seq Scan on test_a  (cost=0.00..431.00 rows=1 width=4)
  Optimizer: Pivotal Optimizer (GPORCA)
 ```
+orca初始化的代数表达式
+```
+Algebrized query:
++--CLogicalProject
+   |--CLogicalGet "test_b" ("test_b"), Columns: ["a" (0), "b" (1), "c" (2), "d" (3), "ctid" (4), "xmin" (5), "cmin" (6), "xmax" (7), "cmax" (8), "tableoid" (9), "gp_segment_id" (10)] Key sets: {[4,10]}
+   +--CScalarProjectList
+      +--CScalarProjectElement "sum" (23)
+         +--CScalarSubquery["sum" (22)]
+            +--CLogicalGbAgg( Global ) Grp Cols: [][Global], Minimal Grp Cols: [], Generates Duplicates :[ 0 ]
+               |--CLogicalGet "test_a" ("test_a"), Columns: ["a" (11), "b" (12), "c" (13), "d" (14), "ctid" (15), "xmin" (16), "cmin" (17), "xmax" (18), "cmax" (19), "tableoid" (20), "gp_segment_id" (21)] Key sets: {[4,10]}
+               +--CScalarProjectList
+                  +--CScalarProjectElement "sum" (22)
+                     +--CScalarAggFunc (sum , Distinct: false , Aggregate Stage: Global)
+                        |--CScalarValuesList
+                        |  +--CScalarIdent "a" (11)
+                        |--CScalarValuesList
+                        |--CScalarValuesList
+                        +--CScalarValuesList
+
+Algebrized preprocessed query:
++--CLogicalProject
+   |--CLogicalGet "test_b" ("test_b"), Columns: ["a" (0), "b" (1), "c" (2), "d" (3), "ctid" (4), "xmin" (5), "cmin" (6), "xmax" (7), "cmax" (8), "tableoid" (9), "gp_segment_id" (10)] Key sets: {[4,10]}
+   +--CScalarProjectList
+      +--CScalarProjectElement "sum" (23)
+         +--CScalarSubquery["sum" (22)]
+            +--CLogicalGbAgg( Global ) Grp Cols: [][Global], Minimal Grp Cols: [], Generates Duplicates :[ 0 ]
+               |--CLogicalGet "test_a" ("test_a"), Columns: ["a" (11), "b" (12), "c" (13), "d" (14), "ctid" (15), "xmin" (16), "cmin" (17), "xmax" (18), "cmax" (19), "tableoid" (20), "gp_segment_id" (21)] Key sets: {[4,10]}
+               +--CScalarProjectList
+                  +--CScalarProjectElement "sum" (22)
+                     +--CScalarAggFunc (sum , Distinct: false , Aggregate Stage: Global)
+                        |--CScalarValuesList
+                        |  +--CScalarIdent "a" (11)
+                        |--CScalarValuesList
+                        |--CScalarValuesList
+                        +--CScalarValuesList
+```
+
+经过`Xform: CXformSimplifyProjectWithSubquery`,输入和输出的结构一致，无改变。
+
+经过`Xform: CXformProject2Apply`，其输入和输出:
+```
+LOG:  2023-02-01 09:44:35:674729 CST,THD000,TRACE,"Xform: CXformProject2Apply
+Input:
++--CLogicalProject   origin: [Grp:12, GrpExpr:0]
+   |--CLogicalGet "test_b" ("test_b"), Columns: ["a" (0), "b" (1), "c" (2), "d" (3), "ctid" (4), "xmin" (5), "cmin" (6), "xmax" (7), "cmax" (8), "tableoid" (9), "gp_segment_id" (10)] Key sets: {[4,10]}   origin: [Grp:0, GrpExpr:0]
+   +--CScalarProjectList   origin: [Grp:11, GrpExpr:0]
+      +--CScalarProjectElement "sum" (23)   origin: [Grp:10, GrpExpr:0]
+         +--CScalarSubquery["sum" (22)]   origin: [Grp:9, GrpExpr:0]
+            +--CLogicalGbAgg( Global ) Grp Cols: [][Global], Minimal Grp Cols: [], Generates Duplicates :[ 0 ]    origin: [Grp:8, GrpExpr:0]
+               |--CLogicalGet "test_a" ("test_a"), Columns: ["a" (11), "b" (12), "c" (13), "d" (14), "ctid" (15), "xmin" (16), "cmin" (17), "xmax" (18), "cmax" (19), "tableoid" (20), "gp_segment_id" (21)] Key sets: {[4,10]}   origin: [Grp:1, GrpExpr:0]
+               +--CScalarProjectList   origin: [Grp:7, GrpExpr:0]
+                  +--CScalarProjectElement "sum" (22)   origin: [Grp:6, GrpExpr:0]
+                     +--CScalarAggFunc (sum , Distinct: false , Aggregate Stage: Global)   origin: [Grp:5, GrpExpr:0]
+                        |--CScalarValuesList   origin: [Grp:3, GrpExpr:0]
+                        |  +--CScalarIdent "a" (11)   origin: [Grp:2, GrpExpr:0]
+                        |--CScalarValuesList   origin: [Grp:4, GrpExpr:0]
+                        |--CScalarValuesList   origin: [Grp:4, GrpExpr:0]
+                        +--CScalarValuesList   origin: [Grp:4, GrpExpr:0]
+Output:
+Alternatives:
+0:
++--CLogicalProject
+   |--CLogicalLeftOuterCorrelatedApply (Reqd Inner Cols: "sum" (22))
+   |  |--CLogicalGet "test_b" ("test_b"), Columns: ["a" (0), "b" (1), "c" (2), "d" (3), "ctid" (4), "xmin" (5), "cmin" (6), "xmax" (7), "cmax" (8), "tableoid" (9), "gp_segment_id" (10)] Key sets: {[4,10]}   origin: [Grp:0, GrpExpr:0]
+   |  |--CLogicalGbAgg( Global ) Grp Cols: [][Global], Minimal Grp Cols: [], Generates Duplicates :[ 0 ]
+   |  |  |--CLogicalGet "test_a" ("test_a"), Columns: ["a" (11), "b" (12), "c" (13), "d" (14), "ctid" (15), "xmin" (16), "cmin" (17), "xmax" (18), "cmax" (19), "tableoid" (20), "gp_segment_id" (21)] Key sets: {[4,10]}   origin: [Grp:1, GrpExpr:0]
+   |  |  +--CScalarProjectList   origin: [Grp:7, GrpExpr:0]
+   |  |     +--CScalarProjectElement "sum" (22)   origin: [Grp:6, GrpExpr:0]
+   |  |        +--CScalarAggFunc (sum , Distinct: false , Aggregate Stage: Global)   origin: [Grp:5, GrpExpr:0]
+   |  |           |--CScalarValuesList   origin: [Grp:3, GrpExpr:0]
+   |  |           |  +--CScalarIdent "a" (11)   origin: [Grp:2, GrpExpr:0]
+   |  |           |--CScalarValuesList   origin: [Grp:4, GrpExpr:0]
+   |  |           |--CScalarValuesList   origin: [Grp:4, GrpExpr:0]
+   |  |           +--CScalarValuesList   origin: [Grp:4, GrpExpr:0]
+   |  +--CScalarConst (1)
+   +--CScalarProjectList
+      +--CScalarProjectElement "sum" (23)
+         +--CScalarIdent "sum" (22)
+```
+```plantuml
+
+```
 
 ```C++
 // Scalar subquery
@@ -109,9 +191,26 @@ class CScalarSubqueryNotExists : public CScalarSubqueryExistential
 ```
 
 ```C++
+// Logical Apply operator used in scalar subquery transformations
+class CLogicalLeftOuterCorrelatedApply : public CLogicalLeftOuterApply {}
 // Logical left outer Apply operator used in subquery transformations
-class CLogicalLeftOuterApply : public CLogicalApply
-class CLogicalApply : public CLogical
+class CLogicalLeftOuterApply : public CLogicalApply {}
+class CLogicalApply : public CLogical {
+public:
+    // return a copy of the operator with remapped columns
+    COperator * PopCopyWithRemappedColumns(CMemoryPool *,
+            UlongToColRefMap *, //colref_mapping,
+            BOOL //must_exist
+            ) override {
+        return PopCopyDefault();
+    }
+}
+```
+
+```C++
+// Turn inner Apply into Inner Join when Apply's inner child has no correlations
+class CXformLeftOuterApply2LeftOuterJoinNoCorrelations
+    : public CXformApply2Join<CLogicalLeftOuterApply, CLogicalLeftOuterJoin>
 ```
 
 ```C++
@@ -119,9 +218,9 @@ class CLogicalApply : public CLogical
         Transform Project to Apply; this transformation is only applicable
         to a Project expression with subqueries in its scalar project list
 */
-class CXformProject2Apply : public CXformSubqueryUnnest
-//		Base class for subquery unnesting xforms
-class CXformSubqueryUnnest : public CXformExploration{}
+class CXformProject2Apply : public CXformSubqueryUnnest {}
+// Base class for subquery unnesting xforms
+class CXformSubqueryUnnest : public CXformExploration {}
 
 
 // 2. CLogicalLeftOuterApply -> CLogicalLeftOuterJoin
@@ -145,6 +244,40 @@ class CXformProject2ComputeScalar : public CXformImplementation{}
 class CXformImplementLeftOuterCorrelatedApply
     : public CXformImplementCorrelatedApply<CLogicalLeftOuterCorrelatedApply,
                                             CPhysicalCorrelatedLeftOuterNLJoin> {}
+```
+
+```C++
+
+
+CExpression:PexprCopyWithRemappedColumns -> COperator:PopCopyWithRemappedColumns
+```
+```C++
+// Helper to build subplans for existential subqueries
+CDXLNode* CTranslatorExprToDXL::PdxlnExistentialSubplan
+
+//      Construct a boolean scalar dxl node with a subplan as its child. The
+//      sublan has a boolean output column, and has	the given relational child
+//      under it
+CDXLNode *
+CTranslatorExprToDXL::PdxlnBooleanScalarWithSubPlan(
+        CDXLNode *pdxlnRelChild, CDXLColRefArray *dxl_colref_array)
+
+//  Helper to build subplans for quantified (ANY/ALL) subqueries
+CDXLNode *
+CTranslatorExprToDXL::PdxlnQuantifiedSubplan(
+
+//  Construct a scalar dxl node with a subplan as its child. Also put this
+//  subplan in the hashmap with its output column, so that anyone who
+//  references that column can use the subplan
+void
+CTranslatorExprToDXL::BuildDxlnSubPlan(CDXLNode *pdxlnRelChild,
+        const CColRef *colref, CDXLColRefArray *dxl_colref_array)
+```
+
+```C++
+CTranslatorExprToDXL::BuildScalarSubplans {
+    BuildDxlnSubPlan
+}
 ```
 # 相关执行
 ```plantuml
