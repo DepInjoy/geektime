@@ -58,7 +58,7 @@ void PreorderTraversalNonRecursive(TreeNode* node) {
  */
 // 二叉树深度优先中序遍历的递归遍历
 void InorderTraversal(TreeNode* node) {
-    if (node) {
+    if (!node) {
         return;
     }
 
@@ -88,19 +88,20 @@ void InorderTraversalNonRecursive(TreeNode* node) {
 }
 
 /**
- * @brief   二叉树深度优先后序遍历的递归遍历
+ * @brief   二叉树深度优先后序遍历的递归遍历和非递归遍历
  */
+//  二叉树深度优先后序遍历的非递归遍历
 void PostorderTraversal(TreeNode* node) {
-    if (node) {
-        PostorderTraversal(node->left);
-        PostorderTraversal(node->right);
-        ProcessNode(node);
+    if (!node) {
+        return;
     }
+
+    PostorderTraversal(node->left);
+    PostorderTraversal(node->right);
+    ProcessNode(node);
 }
 
-/**
- * @brief   二叉树深度优先后序遍历的非递归遍历
- */
+//  二叉树深度优先后序遍历的非递归遍历
 void PostorderTraversalNonRecursive(TreeNode* node) {
     if (!node) return;
 
