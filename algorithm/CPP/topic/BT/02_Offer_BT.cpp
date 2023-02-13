@@ -8,7 +8,14 @@
  */
 
 TreeNode* pruneTree(TreeNode* root) {
+    if (!root) return root;
 
+    root->left = pruneTree(root->left);
+    root->right = pruneTree(root->right);
+    if (!root->left && !root->right && root->val == 0) {
+        reurn nullptr;
+    }
+    return root;  
 }
 
 /**
@@ -18,7 +25,13 @@ TreeNode* pruneTree(TreeNode* root) {
  */
 
 std::string serialize(TreeNode* root) {
+    if (!root) return "#";
 
+    std::string leftStr = serialize(root->left);
+    std::string rightStr = serialize(root->right);
+    std::string ans = std::to_string(root->val);
+    ans.append(",").append(leftStr).append(",").append(rightStr)
+    return ans;    
 }
 
 TreeNode* deserialize(std::string& data) {
