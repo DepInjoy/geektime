@@ -299,6 +299,100 @@ void foo( const A* pa ) {
 
 在合成的 default constructor 中，只有 base class subobjects 和 member class objects会被初始化。所有其他的nonstatic data member(如整数、整数指针、整数数组等等)都不会被初始化。这些初始化操作对程序而言可能有需要，但对编译器则非必要。如果程序需要一个“把某指针设为0”的default constructor，那么程序员应该提供。
 
+## Copy Constructor的构造操作
+
+有三种情况会以一个object的内容作为另一个class object的初值。
+
+1. 用一个object的作为另外一个class object的初值
+
+```C++ 
+class X { ... };
+
+X x;
+X xx = x;
+```
+
+2. 将object当作参数传递给函数
+
+```C++
+extern void foo(X x);
+void bar(){
+    X xx;        // 以 xx作为foo()第一个参数的初值（隐式的初始化操作）
+    foo( xx );
+    // ...
+}
+```
+
+3. 函数返回一个class object。
+
+```C++
+X foo_bar() {
+    X xx;
+    // ...
+    return xx;
+}
+```
+
+如果class中显式定义了一个copy constructor(有一个参数的类型是其class type的引用)，像下面这样：
+
+```C++
+// user-defined copy constructor示例
+X::X(const X& x);
+// 可以是多参数形式，第二个参数及其以后的参数都有默认值
+Y::Y(const Y& y, int idex = 0);
+```
+
+那么在大部分情况下，当一个 class object 以另一个同类实例作为初值，上述的constructor会被调用。
+
+### Default Memberwise Initialization
+
+**如果class没有提供一个explicit copy constructor又当如何？当class object以“相同 class 的另一个 object”作为初值，其内部是以所谓的 default memberwise initialization手法完成的，也就是把每一个内建的或派生的data member（例如一个指针或一个数组）的值，从某个object拷贝一份到另一个object身上。不过它并不会拷贝其中的member class object，而是以递归的方式施行memberwise initialization。**例如，下面的class声明：
+
+```C++
+class String {
+public:
+    // ....  没有显式地定义copy constuctor
+private:
+    char* str;
+    int len;
+};
+```
+
+`String object`的default memberwise initialization发生在这种情况
+
+```C++
+String noun("book");
+String verb = noun;
+```
+
+其完成方式就像分别设定每一个成员一样：
+
+```C++
+verb.str = noun.str;
+verb.len = noun.len;
+```
+
+
+
+如果String object中声明了另一个class的member，类似于下面这样
+
+```C++
+class Word {
+public:
+    // ....  没有显式地定义copy constuctor
+private:
+    int		__occurs;
+    // String是class Word的一个成员
+    String	_word;
+};
+```
+
+那么`Word object`的default memberwise initialization会拷贝其内建的member `_occurs`，然后再于 `String` member object `_word` 上递归实施 memberwise initialization。这样的操作如何实现呢？
+
+### Bitwise Copy Semantics(位逐次拷贝)
+
+
+
 # 参考资料
 
 - 《深度探索C++对象模型》
