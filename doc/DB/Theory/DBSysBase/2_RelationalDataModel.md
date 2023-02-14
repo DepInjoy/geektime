@@ -33,3 +33,33 @@
 #### 命名和重命名
 
 ### 操作间的联系
+
+# 
+$$
+\begin{array}{l}
+\Pi_{F_1, F_2, ......, F_n}(E) \\
+\end{array}
+$$
+- $E$ is any relational-algebra expression
+- Each of$F_1, F_2, ......, F_n$are arithmetic expressions involving constants and attributes in the schema of $E$.
+
+Aggregation function takes a collection of values and returns a single value as a result.
+- avg: average value
+- min: minimum value
+- max: maximum value
+- sum: sum of values
+- count: number of values
+
+Aggregate operation in relational algebra. 
+$$
+\begin{array}{l}
+_{G_1, G_2, ..., G_n}\mathcal{G}_{F_1(A_1), F_2(A_2, ......,F_n(A_n))}
+\end{array}
+$$
+- $E$ is any relational-algebra expression
+- $G_1, G_2, ..., G_n$is a list of attributes on which to group (can be empty)
+- Each$F_i$ is an aggregate function
+- Each $A_i$ is an attribute name
+
+# 参考资料
+- [Relational algebra(关系代数)](https://www.cbcb.umd.edu/confcour/Spring2014/CMSC424/Relational_algebra.pdf)

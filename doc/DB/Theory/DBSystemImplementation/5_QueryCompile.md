@@ -191,7 +191,7 @@ SELECT movietitle
    FROM startin, moviestar
    WHERE startname = name AND birthdate LIKE '%1960';
 ```
-ParserTree-LogicalPlan.png
+
 <center>
    <img src="./img/ParserTree-LogicalPlan.png">
    <div><b>语法分析树转换成代数表达式树，在代数表达式树应用代数定律重写实现对逻辑查询计划的改进和丰富</b></div>
