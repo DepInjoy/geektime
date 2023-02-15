@@ -49,7 +49,6 @@ private:
 
 class MinStack {
 public:
-    /** initialize your data structure here. */
     MinStack() {
         min_.push(INT_MAX);
     }
@@ -61,6 +60,40 @@ public:
     
     void pop() {
         min_.pop();
+        data_.pop();
+    }
+    
+    int top() {
+        return data_.top();
+    }
+    
+    int min() {
+        return min_.top();
+    }
+
+private:
+    std::stack<int> data_;
+    std::stack<int> min_;
+};
+
+// 减少一点内存占用
+class MinStack2 {
+public:
+    MinStack() {
+        min_.push(INT_MAX);
+    }
+    
+    void push(int x) {
+        data_.push(x);
+        if (x <= min_.top()) {
+            min_.push(x);
+        }
+    }
+    
+    void pop() {
+        if (data_.top() == min_.top()) {
+            min_.pop();
+        }
         data_.pop();
     }
     
