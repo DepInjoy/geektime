@@ -289,7 +289,7 @@ void foo( const A* pa ) {
 
 
 
-综上，有4种情况会造成“编译器必须为未声明constructor的classes合成一个defaultconstructor”。C++ Standard 把那些合成物称为implicit non-trivial default constructors。被合成出来的constructor只能满足编译器(而非程序)需要。它借着调用
+综上，有4种情况会造成“编译器必须为未声明constructor的classes合成一个default constructor”。C++ Standard 把那些合成物称为implicit non-trivial default constructors。被合成出来的constructor只能满足编译器(而非程序)需要。它借着调用
 
 - member object或base class的default constructor”或
 - “为每一个object初始化其virtual function机制或
@@ -342,7 +342,7 @@ X::X(const X& x);
 Y::Y(const Y& y, int idex = 0);
 ```
 
-那么在大部分情况下，当一个 class object 以另一个同类实例作为初值，上述的constructor会被调用。
+那么在大部分情况下，当一个 class object以另一个同类实例作为初值，上述的constructor会被调用。
 
 ### Default Memberwise Initialization
 
@@ -390,6 +390,196 @@ private:
 那么`Word object`的default memberwise initialization会拷贝其内建的member `_occurs`，然后再于 `String` member object `_word` 上递归实施 memberwise initialization。这样的操作如何实现呢？
 
 ### Bitwise Copy Semantics(位逐次拷贝)
+
+
+
+## 程序转化语义学(Program Tansformation Semantics)
+
+下面的程序:
+
+```C++
+X foo() {
+    X xx;
+    // ...
+    return xx;
+}
+```
+
+有人可能会做出如下假设:
+
+1. 每次`foo()`被调用，就传回`xx`的值。--是否正确， 视`class X`如何定义而定。
+2. ．如果`class X`定义了一个 copy constructor，那么当`foo()`被调用时，保证该copy constructor也会被调用。-- 是否正确， 视`class X`如何定义而定，最主要的是视采用的C++编译器所提供的degree of aggressive optimization而定。
+
+### 显示初始化操作(Explicit Initialization)
+
+### 参数的初始化(Argument Initialization)
+
+### 返回值的初始化(Return Value Initialization)
+
+### 在使用者层面做优化(Optimization at the User Level)
+
+
+
+### 编译器层面做优化(Optimization at the Compiler Level)
+
+像`bar()`这样的函数中，所有的return指令传回相同的具名数值(named value，应该指的的是`xx`)因此编译器有可能以result参数取代named return valued的方式进行优化。例如下面的`bar()`定义
+
+```C++
+X foo() {
+    X xx;
+    // ...
+    return xx;
+}
+```
+
+编译器把其中的xx以`__result`替换
+
+```C++
+void foo(X& __result) {
+    // 调用默认构造
+    // C++伪码
+    __result.X::X();
+    // ... 直接处理__result
+}
+```
+
+这样的编译器优化操作，被称作**Named Return Value(NRV)优化**。
+
+
+
+考虑下面的实现
+
+```C++
+class test {
+	friend test foo(double);
+public:
+    test() {
+        memset(array, 0, 100 * sizeof(double));
+    }
+    
+private:
+    double array[100];
+};
+```
+
+同时考虑下面的实现，它产生、修改并传回一个`test` class oject:
+
+```C++
+test foo(double val) {
+    test local;
+    local.array[ 0 ] = val;
+    local.array[ 99 ] = val;
+    return local;
+}
+```
+
+有一个`main()`函数调用上述`foo()`函数1000万次：
+
+```C++
+void main() {
+    for (int cnt = 0; cnt < 10000000; cnt++) {
+        test t = foo(double(cnt));
+    }
+}
+```
+
+另外一个版本给`class test`添加一个inline copy constructor来激活C++编译器中的NRV优化
+
+```C++
+inline test::test(const test& t) {
+    memcpy(this, &t, sizeof(test)
+);      
+```
+
+作者给出了测试时间表
+
+|      | 未实施NRV | 实施NRV | 实施NRV+-o |
+| ---- | --------- | ------- | ---------- |
+| CC   | 1:48.52   | 46.73   | 46.05      |
+| NCC  | 3:00.57   | 1:33.48 | 1:32:36    |
+
+NRV虽然改善了效率，但却饱受批评。其中一个原因是，它是由编译器默默完成的，而它是否真的完成，并不十分明确(因为很少有编译器会说明其实现程度，或是否实现)。第二个原因是如果函数比较复杂，优化就变得难以实行。在cfront中，只有当所有的named return指令句发生于函数的top level，优化才施行。如果导入“a nested local block with a return statement”, cfront 就会静静地将优化关闭。
+
+第三个批评则是某些程序员并不喜欢应用程序被优化。想象你准备好了copy constructor，期待程序以copying方式产生出一个object，对称地调用destructor，NVR优化会打破这种对称性。例如：
+
+```C++
+void foo() {
+    // 这里希望有一个copy constructor
+    X xx = bar();
+    // ...
+    // 这里调用destructor
+}
+```
+
+VRV优化虽然提高了程序的执行效率，但是结果却是错误的。
+
+
+
+那么，copy constructor在“object是经由copy而完成其初始化”的情况下，一定要被调用吗？这样在很多程序中会被征以严格的“效率税”。例如，虽然下面三个初始化操作在语意上相等：
+
+```C++
+X xx0(1024);
+X xx1 = X(1024);
+X xx2 = (X) 1024;
+```
+
+`xx0`是被单一的constructor操作设定初值：
+
+```C++
+// C++ 伪码
+xx0.X::X(1024 );
+```
+
+而`xx1`或`xx2`是调用constructor产生一个临时object，并将临时性的 object以拷贝构造的方式作为`xx1/xx2`的初值，再针对该临时object调用析构函数
+
+```C++
+// C++伪码
+X __temp0;
+__temp0.X::X(1024);
+// copy constructor
+xx1.X::X(__temp0 );
+// destructor
+__temp0.X::~X();
+```
+
+C++标准委员会已经讨论过“剔除copy constructor调用操作”的合法性。目前还没有明确决议。此时需要考虑下面两种情况：
+
+是否copy constructor的剔除在“拷贝static object和local object”时也应该成立？例如下面的程序:
+
+```C++
+Thing outer
+{
+    // 是否可以不考虑inner？
+    Thing inner(outer); // automatic objects
+}
+```
+
+[cpp reference:copy constructor](https://en.cppreference.com/w/cpp/language/copy_constructor)中有如如下的描述:
+
+> ### Deleted implicitly-declared copy constructor
+>
+> The implicitly-declared copy constructor for class `T` is undefined if any of the following conditions are true:  (until C++11)
+>
+> The implicitly-declared or defaulted copy constructor for class `T` is defined as *deleted* if any of the following conditions are true:(since C++11)
+>
+> - `T` has non-static data members that cannot be copied (have deleted, inaccessible, or ambiguous copy constructors);
+> - `T` has direct or virtual base class that cannot be copied (has deleted, inaccessible, or ambiguous copy constructors);
+> - `T` has direct or virtual base class or a non-static data member with a deleted or inaccessible destructor;
+>
+> Following（since C++11）
+>
+> - `T` is a union-like class and has a variant member with non-trivial copy constructor;
+> - `T` has a data member of rvalue reference type;
+> - `T` has a user-defined move constructor or move assignment operator (this condition only causes the implicitly-declared, not the defaulted, copy constructor to be deleted).
+
+一般而言，面对“以一个class object作为另一个class object的初值”的情形，语言允许编译器有大量的自由发挥空间，这可能会带来明显的效率提升。缺点则是你不能够安全地规划你的copy constructor的副作用，必须视其执行而定。
+
+
+
+
+
+
+## 成员们的初始化(Member Initialization List)
 
 
 
