@@ -67,6 +67,16 @@ SMP的优点是结构简单，缺点是当CPU个数增加和内存容量增大�
 
 
 
+## 计算模型
+
+### MPP(Massively Parallel Processing)计算模型
+
+### Map-Reduce计算模型
+
+### DAG(Directed Acyclic Graph)计算模型
+
+
+
 # 分布式数据库
 
 一个分布式系统与一个无共享的并行系统的区别是对通信代价的假定。
