@@ -581,6 +581,125 @@ Thing outer
 
 ## 成员们的初始化(Member Initialization List)
 
+当我们实现constructor时，就有机会设定class members的初值。可以经由member initialization list，也可以在constructor函数内进行实现。
+
+下面几种情况，必须使用member initialization list初始化，否则程序无法顺利编译：
+1. 当初始化一个reference member时；
+2. 当初始化一个const member时；
+3. 当调用一个base class的 constructor，而它拥有一组参数时；
+4. 当调用一个member class的 constructor，而它拥有一组参数时。
+
+zai
+```C++
+class Word {
+    String  _name;
+    int     _cnt;
+public:
+    Word() {
+        _name = 0;
+        _cnt = 0;
+    }
+};
+```
+
+`Word` constructor会先产生一个临时性的`String` object，然后将它初始化，之后以一个assignment运算符将临时性object指定给`_name`，随后再销毁哪个临时的object。下面是constructor可能的扩展结果
+```C++
+Word::Word(/*this pointer goes here*/) {
+    // 调用String的default constructor
+    _name::String::String();
+
+    // 产生临时性对象
+    Sting temp = String(0);
+    // memberwise地copy给_name
+    _name.String::operator=(tmp);
+    // 销毁临时性对象
+    temp.String::~String();
+
+    _cnt = 0;
+}
+```
+对代码反复审查和修正，得到一个更有效的实现方法
+```C++
+Word::Word:_name(0) {
+    _cnt = 0;
+}
+```
+该代码会扩张成这个样子：
+```C++
+Wor::Word(/*this pointer goes here*/) {
+    // 调用String(int) constructor
+    _name.String::String(0);
+
+    _cnt = 0;
+}
+```
+
+<font color=blue><b>
+编译器会一一操作initialization list，以class中member声明顺序在constructor之内插入初始化操作，并且在任何explicit user code之前。<b></font>
+
+初始化顺序”和“initialization list中的项目排列顺序”之间的外观错乱，会导致下面意想不到的危险：
+```C++
+class X {
+    int i;
+    int j;
+public:
+    X(int val) : j(val), i(j) {}
+    // ....
+};
+```
+由于声明顺序，initialization list中的`i(j)`比`j(val)`更早执行。但因为j
+一开始未有初值，所以`i(j)`的执行结果导致i无法预知其值。
+
+因为initialization list的项目被放在explicit user code之前，所以下面的实现可以得到预期的效果.
+```C++
+// j的初始化操作会被安插在explicit user assignment操作之前
+// 可以得到j=val， i=j的预期
+X::X(int val) : j(val) {
+    i = j;
+}
+```
+
+另一个常见的问题是，你是否能够像下面这样，调用一个member function以设定一个member的初值：
+```C++
+// X::xfoo()被调用，这样好吗？
+X::X(int val) : i(xfoo(val)), j(val) {
+}
+ ```
+
+其中`xfoo()`是`X`的一个member function。答案是yes，但是，要注意：<font color=blue><b>请使用“存在于constructor体内的一个member”，而不要使用“存在于member initialization list中的member”，来为另一个member设定初值。</b></font>你并不知道`xfoo()`对`X` object的依赖性有多高，如果把`xfoo()`放在constructor内，那么对于“到底是哪一个member在`xfoo()`执行时被设立初值”这件事，就可以确保不会发生模棱两可的情况。
+```C++
+// C++伪码
+X::X(/*this pointer*/, int val) {
+    i = this->xfoo(val);
+    j = val;
+}
+```
+
+
+如果一个derived class member function被调用，其返回值被当做base class constructor的一个参数，将会如何：
+```C++
+class FooBar ： public X {
+    int _fval;
+public:
+    int fval() {
+        return _fval;
+    }
+
+    FooBar(int val) ： _fval(val), 
+        // fval()作为base class constructor的参数
+        X(fval()) {}
+};
+```
+它可能的扩展结果：
+```C++
+FooBar::FoorBar(/*this pointer*/, int val) {
+    // oops, bad idea
+    X::X(this, this->fval());
+    _fval = val;
+}
+```
+
+简略地说，编译器会对 initialization list一一处理并可能重新排序，以反映出members的声明顺序。它会插入一些代码到constructor内，并置于任何explicit user code之前
 
 
 # 参考资料
