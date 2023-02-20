@@ -589,7 +589,6 @@ Thing outer
 3. 当调用一个base class的 constructor，而它拥有一组参数时；
 4. 当调用一个member class的 constructor，而它拥有一组参数时。
 
-zai
 ```C++
 class Word {
     String  _name;
