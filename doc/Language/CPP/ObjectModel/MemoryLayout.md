@@ -19,6 +19,10 @@
 
 堆地址自下向上增长。
 
+# Data
+
+类的staic member data存放在这里。
+
 # 参考资料
 
 1. [Stack and Heap Memory](https://courses.engr.illinois.edu/cs225/fa2022/resources/stack-heap/)
