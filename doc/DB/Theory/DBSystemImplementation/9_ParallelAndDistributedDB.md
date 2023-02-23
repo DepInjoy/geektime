@@ -73,6 +73,13 @@ SMP的优点是结构简单，缺点是当CPU个数增加和内存容量增大�
 
 ### Map-Reduce计算模型
 
+<center>
+    <img src="./img/MR-ComputeFramework.png">
+    <div>Map-Reduce并行计算</div>
+</center>
+
+
+
 ### DAG(Directed Acyclic Graph)计算模型
 
 
