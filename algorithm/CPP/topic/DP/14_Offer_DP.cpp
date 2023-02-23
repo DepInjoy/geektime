@@ -1,4 +1,6 @@
 #include <vector>
+#include <string>
+
 using namespace std;
 
 
@@ -136,4 +138,37 @@ int maxValue(vector<vector<int>>& grid) {
         }
     }
     return values[ln-1];
+}
+
+/**
+ * @brief 剑指Offer46:把数字翻译成字符串
+ *          给定一个数字，我们按照如下规则把它翻译为字符串：0 翻译成 “a” ，
+ *          1 翻译成 “b”，……，11 翻译成 “l”，……，25 翻译成 “z”。
+ *          一个数字可能有多个翻译。请编程实现一个函数，用来计算一个数字有多少种不同的翻译方法。
+ * 
+ *          https://leetcode.cn/problems/ba-shu-zi-fan-yi-cheng-zi-fu-chuan-lcof/description/
+ */
+
+int translateNum(int num) {
+    int new_num = 0;
+    while (num) {
+        new_num = new_num * 10 + (num % 10);
+        num = num / 10;
+    }
+
+    std::vector<int> arr(32);
+    return arr[0];
+}
+
+/**
+ * @brief 剑指Offer-48:最长不含重复字符的子字符串
+ *          请从字符串中找出一个最长的不包含重复字符的子字符串，计算该最长子字符串的长度。
+ * 
+ *          https://leetcode.cn/problems/zui-chang-bu-han-zhong-fu-zi-fu-de-zi-zi-fu-chuan-lcof/description
+ * 
+ */
+
+int lengthOfLongestSubstring(string s) {
+    std::vector<int> arr(s.size());
+    
 }
