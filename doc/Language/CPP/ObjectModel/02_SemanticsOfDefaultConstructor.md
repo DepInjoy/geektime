@@ -579,9 +579,9 @@ Thing outer
 
 
 
-## 成员们的初始化(Member Initialization List)
+## 成员初始化列表(Member Initialization List)
 
-当我们实现constructor时，就有机会设定class members的初值。可以经由member initialization list，也可以在constructor函数内进行实现。
+实现构造函数时，可以对类成员设定初值，可以通过member initialization list，也可以在构造函数内进行实现。
 
 下面几种情况，必须使用member initialization list初始化，否则程序无法顺利编译：
 1. 当初始化一个reference member时；
@@ -634,7 +634,7 @@ Wor::Word(/*this pointer goes here*/) {
 ```
 
 <font color=blue><b>
-编译器会一一操作initialization list，以class中member声明顺序在constructor之内插入初始化操作，并且在任何explicit user code之前。<b></font>
+编译器会一一操作initialization list，以class中member声明顺序在constructor之内插入初始化操作，并且在任何explicit user code之前。</b></font>
 
 初始化顺序”和“initialization list中的项目排列顺序”之间的外观错乱，会导致下面意想不到的危险：
 ```C++
@@ -663,7 +663,7 @@ X::X(int val) : j(val) {
 // X::xfoo()被调用，这样好吗？
 X::X(int val) : i(xfoo(val)), j(val) {
 }
- ```
+```
 
 其中`xfoo()`是`X`的一个member function。答案是yes，但是，要注意：<font color=blue><b>请使用“存在于constructor体内的一个member”，而不要使用“存在于member initialization list中的member”，来为另一个member设定初值。</b></font>你并不知道`xfoo()`对`X` object的依赖性有多高，如果把`xfoo()`放在constructor内，那么对于“到底是哪一个member在`xfoo()`执行时被设立初值”这件事，就可以确保不会发生模棱两可的情况。
 ```C++

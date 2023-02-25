@@ -37,6 +37,9 @@ Empty virtual base class已经成为C++ OO设计的一个特有术语了。它�
     <img src="./img/ClassDataLayout-2.png">
     <div><b>X、Y、Z对象布局，其中Visual C++即使这类编译器</b></div>
 </center>
+[EBO(Empty Base Optimization)](https://en.cppreference.com/w/cpp/language/ebo)允许空基类的大小是0。
+
+> The size of any [object](https://en.cppreference.com/w/cpp/language/object) or member subobject is required to be at least 1 even if the type is an empty class type(that is, a class or struct that has no non-static data members), (unless with `[[no_unique_address]]`, see below) (since C++20) in order to be able to guarantee that the addresses of distinct objects of the same type are always distinct.
 
 `class A`的大小是多少，结果和适用的编译器相关，我们必须要考虑那些为特别处理empty virtual base class的编译器。sizeof(A)=12是怎么得到的呢？
 
