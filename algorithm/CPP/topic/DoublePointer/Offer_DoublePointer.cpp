@@ -3,6 +3,45 @@
  
 using namespace std;
 
+ struct ListNode {
+     int val;
+     ListNode *next;
+     ListNode(int x) : val(x), next(NULL) {}
+ };
+ 
+/**
+ * @brief 剑指Offer-25：合并两个排序的链表
+ *          输入两个递增排序的链表，合并这两个链表并使新链表中的节点仍然是递增排序的
+ * 
+ *          https://leetcode.cn/problems/he-bing-liang-ge-pai-xu-de-lian-biao-lcof/description 
+ */
+ListNode* mergeTwoLists(ListNode* l1, ListNode* l2) {
+    if (!l1 && !l2) return nullptr;
+
+    ListNode* head = (!l2 || (l1 && l1->val <= l2->val)) ? l1 : l2;
+    ListNode* cur = head;
+    ListNode* c1 = head->next;
+    ListNode* c2 = (head == l1) ? l2 : l1;
+    while (c1 && c2) {
+        if (c1->val <= c2->val) {
+            cur->next = c1;
+            c1 = c1->next;
+        } else {
+            cur->next = c2;
+            c2 = c2->next;
+        }
+        cur = cur->next;
+    }
+
+    c1 = c1 ? c1 : c2;
+    while (c1) {
+        cur->next = c1;
+        cur = cur->next;
+        c1 = c1->next;
+    }
+    return head;
+}
+
 /**
  * @brief 剑指Offer-21:调整数组顺序使奇数位于偶数前面
  *          输入一个整数数组，实现一个函数来调整该数组中数字的顺序，
