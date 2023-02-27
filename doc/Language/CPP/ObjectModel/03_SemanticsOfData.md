@@ -63,9 +63,113 @@ C++对象模型尽量以空间优化和存取速度优化的考虑来表现 non-
 1. 由编译器自动加上的额外 data members，用以支持某些语言特性(主要是各种 virtual特性)。
 2. 因为alignment的需要
 
+# Data Member绑定(The Binding of Data Member)
+
+```C++
+extern float x;
+
+class Point3d {
+public:
+    Point(float, float);
+    // 问题:被获取和设置的x是哪个x？
+    float X() const { return x; }
+    void X(float new_x) const { x = new_x;}
+private:
+    float x, y;
+};
+```
+
+`Point3d::X()`传回哪一个x？是class内部的x，还是外部(extern)的x？答案是class内部的x，但这个不是一直都正确。
 
 
 
+在C++早期的编译器上，如果在Point3d::X()的两个函数实例中对x做出参阅（取用）操作，该操作将会指向global xobject! 这样的绑定结果常常不符合大家的预期，因此早期有两种防御性的程序设计风格:
+
+1. 把所有的 data members放在 class声明起头处，以确保正确的绑定
+
+    
+
+    ```C++
+    class Point3d {
+        // 在class声明先放左右的data member
+        float x, y;
+    public:
+        Point(float, float);
+        // 问题:被获取和设置的x是哪个x？
+        float X() const { return x; }
+        void X(float new_x) const { x = new_x;}    
+    };
+    ```
+
+2. 把所有的 inline functions，不管大小都放在 class声明之外
+
+    ```C++
+    class Point3d {
+    public:
+        Point(float, float);
+        float X() const;
+        void X(float new_x) const;
+    private:
+    	float x, y;
+    };
+    
+    inline float Point3d::X() const {
+        return x;
+    }
+    ```
+
+这个古老的语言规则被称为“member rewriting rule”，大意是“一个inline函数实体，在整个class声明未被完全看见之前，是不会被评估求值（evaluated）的”，在C++2.0之后便消失了。C++ Standard以“member scope resolution rules”来精炼这个“rewriting rule”，其效果是，如果一个inline函数在class声明之后立刻被定义的话，那么就还是对其评估求值（evaluate）。也就是说：
+
+```C++
+extern float x;
+
+class Point3d {
+public:
+    Point(float, float);
+	// 对于函数本体分析延迟，直至class声明的有大括号出现才开始
+    float X() const { return x; }
+    void X(float new_x) const { x = new_x;}
+private:
+    float x, y;
+};
+// 对member function本体的分析在这里才开始
+```
+
+对member functions本体的分析，会直到整个class的声明都出现了才开始。因此在一个inline member function躯体之内的一个data member绑定操作，会在整个class声明完成之后才发生。
+
+[Summary of Scope Rules](https://learn.microsoft.com/en-us/cpp/cpp/summary-of-scope-rules?view=msvc-170)
+
+> The compiler searches for names in the following order, stopping when the name is found:
+>
+> 1. Current block scope if name is used inside a function; otherwise, global scope.
+> 2. Outward through each enclosing block scope, including the outermost function scope (which includes function parameters).
+> 3. **If the name is used inside a member function, the class's scope is searched for the name.**
+> 4. The class's base classes are searched for the name.
+> 5. The enclosing nested class scope (if any) and its bases are searched. The search continues until the outermost enclosing class scope is searched.
+> 6. Global scope is searched.
 
 
+
+这并不适用于member function的argument list。Argument list中的名称还是会在它们第一次遭遇时被适当地决议(resolved)完成。因此在extern和nested type names之间的非直觉绑定操作还是会发生。
+
+```C++
+typedef int length;
+class Point3d {
+public:
+    // length采用global typedef即int
+    // _cal采用的是Point3d::_val
+    void mumble(length val) { _val = val;}
+    length mumble() { return _val;}
+private:
+    // 这样的声明导致先前的参考操作非法
+    typedef float length;
+    length _val;
+};
+```
+
+上述这个语言状况，仍然需要某种防御性程序风格：请总是把“nested type声明”放在class的起始处。
+
+
+
+## Data Member的布局(Data Member Layout)
 
