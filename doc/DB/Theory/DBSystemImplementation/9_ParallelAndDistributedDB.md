@@ -73,12 +73,116 @@ SMP的优点是结构简单，缺点是当CPU个数增加和内存容量增大�
 
 ### Map-Reduce计算模型
 
+MapReduce是一种分布式批处理计算模型。
+
 <center>
     <img src="./img/MR-ComputeFramework.png">
     <div>Map-Reduce并行计算</div>
 </center>
+MapReduce计算模型和框架具有很多优点。
+
+1. 具有极强的可扩展性，可以在数千台机器上并发执行。
+2. 具有很好的容错性，即使集群机器发生故障，一般情况下也不会影响任务的正常执行。
+3. 简单性，用户只需要完成Map和Reduce函数即可完成大规模数据的并行处理。
+
+一般认为MapReduce的缺点包括：
+
+1. 无高层抽象数据操作语言、数据无Schema及索引(设计目的就是高吞吐、高容错的批处理系统，不算真正的缺点)。
+2. 单节点效率低下、任务流描述方法单一。
 
 
+
+MapReduce运算机制的优势是数据的高吞吐量、支持海量数据处理的大规模并行处理、细粒度的容错，但是并不适合对时效性要求较高的应用场景，比如交互式查询或者流式计算，也不适合迭代运算类的机器学习及数据挖掘类应用,原因如下：
+
+1. 其Map和Reduce任务启动时间较长。因为对于批处理任务来说，其任务启动时间相对后续任务执行时间来说所占比例并不大，所以这不是个问题，但是对于时效性要求高的应用，其启动时间与任务处理时间相比就太高，明显很不合算。
+2. 在一次应用任务执行过程中，MapReduce计算模型存在多处的磁盘读／写及网络传输过程。比如初始的数据块读取、Map任务的中间结果输出到本地磁盘、Shuffle阶段网络传输、Reduce阶段的磁盘读及GFS写入等。对于迭代类机器学习应用来说，往往需要同一个MapReduce任务反复迭代进行，此时磁盘读／写及网络传输开销需要反复进行多次，这便是导致其处理这种任务效率低下的重要原因。
+
+#### 计算模式
+
+##### 求和模式(Summarization Pattern)
+
+对于海量数据来说，通过对相似数据进行简单求和、统计计算或者相似内容归并是非常常见的应用场景，求和模式即描述这类应用场景及其对应的MapReduce解决方案，根据求和对象的类型，可以细分为数值求和以及记录求和两种情况。
+
+1. 数值求和。如果计算对象是数值类型，那么对其进行统计计算是最常见的应用，统计计算包括简单计数、求最小值／最大值、求平均值／中位数等各种情况
+2. 对于非数值的情况，往往需要将非数值内容进行累加形成队列。
+
+<center>
+    <img src="./img/MR-Sum.png">
+</center>
+
+Mapper以需要统计对象的ID作为Key，其对应的数值作为Value，比如单词计数中Key为单词本身，Value为1。在此种应用中如果使用Combiner会极大地减少Shuffle(拖曳)阶段的网络传输量。另外，Partitioner在这种应用中如何设计也很重要，一般的策略是对Reducer个数哈希取模，但是这可能会导致数据分布倾斜(Skewed)，即有些Reducer需要处理大量的信息，如果能够合理选择Partitioner策略会优化此种情形。通过Shuffle阶段，MapReduce将相同对象传递给同一个Reducer，Reducer则对相同对象的若干Value进行数学统计计算，得到最终结果。比如单词计数中这个数学计算就是求和，对于其他类型的应用，在这里也可以采取求均值或者中位数等各种统计操作。
+
+##### 过滤模式(Filtering Pattern)
+
+从海量数据中筛选出满足一定条件的数据子集，这就是典型的数据过滤场景。其应用包含简单过滤和Top K。
+
+简单过滤即根据一定条件从海量数据中筛选出满足条件的记录。我们假设存在一个函数f对记录内容进行判断，并以返回True或者False作为判断结果，这个函数即是记录满足条件与否的判断标准，不同应用只是函数实现不同，其整体处理逻辑是一致的。
+
+<center>
+    <img src="./img/MR-Simple-Filter.png">
+</center>
+
+
+
+Top K是从大量数据中，根据记录某个字段内容的大小取出其值最大的k个记录。
+
+<center>
+    <img src="./img/MR-Filter-TopK.png">
+</center>
+
+
+
+#### 数据组织模式(Data Organization Pattern)
+
+##### 数据分片
+
+##### 全局排序
+
+##### Join模式(Join Pattern)
+
+常见的Join包括Reduce-Side Join和Map-Side Join。
+
+
+
+#### 实现方式
+
+##### Google的MapReduce
+
+<center>
+    <img src="./img/Google-MR-Arch.png" width=60% height=60%>
+    <div><b>Google的MapReduce计算框架架构</b></div>
+</center>
+
+
+
+由上图可见，当用户程序执行MapReduce提供的调用函数时，其处理流程如下:
+
+1. MapReduce框架将应用的输入数据切分成M个数据块，典型的数据块大小为64MB，然后可以启动位于集群中不同机器上的若干程序。
+2. 这些程序中有一个全局唯一的主控Master程序以及若干工作程序(Worker)，Master负责为Worker分配具体的Map任务或者Reduce任务并做一些全局管理功能。整个应用有M个Map任务和R个Reduce任务，具体的M和R个数可以由应用开发者指定。Master将任务分配给目前处于空闲状态的Worker程序。
+3. 被分配到Map任务的Worker读取对应的数据块内容，从数据块中解析出一个个Key/Value记录数据并将其传给用户自定义的Map函数，Map函数输出的中间结果Key/Value数据在内存中进行缓存。
+4. 缓存的Map函数产生的中间结果周期性地被写入本地磁盘，每个Map函数的中间结果在写入磁盘前被分割函数(Partitioner)切割成R份，R是Reduce的个数。这里的分割函数一般是用Key对R进行哈希取模，这样就将Map函数的中间数据分割成R份对应每个Reduce函数所需的数据分片临时文件。Map函数完成对应数据块的处理后将其R个临时文件位置通知Master，再由Master将其转交给Reduce任务的Worker。
+5. 当某个Reduce任务Worker接收到Master的通知时，其通过RPC远程调用将Map任务产生的M份属于自己的数据文件（即Map分割函数取模后与自己编号相同的那份分割数据文件）远程拉取（Pull）到本地。
+6. Reduce任务Worker遍历已经按照中间结果Key有序的数据，将同一个Key及其对应的多个Value传递给用户定义Reduce函数，Reduce函数执行业务逻辑后将结果追加到这个Reduce任务对应的结果文件末尾。
+7. 当所有Map和Reduce任务都成功执行完成时，Master唤醒用户的应用程序，此时，MapReduce调用结束，进入用户代码执行空间。
+
+从第5步可以看出，只有所有Map任务都完成时Reduce任务才能启动，也即MapReduce计算模型中在Map阶段有一个所有Map任务同步的过程，只有同步完成才能进入Reduce阶段。当所有中间数据都拉取成功，则Reduce任务根据中间数据的Key对所有记录进行排序，这样就可以将具有相同Key的记录顺序聚合在一起。
+
+<font color=red><b>Reduce任务从Map任务获取中间数据时采用拉取方式而非由Map任务将中间数据推送(Push)给Reduce任务，这样做的好处是可以支持细粒度容错。</b></font>假设在计算过程中某个Reduce任务失效，那么对于Pull方式来说，只需要重新运行这个Reduce任务即可，无须重新执行全部所有的Map任务。而如果是Push方式，这种情形下只有所有Map任务都全部重新执行才行。因为Push是接收方被动接收数据的过程，而Pull则是接收方主动接收数据的过程。
+
+<font color=red><b>Google的MapReduce框架支持细粒度的容错机制。Master周期性地Ping各个Worker，如果在一定时间内Worker没有响应，则可以认为其已经发生故障。对于已经完成的和正在进行的所有Map任务重新设置为Idle状态，这些任务由其他Worker重新执行。对于已经完成的Reduce任务，即使Worker节点发生故障也无需重新执行。由于Master是单节点的，如果Master失败，整个MapReduce任务失败，应用可以通过反复提交来完成任务。</b></font>为什么已经完成的Map任务也需要重新执行？这是因为Map阶段将中间结果保存在执行Map任务的Worker机器本地磁盘上，Map任务的Worker发生故障意味着机器不可用，所以无法获取中间结果，此时只能重新执行来获得这部分中间数据。对于已经完成的Reduce任务来说，即使Worker发生故障也无须重新执行，因为其结果数据是保存在GFS中的，数据可用性已经由GFS获得了保证。
+
+
+
+<font color=green><b>为了优化执行效率，MapReduce计算框架在Map阶段还可以执行可选的Combiner操作。所谓“Combiner操作”，即是在Map阶段执行的将中间数据中具有相同Key的Value值合并的过程，这样可以大大减少中间数据量，减少网络传输，从而提高效率。</b></font>其业务逻辑一般和Reduce阶段的逻辑相似，和Reduce的区别无非是其在Map任务本地产生的局部数据上操作，而非像Reduce任务一样是在全局数据上操作。例如，单词计数，如果Map阶段的中间结果数据中对单词进行了Combiner操作，则对某个单词来说网络只须传输一个`<key, value>`数值即可，而无须传输Value个`<key, 1>`，大大减少了网络传输。Combiner一般也作为与Map和Reduce并列的用户自定义函数接口的方式存在。
+
+##### Hadoop的MapReduce计算
+
+<center>
+    <img src="./img/Hadoop-MR-Arch.png" width=60% height=60%>
+    <div><b>Hadoop MapReduce运行机制</b></div>
+</center>
+
+Hadoop的MapReduce运行机制基本上与Google的MapReduce机制类似。Mapper任务调用用户自定义Map函数后对中间结果进行局部排序，然后运行Combiner对数据进行合并。Reducer任务的Shuffle过程就是上述Google的MapReduce运行流程中的步骤5，不过Hadoop是采用HTTPS协议来进行数据传输的，并采用归并排序（Merge-Sort）来对中间结果Key进行排序，然后调用用户自定义Reduce函数进行业务逻辑处理并输出最终结果的。
 
 ### DAG(Directed Acyclic Graph)计算模型
 
@@ -111,3 +215,4 @@ SMP的优点是结构简单，缺点是当CPU个数增加和内存容量增大�
 
 1. 《CPU通识课》
 2. 《数据库系统实现 第2版》
+3. 《大数据日知录：架构与算法》
