@@ -66,3 +66,40 @@ bool exist(vector<vector<char>>& board, string word) {
  * 
  *          https://leetcode.cn/problems/ji-qi-ren-de-yun-dong-fan-wei-lcof/description
  */
+
+int getBitSum(int i) {
+    int sum = 0;
+    for(; i; i /= 10) {
+        sum += i % 10;
+    }
+    return sum;
+}
+
+bool valid(const std::vector<std::vector<bool> >& visited, int i, int j, const int m, const int n, int k) {
+    if (i >= 0 && i < m && j >= 0 && j < n && 
+            !visited[i][j] && getBitSum(i) + getBitSum(j) <= k) {
+        return true;
+    }
+    return false;
+}
+
+int steps(std::vector<std::vector<bool> >& visited, int i, int j, int m, int n, int k) {
+    int ans = 0;
+    std::vector<std::pair<int, int>> directions {
+        {0, 1}, {0, -1}, {1, 0}, {-1, 0}
+    };
+    if (valid(visited, i, j, m, n, k)) {
+        visited[i][j] = true;
+        ans += 1;
+        for (auto direction : directions) {
+            int newi = i + direction.first, newj = j + direction.second;
+            ans += steps(visited, newi, newj, m, n, k);
+        }
+    }
+    return ans;
+}
+
+int movingCount(int m, int n, int k) {
+    std::vector<std::vector<bool> > visited(m, std::vector(n, false));
+    return steps(visited, 0, 0, m, n, k);
+}
