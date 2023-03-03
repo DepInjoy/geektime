@@ -34,7 +34,7 @@
 
 ## 交换律与结合律
 
-关系代数的多个运算符同时满足结合律与交换律
+关系代数的多个运算符同时满足结合律与交换律,下面这个几个规则对于包和集合都成立。
 $$
 \begin{array}{l}
 R \times S = S \times R; (R \times S)T = R \times (S \times T) \\
@@ -43,19 +43,41 @@ R \cup S = S \cup R; (R \cup S) \cup T = R \cup (S \cup T)\\
 R \cap S = S \cap R; (R \cap S) \cap T = R \cap (S \cap T)\\
 \end{array}
 $$
-这些定律对于集合与包都成立。
 $\theta$连接可交换
 $$
 R \Join_C S = S \Join_C R
 $$
 
-包与集合的定律可能不同
+包与集合的定律可能不同，下面是适合于集合，但不适合于包的定律：
 $$
-A \cap_s(B \cup_s C) = (A \cap_s B) \cup_s (A \cap_s C)
+\begin{array}{l}
+A \cap_s(B \cup_s C) = (A \cap_s B) \cup_s (A \cap_s C) -- 交对并的分配律\\
+(R \cap S) - T = R \cap (S - T) \\
+R \cap (S \cup T) = (R \cap S) \cup (R \cap T) \\
+\sigma_{C \ or \ D}(R) = \sigma_C(R) \cup \sigma_D(R),C和D是任意有关R的元组条件
+\end{array}
 $$
-即交对并的分配律，适合于集合运算，对包不成立
+
+
+下面这些定律对包和集合运算都有效
+
+并对于交的分配律:
+$$
+\begin{array}{l}
+ R \cup (S \cap T) = (R \cup S) \cap (R \cup T) \\
+\end{array}
+$$
+此外还有
+$$
+\begin{array}{l}
+\pi_L(R \cup S) = \pi_L(R) \cup \pi_L(S)，L是任意属性列表 \\
+\sigma_{C \ AND \ D}(R) = \sigma_C(R) \cap \sigma_D(R), C和D是任意有关R的元组条件
+\end{array}
+$$
+
 
 ## 涉及选择的定律
+
 选择可以明显地减少关系的大小，因此进行有效查询处理最重要的规则之一就是只要不改变表达式的结果，就把选择在语法树上尽可能地下移。
 $\sigma$运算符的分解定律：
 $$
