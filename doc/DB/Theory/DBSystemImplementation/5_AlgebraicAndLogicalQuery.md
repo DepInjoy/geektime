@@ -72,10 +72,87 @@ Datalog本质上是集合逻辑，然而只要没有否定的关系子目标，�
 
 ## 布尔操作
 
+关系代数不二操作--并、交、差可以简单地用Datalog表达。假设R和S是具有相同多的属性n的关系，使用Answer作为头谓词名字。
+
+$R \cup S$使用两条规则和n个不同变量:
+$$
+Answer(a_1, a_2,..., a_n) \longleftarrow R(a_1, a_2,..., a_n) \\
+Answer(a_1, a_2,..., a_n) \longleftarrow S(a_1, a_2,..., a_n)
+$$
+$R \cap S$使用主体规则:
+$$
+Answer(a_1, a_2,..., a_n) \longleftarrow R(a_1, a_2,..., a_n) AND S(a_1, a_2,..., a_n)
+$$
+$R - S$使用主体规则
+$$
+Answer(a_1, a_2,..., a_n) \longleftarrow R(a_1, a_2,..., a_n) \ AND \ NOT \ S(a_1, a_2,..., a_n)
+$$
+
+
 ## 投影
+
+计算关系R的投影，使用只有一条谓词R的单子目标规则。该子目标参数是不同变量，每个代表关系的一个属性。规则头部有一个原子，其参数按照期望顺序对应于投影列表，例如将关系$Movies(title, year, length, genre, studioName, producerC\#)$投影到title,year, length三个属性上，规则是$P(t, y, l) \longleftarrow Movies(t, y, l, g, a, p)$
 
 ## 选择
 
+当选择条件是对一个或多个算术比较来作And操作时，创建规则包含：
+
+1. 一个对应于要进行选择的关系的子目标。该原子对每个分量有不同变量，它们分别对应于关系的每个属性。
+2. 选择条件中的每个比较都有一个与该比较对应的算术子目标。而且，一旦选择条件中使用了一个属性名，就根据关系子目标建立的对应关系在算术子目标中使用对应的变量
+
+例如，关系代数：$\sigma_{length \ge 100 \ AND \ studioName='Fox'}(Movies)$用Datalog规则可以重写为
+$$
+S(t, y, l, g, s, p) \longleftarrow Movies(t, y, l, g, s, p) \ AND \ l \ge 100 \ AND \ s='Fox' \\
+$$
+
+
+两个OR操作的选择近似于分别按照每个条件进行选择，然后得到结果的并。n个条件的OR可以用n条规则表示，每个规则定义相同的头部谓词，第i跳规则按照n个条件中的第i个进行选择。
+
+例如关系代数：$\sigma_{length \ge 100 \ OR \ studioName='Fox'}(Movies) \\$用Datalog规则可以重写为
+$$
+\begin{array}{l}
+S(t, y, l, g, s, p) \longleftarrow Movies(t, y, l, g, s, p) \ AND \ l \ge 100 \\
+S(t, y, l, g, s, p) \longleftarrow Movies(t, y, l, g, s, p) \ AND \ s='Fox'
+\end{array}
+$$
+
+
+对于复杂的选择条件，可以由逻辑算子AND、OR和NOT按照任意顺序组成。有一种技术可以将这样的逻辑表达式重新整理成“析取范式”，即表达式是合取的析取(disjunt)是OR。合取(conjunt)是AND，而文字(literals)是一种比较或否定的比较。
+
 ## 积
 
+$R \times S$可以用一条Datalog规则表示。头部IDB谓词拥有所有在两个子目标中出现的参数，R子目标中的变量列在S子目标中变量的前面。
+$$
+P(a, b, c, x, y, z) \longleftarrow R(a, b, c)\  AND \ S(x, y, z)
+$$
+
+
 ## 连接
+
+可以使用一条近似于积的Datalog规则来表示两个关系的自然连接，如果想要得到$R \Join S$,则R和S的同名属性要使用形同的变量，否则使用不同的变量。例如R(A,B)和S(B,C, D)的自然连接可以采用$J(a, b, c, d) \longleftarrow R(a, b) AND S(b, c, d)$
+
+
+
+$\theta$连接可以采用一个积后接选择操作符来转换成Datalog，如果选择条件是合取(即AND)，可以简单地从积规则开始，再添加对应于每个比较的算术目标。例如
+$$
+\begin{array}{l}
+关系U(A, B, C)和V(B, C, D)进行\theta连接 U \Join_{A < D \ AND \ U.b \neq V.B} V \\
+J(a, ub, uc, vb, vc, d) \longleftarrow U(a, ub, uc) \ AND \ V(vb, vc, d) \ AND \ a < d \ AND \ ub \neq vb
+\end{array}
+$$
+
+
+$\theta$连接的连接条件不是合取，可以将它转化为析取范式，然后为每个合取建立规则
+$$
+\begin{array}{l}
+关系U(A, B, C)和V(B, C, D)进行\theta连接 U \Join_{A < D \ OR \ U.b \neq V.B} V \\
+\\
+采用变量命名可以得到两条规则: \\
+1.\  J(a, ub, uc, vb, vc, d) \longleftarrow U(a, ub, uc) \ AND \ V(vb, vc, d) \ AND \ a < d \\
+2.\  J(a, ub, uc, vb, vc, d) \longleftarrow U(a, ub, uc) \ AND \ V(vb, vc, d) \ AND \ ub \neq vb
+\end{array}
+$$
+
+# 参考资料
+
+1. 数据库系统基础教程(第3版)
