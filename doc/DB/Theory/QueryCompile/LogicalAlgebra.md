@@ -1,6 +1,8 @@
 
 
-# 集合(Sets)
+# Set, Bag,Sequence
+
+## 集合(Sets)
 
 特征函数(characteristic function)为$\chi_S(s)$
 $$
@@ -17,11 +19,11 @@ $$
 $$
 
 
-## 集合操作的定律
+### 集合操作的定律
 
 
 
-# 包(Bag)
+## 包(Bag)
 
 特征函数(characteristic function):$\chi_B(x)$，表示元素$x$在包B中的出现次数。包B 的基数(cardinality )$\left | B \right |$的定义为
 $$
@@ -60,7 +62,7 @@ $$
 \end{eqnarray}
 $$
 
-# 显式重复控制
+## 显式重复控制
 每一个集合都可以看做特征函数不超过1的包。采用$\bar{I}(S)$表示将集合S转化为采用相同特征函数的包，采用$\bar{I}^{-1}(B)$表示如果包的特征函数不超过1，将包转化为集合。否则，$\bar{I}^{-1}$未定义。
 $$
 \bar{I}^{-1}(\bar{I}(X) \cap_b \bar{I}(Y)) = X \cap_s Y
@@ -87,7 +89,7 @@ $$
 R_1 \cup^d R_2 \coloneq = \Pi^D(R_1 \cup R_2)
 $$
 
-# 有序数据:Sequences
+## 有序数据:Sequences
 Sequence是有序且可能重复，例如$\left \langle a, b, b, c, d \right \rangle$是序列。$|S|$表示序列的长度，它表示序列中元素的数量，示例的序列长度为5。$\epsilon$表示一个空序列，含有0个元素。
 
 长度$n \ge 0$的序列有特征函数$\chi$。记S为序列，那么$\alpha(S)$表示序列第一个元素，S剩余的记为$\tau(S)$, 它包含除第一个元素意外的其他所有元组，也就是说$\chi_{\tau(S)}(i) = \chi_S(i+1)$
@@ -127,7 +129,15 @@ $$
 
 如果对于所有的参数都是sequence-linear，则称其为sequence-linear。二元函数或操作，我们可以区分左参数和右参数，如果它的左(右)参数是sequence-linear，那么，称left(right) sequence-linear。
 
-# 投影(Project)
+
+
+# 聚集函数(Aggregation Functions)
+
+
+
+# 算子(Operator)
+
+## 投影(Project)
 
 记$A\{ a_1, ..., a_n\}$为一组属性的集合，有两种Project算子的定义
 $$
