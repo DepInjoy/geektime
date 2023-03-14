@@ -133,7 +133,90 @@ $$
 
 # 聚集函数(Aggregation Functions)
 
+SQL至少支持min,max, count, sum和avg五种聚合函数。SQL也支持在计算聚合函数之前删除重复项，或者将重复项也参与聚合计算。例如`sum(distinct a)`或`sum(a)`
 
+记$\mathcal{N}$表示数据类型(例如，integer或float)或元组$a_1:\tau_1, ..., a_n:\tau_n$,其中$\tau_n$是数据类型，$\mathcal{N}$含null。
+
+标量(scalar)agg函数带签名
+$$
+agg : \{\tau\}_b \rightarrow \mathcal{N}
+$$
+标量agg函数$agg : {\tau}_b \rightarrow \mathcal{N}$,存在满足下面条件的函数，称其为可分解的
+$$
+agg^{1}:\{\tau\}_b \rightarrow {\mathcal{N}}' \\
+agg^{2}:\{{\mathcal{N}}'\}_b \rightarrow {\mathcal{N}}
+$$
+对于$Z = x \cup Y$所有的X和Y非空。该条件确保了$agg(z)$可以在Z的任意子集上独立计算且部分计算结果可以聚合产生正确的总结果。
+$$
+agg(Z) = agg^2(\{ agg^{1}(X), agg^{2}(Y)\}_b)
+$$
+上面的条件成立，我们称agg是可分解为$inner \ agg^{1}$和$outer \ agg^{2}$。
+
+
+
+可分解的标量聚集函数$agg : \{\tau\}_b \rightarrow \mathcal{N}$是可逆的(reversible)，如果对于$agg^{o}$存在函数$(agg^{o})^{-1} : {\mathcal{N}}', {\mathcal{N}}' \rightarrow {\mathcal{N}}'$
+$$
+agg(X) = \gamma((agg^O)^{-1}(agg^{I}(Z), agg^{I}(Y)))
+$$
+对于所有的X，Y和Z，其中$Z = X \cup Y$，该条件可以确保计算Z的子集X的$agg(X)$采用$(agg^O)^{-1}$，从总agg$agg^{O}(agg^{I}(Z))$减去分量Y的聚集记过
+
+统计信息中，方差(variance)$s^2 = \frac{1}{n-1}\sum_{x \in B}(x - \bar{x}),其中\bar{x} = \frac{1}{n}\sum_{x \in B}x$是可分解和可逆的。
+
+min，max可分解但不可逆
+
+sum(distict)，count(distinct)不可分解。
+
+对min,max, count, sum和avg五种agg函数分解：
+$$
+\begin{array}{l}
+min(X \cup Y) = min(min(X), min(Y)) \\
+max(X \cup Y) = max(max(X), max(Y)) \\
+count(X \cup Y) = sum(count(X), count(Y)) \\
+sum(X \cup Y) = sum(sum(X), sum(Y)) \\
+avg(X \cup Y) = sum(count(X), count(Y)) / (count^{NN}(X) + count^{NN}(Y))
+\end{array}
+$$
+
+
+|  $agg $  |      $agg^1$      | $agg^2$  |
+| :------: | :---------------: | :------: |
+|   min    |        min        |   min    |
+|   max    |        max        |   max    |
+| count(*) |     count(*)      |   sum    |
+| count(a) |     count(a)      |   sum    |
+|   sum    |        sum        |   sum    |
+|   avg    | sum, $count^{NN}$ | sum, sum |
+
+agg函数分解
+
+
+
+$F= (b-1:agg_1(a_1), ..., b_k:agg_k(a_k))$是一个agg数组且所有的agg函数$agg_i$都可以被分解为$agg_i^{1}$和$agg_{i}^{2}$。那么称F是可可分解为$F^{1}$和$F^{2}$
+$$
+\begin{array}{l}
+F^{1} \coloneq ({b_1}' : agg_{1}^1(a_1), ..., {b_k}' : agg_{k}^{1}(a_k)) \\
+F^{2} \coloneq ({b_1}' : agg_{2}^1(a_1), ..., {b_k}' : agg_{k}^{2}(a_k)) \\
+\end{array}
+$$
+
+
+F可分解为$F^{1}$和$F^2$,$F^1$可以进一步分解为$F^{1,1}$和$F^{1,2}$,且$F^2$可以分解为$F^{2,1}$和$F^{2,2}$,那么有
+$$
+\begin{array}{l}
+F^{1,1} = F^{1} \\
+F^{1,2} = F^{2} \\
+F^{2,1} = F^{2} \\
+F^{2,1} = F^{2} \\
+\end{array}
+$$
+
+
+如果包中重复元素不影响agg函数的结果，那么称其duplicate agnostic(Yan and Larson采用Class C术语)，否则是duplicate sensitive(Yan and Larson采用Class D术语)。
+
+- min, max, sum(distinct), count(distinct), ang(distinct)是duplicate agnostic
+- sum, count, avg是duplicate sensitive
+
+值得注意的是，除了$count(*)$,对于任意元素a，有$agg({a}) = a$。因此，如果我们确定仅仅处理一个元组,可以采用下面的重写。$a_i$和$b_i$是属性，那么，如果$F = (b_1:agg_1(a_1), ..., b_m:agg_m(a_m))$，定义$\hat{F} = (b_1:a_1, ..., b_m:a_m)$。
 
 # 算子(Operator)
 
