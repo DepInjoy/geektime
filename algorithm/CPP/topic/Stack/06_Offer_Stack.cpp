@@ -109,3 +109,27 @@ private:
     std::stack<int> data_;
     std::stack<int> min_;
 };
+
+/**
+*   剑指 Offer II 039. 直方图最大矩形面积
+*       给定非负整数数组 heights ，数组中的数字用来表示柱状图中各个柱子的高度。
+        每个柱子彼此相邻，且宽度为1 。求在该柱状图中，能够勾勒出来的矩形的最大面积
+
+    https://leetcode.cn/problems/0ynMMM/description
+*/
+
+// 暴力求解，时间复杂度O(N^2)，空间复杂度O(1)
+int largestRectangleArea(vector<int>& heights) {
+    int maxArea = 0;
+    for (int i = 0; i < heights.size(); ++i) {
+        int height = heights[i];
+        for (int j = i; j < heights.size(); ++j) {
+            height = std::min(height, heights[j]);
+            int width = j - i + 1;
+            maxArea = std::max(maxArea, height * width);
+        }
+    }
+    return maxArea;
+}
+
+// 单调栈

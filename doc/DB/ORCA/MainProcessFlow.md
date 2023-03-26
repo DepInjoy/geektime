@@ -443,11 +443,3 @@ Xform <|-- XformImplementation
 XformFactory *-- Xform
 @enduml
 ```
-
-```plantuml
-LogicalNarySublink --|> Logical
-PhysicalNarySublink --|> Physical
-
-Physical --|> Operator
-Logical --|> Operator
-```

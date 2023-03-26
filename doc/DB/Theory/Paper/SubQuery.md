@@ -3,8 +3,8 @@
 根据产生数据，可以将子查询划分为以下几类：
 
 - 标量(Scaler-Valued)子查询:输出只有一行一列的结果表。如果结果为空(0行)，输出NULL，如果输出超过一行会产生运行异常。它可以出现在任何包含标量的地方，例如SELECT、WHERE等子句中。
-- **存在性检测（Existential Test）**子查询：特指 EXISTS 的子查询，返回一个布尔值。如果出现在 WHERE 中，这就是我们熟悉的 Semi-Join。它可能出现在任何可以放布尔值的地方。
-- **集合比较（Quantified Comparision）**子查询：特指 IN、SOME、ANY 的查询，返回一个布尔值，常用的形式有：`x = SOME(Q)` （等价于 `x IN Q`）或 `X <> ALL(Q)`（等价于 `x NOT IN Q`）。它可能出现在任何可以放布尔值的地方。
+- **存在性检测（Existential Test）** 子查询：特指 EXISTS 的子查询，返回一个布尔值。如果出现在 WHERE 中，这就是我们熟悉的 Semi-Join。它可能出现在任何可以放布尔值的地方。
+- **集合比较（Quantified Comparision)** 子查询：特指 IN、SOME、ANY 的查询，返回一个布尔值，常用的形式有：`x = SOME(Q)` （等价于 `x IN Q`）或 `X <> ALL(Q)`（等价于 `x NOT IN Q`）。它可能出现在任何可以放布尔值的地方。
 
 # Apply逻辑算子
 
