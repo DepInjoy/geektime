@@ -60,18 +60,50 @@ vector<string> findRelativeRanks(vector<int>& score) {
  * 
  *      https://leetcode.cn/problems/kth-largest-element-in-an-array/description/
 */
+
+    int quikSelect(vector<int>& nums, const int l, const int r, const int index) {
+        int q = randamPartition(nums, l, r);
+        if (q == index) {
+            return nums[index];
+        } else {
+            return (q < index) ? quikSelect(nums, q + 1, r, index) :
+                    quikSelect(nums, l, q - 1, index);
+        }
+    }
+
+    int randamPartition(vector<int>& nums, const int l, const int r) {
+        const int ri = std::rand() % (r - l + 1) + l;
+        std::swap(nums[ri], nums[r]);
+
+        int pivot = nums[r];
+        int i = l - 1;
+        for(int j = l; j < r; ++j) {
+            if (nums[j] <= pivot) {
+                std::swap(nums[++i], nums[j]);
+            }
+        }
+        std::swap(nums[i+1], nums[r]);
+        return i+1;
+    }
+
+    int findKthLargest(vector<int>& nums, int k) {
+        srand(time(0));
+        return quikSelect(nums, 0, nums.size() - 1, nums.size() - k);
+    }
+    
+// 时间复杂度为O(Nlogk)，空间复杂度为k
 int findKthLargest(vector<int>& nums, int k) {
-    std::priority_queue<int, std::vector<int>, std::greater<int> > prio_q;
+    std::priority_queue<int, std::vector<int>, std::greater<int> > minHeap;
     int i = 0;
     for (;i < k; ++i) {
-        prio_q.push(nums[i]);
+        minHeap.push(nums[i]);
     }
 
     for (; i < nums.size(); ++i) {
-        if (nums[i] > prio_q.top()) {
-            prio_q.pop();
-            prio_q.push(nums[i]);
+        if (nums[i] > minHeap.top()) {
+            minHeap.pop();
+            minHeap.push(nums[i]);
         }
     }
-    return prio_q.top();
+    return minHeap.top();
 }
