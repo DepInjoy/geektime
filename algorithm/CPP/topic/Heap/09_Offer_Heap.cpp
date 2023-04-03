@@ -63,3 +63,35 @@ vector<int> getLeastNumbers(vector<int>& arr, int k) {
     }
     return ans;
 }
+
+/**
+ *  剑指Offer专项 II 059. 数据流的第 K 大数值
+ *  https://leetcode.cn/problems/jBjn9C/description/
+ *  
+ * 设计一个找到数据流中第 k 大元素的类（class）。注意是排序后的第 k 大元素，不是第 k 个不同的元素。
+ *  请实现 KthLargest 类：
+ *      KthLargest(int k, int[] nums) 使用整数 k 和整数流 nums 初始化对象。
+ *      int add(int val) 将 val 插入数据流 nums 后，返回当前数据流中第 k 大的元素。
+*/
+class KthLargest {
+public:
+    KthLargest(int k, vector<int>& nums) {
+        size = k;
+        for (int num : nums) {
+            add(num);
+        }
+    }
+    
+    int add(int val) {
+        if (minHeap.size() < size) {
+            minHeap.push(val);
+        } else if (val > minHeap.top()) {
+            minHeap.pop();
+            minHeap.push(val);
+        }
+        return minHeap.top();
+    }
+private:
+    uint32_t size{0};
+    std::priority_queue<int, std::vector<int>, std::greater<int>> minHeap;
+};
