@@ -95,3 +95,38 @@ private:
     uint32_t size{0};
     std::priority_queue<int, std::vector<int>, std::greater<int>> minHeap;
 };
+
+/**
+ *  剑指 Offer II 060. 出现频率最高的 k 个数字(中等)
+ *  https://leetcode.cn/problems/g5c51o/description/
+ *
+ *      给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素。可以按 任意顺序 返回答案。
+*/
+vector<int> topKFrequent(vector<int>& nums, int k) {
+    const int n = nums.size();
+    std::unordered_map<int, int> numFreqMap(n);
+    auto cmp = [](std::pair<int, int> l, std::pair<int, int> r) {
+        return l.second > r.second;
+    };
+    std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int> >, decltype(cmp)> minHeap(cmp);
+    for (int num : nums) {
+        numFreqMap[num]++;
+    }
+
+    for (auto iter = numFreqMap.begin(); iter != numFreqMap.end(); ++iter) {
+        if (minHeap.size() < k) {
+            minHeap.push(std::make_pair<>(iter->first, iter->second));
+        } else if (iter->second > minHeap.top().second) {
+            minHeap.pop();
+            minHeap.push(std::make_pair<>(iter->first, iter->second));
+        }
+    }
+
+    std::vector<int> ans(k);
+    int i = 0;
+    while (!minHeap.empty()) {
+        ans[i++] = minHeap.top().first;
+        minHeap.pop();
+    }
+    return ans;
+}
