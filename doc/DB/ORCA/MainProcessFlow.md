@@ -64,7 +64,12 @@ CExpression *
 COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
         CSearchStageArray *search_stage_array)
 {
+    // CEngine的构造函数创建Memo
     CEngine eng(mp);
+    // 1. 如果search_stage_array为空，进行设置，参见CSearchStage::PdrgpssDefault
+    // 2. 利用expression结构初始化engine,参见CEngine::InitLogicalExpression
+    //      2.1 为memo设置根，见Memo::SetRoot
+    //      2.2 将expression的孩子添加到memo中，见CEngine::InsertExpressionChildren
     eng.Init(pqc, search_stage_array);
     eng.Optimize();
 
@@ -442,4 +447,87 @@ XformImplementation <|-- XformImplementNarySublink
 Xform <|-- XformImplementation
 XformFactory *-- Xform
 @enduml
+```
+
+# 属性
+```C++
+// Derive all properties immediately. The suitable derived property is
+// determined internally. To derive properties on an on-demand bases, use
+// DeriveXXX() methods.
+CDrvdProp * CExpression::PdpDerive(CDrvdPropCtxt *pdpctxt) {
+	const CDrvdProp::EPropType ept = Ept();
+	CExpressionHandle exprhdl(m_mp);
+	exprhdl.Attach(this);
+
+    // 在CExpression的构造函数中会构造Relation和Scalar Prop
+    // 此处是处理Plan prop
+	if (nullptr == Pdp(ept)) {
+		const ULONG arity = Arity();
+		for (ULONG ul = 0; ul < arity; ul++) {
+			CExpression *pexprChild = (*m_pdrgpexpr)[ul];
+			CDrvdProp *pdp = pexprChild->PdpDerive(pdpctxt);
+
+			// add child props to derivation context
+			CDrvdPropCtxt::AddDerivedProps(pdp, pdpctxt);
+		}
+		exprhdl.CopyStats();
+
+		switch (ept) {
+			case CDrvdProp::EptPlan:
+				m_pdpplan = GPOS_NEW(m_mp) CDrvdPropPlan();
+				break;
+			default:
+				break;
+		}
+
+		Pdp(ept)->Derive(m_mp, exprhdl, pdpctxt);
+	}
+	// If we havn't derived all properties, do that now. If we've derived some
+	// of the properties, this will only derive properties that have not yet been derived.
+	else if (!Pdp(ept)->IsComplete()) {
+		Pdp(ept)->Derive(m_mp, exprhdl, pdpctxt);
+	}
+	return Pdp(ept);
+}
+```
+
+逻辑算子`CDrvdPropRelational`
+```C++
+//		Derived logical properties container
+class CDrvdPropRelational : public CDrvdProp;
+
+void CDrvdPropRelational::Derive(CMemoryPool *,	CExpressionHandle &exprhdl, CDrvdPropCtxt *)
+```
+
+```plantuml
+CDrvdPropRelational -> CDrvdPropRelational:DeriveOutputColumns
+group CDrvdPropRelational:DeriveOutputColumns
+DeriveOutputColumns -> CLogical:DeriveOutputColumns
+end
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveOuterReferences
+
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveNotNullColumns
+
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveCorrelatedApplyColumns
+
+
+CDrvdPropRelational -> CDrvdPropRelational:DerivePropertyConstraint
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveMaxCard
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveKeyCollection
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveJoinDepth
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveFunctionProperties
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveFunctionalDependencies
+
+
+CDrvdPropRelational -> CDrvdPropRelational:DerivePartitionInfo
+
+CDrvdPropRelational -> CDrvdPropRelational:DeriveTableDescriptor
 ```

@@ -95,6 +95,9 @@ CExpression * PexprExtractPlan(CMemoryPool *mp, CGroup *pgroupRoot,
 ```
 
 # Group
+
+Group是由一组等价的逻辑或物理表达式，它们产生相同的结果。
+
 在GroupExpression中存储有一个`EOptimizationLevel`类型的数据表示optimization level，在特定的优化上下文中optimization level高的GroupExpression必须在低GroupExpression之前进行优化，Group通过`CGroupExpression::SetOptimizationLevel()`设置GroupExpression的optimization level
 ```C++
 enum EOptimizationLevel {

@@ -1,5 +1,11 @@
 # 统计信息
 ```C++
+// derive statistics
+IStatistics *PstatsDerive(CReqdPropRelational *prprel,
+		IStatisticsArray *stats_ctxt);
+```
+
+```C++
 // Compute statistics for filter operation
 class CFilterStatsProcessor {
 public:
@@ -136,6 +142,7 @@ public:
 	static ICostModel *PcmDefault(CMemoryPool *mp);
 };
 ```
+
 
 ```C++
 class ICostModelParams : public CRefCount {
