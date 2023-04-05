@@ -102,6 +102,10 @@ private:
  *
  *      给定一个整数数组 nums 和一个整数 k ，请返回其中出现频率前 k 高的元素。可以按 任意顺序 返回答案。
 */
+
+/**
+ * 基于堆的实现，时间复杂度为O(Nlogk), 空间复杂度为O(N)
+*/
 vector<int> topKFrequent(vector<int>& nums, int k) {
     const int n = nums.size();
     std::unordered_map<int, int> numFreqMap(n);
@@ -128,5 +132,52 @@ vector<int> topKFrequent(vector<int>& nums, int k) {
         ans[i++] = minHeap.top().first;
         minHeap.pop();
     }
+    return ans;
+}
+
+/**
+ *  基于快排的实现, 平均时间复杂度为O(N), 空间复杂度为O(N)
+*/
+void qsort(std::vector<std::pair<int, int>>& arr, int start,
+        int end, std::vector<int>& topk, int k) {
+    int picked = (std::rand() % (end - start + 1)) + start;
+    std::swap(arr[picked], arr[end]);
+
+    int pivot = arr[end].second;
+    int index = start - 1;
+    for(int j = start; j < end; ++j) {
+        if (arr[j].second >= pivot) {
+            std::swap(arr[++index], arr[j]);
+        }
+    }
+    std::swap(arr[index + 1], arr[end]);
+
+    if (start + k <= index + 1) {
+        qsort(arr, start, index, topk, k);
+    } else {
+        for (int i = start; i <= index + 1; ++i) {
+            topk.push_back(arr[i].first);
+        }
+        if (start + k > index + 2) {
+            qsort(arr, index + 2, end, topk, k - (index + 2 - start));
+        }
+    }
+}
+
+vector<int> topKFrequent(vector<int>& nums, int k) {
+    std::unordered_map<int, int> numFreqMap(nums.size());
+    for (int num : nums) {
+        numFreqMap[num]++;
+    }
+
+    std::vector<std::pair<int, int>> numFreqArr(numFreqMap.size());
+    int i = 0;
+    for (auto iter : numFreqMap) {
+        numFreqArr[i++] = iter;
+    }
+
+    std::vector<int> ans;
+    ans.reserve(k);
+    qsort(numFreqArr, 0, numFreqArr.size() - 1, ans, k);
     return ans;
 }
