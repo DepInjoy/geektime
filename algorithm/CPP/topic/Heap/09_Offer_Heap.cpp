@@ -181,3 +181,73 @@ vector<int> topKFrequent(vector<int>& nums, int k) {
     qsort(numFreqArr, 0, numFreqArr.size() - 1, ans, k);
     return ans;
 }
+
+/**
+ *  剑指 Offer II 061. 和最小的 k 个数对
+ *  https://leetcode.cn/problems/qn8gGX/description
+ * 
+ *      给定两个以升序排列的整数数组 nums1 和 nums2 , 以及一个整数 k 。
+ *      定义一对值 (u,v)，其中第一个元素来自 nums1，第二个元素来自 nums2 。
+ *      请找到和最小的 k 个数对 (u1,v1),  (u2,v2)  ...  (uk,vk) 。
+*/
+
+/**
+ *  基于大顶堆实现
+*/
+vector<vector<int>> kSmallestPairs(vector<int>& nums1, vector<int>& nums2, int k) {
+    auto cmp = [](const std::pair<int, int>& l, const std::pair<int, int>& r) {
+        return (l.first + l.second) < (r.first + r.second);
+    };
+    std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>,
+            decltype(cmp)> maxHeap(cmp);
+    const int n1 = nums1.size(), n2 = nums2.size();
+    for (int i = 0; i < std::min(k, n1); ++i) {
+        for(int j = 0; j < std::min(k, n2); ++j) {
+            if (maxHeap.size() < k) {
+                maxHeap.push(std::make_pair(nums1[i], nums2[j]));
+            } else {
+                std::pair<int, int> htop = maxHeap.top();
+                if (nums1[i] + nums2[j] <= htop.first + htop.second) {
+                    maxHeap.pop();
+                    maxHeap.push(std::make_pair(nums1[i], nums2[j]));
+                }
+            }
+        }
+    }
+
+    std::vector<std::vector<int>> ans;
+    ans.reserve(k);
+    while(!maxHeap.empty()) {
+        std::pair<int, int> htop = maxHeap.top();
+        ans.push_back({htop.first, htop.second});
+        maxHeap.pop();
+    }
+    return ans;
+}
+
+/**
+ * 基于小顶堆实现
+*/
+vector<vector<int>> kSmallestPairs(vector<int>& nums1, vector<int>& nums2, int k) {
+    auto cmp = [&nums1, &nums2](const std::pair<int, int>& l, const std::pair<int, int>& r) {
+        return nums1[l.first] + nums2[l.second] > nums1[r.first] + nums2[r.second];
+    };
+    std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>,
+            decltype(cmp)> minHeap(cmp);
+    const int n1 = nums1.size(), n2 = nums2.size();
+    std::vector<std::vector<int>> ans;
+    ans.reserve(k);
+    for (int i = 0; i < std::min(k, n1); ++i) {
+        minHeap.push(std::make_pair(i, 0));
+    }
+
+    while (k-- > 0 && !minHeap.empty()) {
+        auto [i, j] = minHeap.top();
+        ans.push_back({nums1[i], nums2[j]});
+        minHeap.pop();
+        if (j + 1 < n2) {
+            minHeap.push(std::make_pair(i, j +1));
+        }
+    }
+    return ans;
+}
