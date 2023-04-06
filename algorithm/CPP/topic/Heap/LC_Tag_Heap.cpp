@@ -61,36 +61,37 @@ vector<string> findRelativeRanks(vector<int>& score) {
  *      https://leetcode.cn/problems/kth-largest-element-in-an-array/description/
 */
 
-    int quikSelect(vector<int>& nums, const int l, const int r, const int index) {
-        int q = randamPartition(nums, l, r);
-        if (q == index) {
-            return nums[index];
-        } else {
-            return (q < index) ? quikSelect(nums, q + 1, r, index) :
-                    quikSelect(nums, l, q - 1, index);
+// 基于快速排序的选择方法，时间复杂度O(N), 空间复杂度O(logN)
+int quikSelect(vector<int>& nums, const int l, const int r, const int index) {
+    int q = randamPartition(nums, l, r);
+    if (q == index) {
+        return nums[index];
+    } else {
+        return (q < index) ? quikSelect(nums, q + 1, r, index) :
+                quikSelect(nums, l, q - 1, index);
+    }
+}
+
+int randamPartition(vector<int>& nums, const int l, const int r) {
+    const int ri = std::rand() % (r - l + 1) + l;
+    std::swap(nums[ri], nums[r]);
+
+    int pivot = nums[r];
+    int i = l - 1;
+    for(int j = l; j < r; ++j) {
+        if (nums[j] <= pivot) {
+            std::swap(nums[++i], nums[j]);
         }
     }
+    std::swap(nums[i+1], nums[r]);
+    return i+1;
+}
 
-    int randamPartition(vector<int>& nums, const int l, const int r) {
-        const int ri = std::rand() % (r - l + 1) + l;
-        std::swap(nums[ri], nums[r]);
+int findKthLargest(vector<int>& nums, int k) {
+    srand(time(0));
+    return quikSelect(nums, 0, nums.size() - 1, nums.size() - k);
+}
 
-        int pivot = nums[r];
-        int i = l - 1;
-        for(int j = l; j < r; ++j) {
-            if (nums[j] <= pivot) {
-                std::swap(nums[++i], nums[j]);
-            }
-        }
-        std::swap(nums[i+1], nums[r]);
-        return i+1;
-    }
-
-    int findKthLargest(vector<int>& nums, int k) {
-        srand(time(0));
-        return quikSelect(nums, 0, nums.size() - 1, nums.size() - k);
-    }
-    
 // 时间复杂度为O(Nlogk)，空间复杂度为k
 int findKthLargest(vector<int>& nums, int k) {
     std::priority_queue<int, std::vector<int>, std::greater<int> > minHeap;
