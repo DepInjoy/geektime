@@ -13,9 +13,9 @@ swap(rhs, lhs); // 2
 // 进而导致死锁
 ```
 
-## 同时获取锁,防死锁处理
 
-C++标准库提供了`std::lock()`函数，专门解决这一问题，它可以同时锁住多个互斥，而没有发生死锁的风险。
+
+C++标准库提供了`std::lock()`函数，专门解决同时获取锁可能导致的死锁问题，它可以同时锁住多个互斥，而没有发生死锁的风险。
 
 ```C++
 template< class Lockable1, class Lockable2, class... LockableN >
@@ -75,3 +75,122 @@ void swap(X& lhs, X& rhs) {
 ```
 
 假定我们需要同时获取多个锁，那么`std::lock()`函数和`std::scoped_lock<>`模板可帮助防范死锁，但若代码分别获取各个锁需要程序员来防范死锁的风险。
+
+
+
+# 层级锁
+
+锁的层级划分就是按特定方式规定加锁次序，在运行期据查验加锁操作是否遵从预设规则。按照构思，我们把应用程序分层，并且明确每个互斥位于哪个层级。若某线程已对低层级互斥加锁，则不准它再对高层级互斥加锁。具体做法是将层级的编号赋予对应层级应用程序上的互斥，并记录各线程分别锁定了哪些互斥。C++标准目前尚未支持。
+
+示例两个线程如何应用层级互斥，利用层级锁防范死锁
+
+```C++
+// 依据层级编号构建层级锁,层级越低编号越小
+// 这套机制旨在设定加锁的规则，如果已在某hierarchical_mutex互斥上持有锁
+// 那么只能由相对低层级的hierarchical_mutex互斥获取锁，从而限制代码行为
+hierarchical_mutex high_level_mutex(10000);
+hierarchical_mutex low_level_mutex(5000);
+hierarchical_mutex other_mutex(6000);
+
+// 假定其没有锁住任何互斥
+int do_low_level_stuff();
+// 处于最低层,锁住了low_level_mutex互斥
+int low_level_func() {
+    std::lock_guard<hierarchical_mutex> lk(low_level_mutex);
+    return do_low_level_stuff();
+}
+
+void high_level_stuff(int some_param);
+// 首先锁住high_level_mutex，再调用low_level_func
+// 符合规则,high_level_mutex在10000层级, low_level_mutex在5000层级
+void high_level_func() {
+    std::lock_guard<hierarchical_mutex> lk(high_level_mutex);
+    high_level_stuff(low_level_func());
+}
+// 符合规则, 可以正常运行
+void thread_a() {
+    high_level_func();
+}
+
+void do_other_stuff();
+void other_stuff() {
+    high_level_func();
+    do_other_stuff();
+}
+
+// 先锁住other_mutex层级6000,再调用other_stuff
+// other_stuff中先锁住high_level_mutex, 层级10000高于other_mutex层级6000
+// 不符合规则，运行期出错
+void thread_b() {
+    std::lock_guard<hierarchical_mutex> lk(other_mutex);
+    other_stuff();
+}
+```
+
+
+
+简单的层级锁实现
+
+```C++
+class hierarchical_mutex {
+    std::mutex internal_mutex;
+    // 当前层级锁的层级
+    unsigned long const hierarchy_value;
+    // 加锁时备份当前线程层级,unlock时恢复线程层级
+    unsigned long previous_hierarchy_value;
+
+    // 存储当前线程层级编号，采用线程专属局部变量thread_local
+    // 所有的互斥示例都可以读到该值,同时其值因不同线程而异
+    // 使得可以独立检测各线程的行为，各互斥都能判断是否允许当前线程对其加
+    // 初始化为unsigned long可表示的最大值ULONG_MAX
+    static thread_local unsigned long this_thread_hierarchy_value;
+    void check_for_hierarchy_violation() {
+        if(this_thread_hierarchy_value <= hierarchy_value) {
+            throw std::logic_error("mutex hierarchy violated");
+        }
+    }
+
+    // 将当前线程层级编号保存到previous_hierarchy_value
+    // 当前线程层级设置为该层级锁的层级
+    void update_hierarchy_value() {
+        previous_hierarchy_value = this_thread_hierarchy_value;
+        this_thread_hierarchy_value = hierarchy_value;
+    }
+
+public:
+    explicit hierarchical_mutex(unsigned long value):
+        hierarchy_value(value),
+        previous_hierarchy_value(0) {}
+
+    void lock() {
+        // 层级规则检查
+        check_for_hierarchy_violation();
+        internal_mutex.lock();
+        // 备份当先线程层级到previous_hierarchy_value,设置当前线程层级
+        update_hierarchy_value();
+    }
+
+    void unlock() {
+        if(this_thread_hierarchy_value != hierarchy_value) {
+            throw std::logic_error("mutex hierarchy violated");
+        } 
+	    // 复原线程层级(复原为lock前当前线程层级)
+        this_thread_hierarchy_value = previous_hierarchy_value;
+        internal_mutex.unlock();
+    }
+
+    bool try_lock() {
+        check_for_hierarchy_violation();
+        // 加锁失败,不更新线程层级
+        if(!internal_mutex.try_lock()) {
+            return false;
+        }
+        update_hierarchy_value();
+        return true;
+    }
+};
+thread_local unsigned long hierarchical_mutex::this_thread_hierarchy_value(ULONG_MAX);
+```
+
+
+
