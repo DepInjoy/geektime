@@ -166,3 +166,17 @@ class CGroupProxy {
 CGroupProxy -right--|> CGroup
 CGroup --* CGroupExpression
 ```
+
+```C++
+class CGroup {
+private:
+ 	// 当前状态，初始化为estUnexplored
+    // 在JobScheduler的状态机进行状态的切换
+    // 每完成一个SearchStage重置状态,参见CEngine::FinalizeSearchStage
+	EState m_estate;
+    
+    // group stats
+	IStatistics *m_pstats;
+}
+```
+
