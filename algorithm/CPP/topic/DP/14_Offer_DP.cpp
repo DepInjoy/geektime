@@ -196,3 +196,30 @@ int cuttingRope(int n) {
     }
     return products[n];
 }
+
+/**
+ *  专题 088. 爬楼梯的最少成本
+ *  https://leetcode.cn/problems/GzCJIP/description
+ *  https://leetcode.cn/problems/min-cost-climbing-stairs/
+ * 
+ *      数组的每个下标作为一个阶梯，第 i 个阶梯对应着一个非负数的体力花费值 cost[i]（下标从 0 开始）。
+ *      每当爬上一个阶梯都要花费对应的体力值，一旦支付了相应的体力值，就可以选择向上爬一个阶梯或者爬两个阶梯。
+ *      请找出达到楼层顶部的最低花费。在开始时，你可以选择从下标为 0 或 1 的元素作为初始阶梯。
+ * 
+ *  假设数组cost的长度为n，则n个阶梯分别对应下标0到 n−1，
+ *  楼层顶部对应下标n，问题等价于计算达到下标n的最小花费。
+ * 
+ *  dp[i]表示到达下标i的最少成本
+ *  状态转移方程: dp[i] = min(dp[i-1] + cost[i-1], dp[i-2] + cost[i-2]), 其中2 <= 0 <= n
+ *  初始化状态: dp[0] = 0, dp[1] = 0;
+*/
+
+int minCostClimbingStairs(vector<int>& cost) {
+    int pre = 0, cur = 0;
+    for (int i = 2; i <= cost.size(); ++i) {
+        int next = std::min(pre + cost[i-2], cur + cost[i-1]);
+        pre = cur;
+        cur = next;
+    }
+    return cur;
+}
