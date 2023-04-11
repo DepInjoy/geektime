@@ -328,3 +328,247 @@ my_class& get_my_class_instance() {
 
 仅在初始化过程中保护共享数据只是一种特例，更普遍的情况是保护那些甚少更新的数据结构。大多数时候，这些数据结构都处于只读状态，因此可被多个线程并发访问，但它们偶尔也需要更新，我们需要一种保护机制专门处理这种场景。
 
+## 保护很少更新的数据结构
+
+考虑一个存储着DNS条目的缓存表，它将域名解析成对应的IP地址。给定的DNS条目通常在很长时间内都不会发生变化。尽管随着用户访问不同网站，缓存表会不时加入新条目，但很大程度上DNS的数据在整个生命周期内几乎不改变。对然更新很少但还是会发生，如果被多线程访问，还是需要进行数据保护。为此我们需要一种数据结构，若线程对其更新，并发访问从更新开始到结束完全排他，直至更新完成；同时支持并发读取。这个新的互斥有两种使用方式，通常被称作读写互斥：允许单独一个写线程进行完全排他的写访问，同时允许多个读线程共享数据或并发访问。
+
+C++14标准库引入了`std::shared_timed_mutex`, C++17标准支持`std::shared_timed_mutex`和`std::shared_mutex`两种新互斥，C++11则都不支持。如果没有支持C++14，可以采用`boost::shared_mutex`。
+
+除了`std::mutex`，可以采用`std::lock_guard<std::shared_mutex>`和`std::unique_lock<std::shared_mutex>`来锁定，和`std::mutex`一样，它们都保证了访问的排他性。对于无须更新数据结构的线程，可以采用共享锁`std::shared_lock<std::shared_mutex>`实现共享访问。
+
+
+
+例如，DNS缓存表的简略实现，其采用`std::map`放置缓存数据，由`std::shared_mutex`施加保护。
+
+```C++
+#include <map>
+#include <string>
+#include <mutex>
+#include <shared_mutex>
+class dns_entry;
+class dns_cach {
+  	std::map<std::string, dns_entry> entries;
+    mutable std::shared_mutex entry_mutex;
+ public:
+    dns_entry find_entry(std::string const& domain) const {
+        // 只读访问，读锁，支持并发读
+        std::shared_lock<std::shared_mutex> lk(entry_mutex);
+        std::map<std::string, dns_entry>::const_iterator const it = entries.find(domain);
+        return (it == entries.end()) ? dsn_entry() : it.second;
+    }
+    
+    void update_or_add_entry(std::string const& domain, dns_entry const& dns_details) {
+        // 写操作，采用写锁，排他访问
+        std::lock_guard<std::sherd_mutex> lk(enrty_mutex);
+        entries[domian] = dns_details;
+    }
+};
+```
+
+
+
+下面来了解一下`std::shared_timed_mutex`，`std::shared_mutex`以及`boost::shared_mutex`。
+
+### `std::shared_timed_mutex`
+
+`std::shared_timed_mutex`提供两种访问：
+
+1. 排他(exclusive)， 只有一个线程可以拥有该互斥量。排他上锁和解锁相关的接口
+
+    ```C++
+    void lock();
+    bool try_lock();
+    
+    template< class Rep, class Period >
+    bool try_lock_for( const std::chrono::duration<Rep,Period>& timeout_duration);
+    
+    template< class Clock, class Duration >
+    bool try_lock_until( const std::chrono::time_point<Clock,Duration>& timeout_time);
+    
+    void unlock(); // unlock the mutex
+    ```
+
+2. 共享(shared)，多个线程可以共享同一个互斥量的所有权
+
+    ```C++
+    void lock_shared();
+    bool try_lock_shared();
+    
+    template< class Rep, class Period >
+    bool try_lock_shared_for( const std::chrono::duration<Rep,Period>& timeout_duration );
+    
+    template< class Clock, class Duration >
+    bool try_lock_shared_until( const std::chrono::time_point<Clock,Duration>& timeout_time );
+    
+    void unlock_shared()
+    ```
+
+    例如，多线程环境是实现类的复制赋值操作符。
+
+    ```C++
+    #include <mutex>
+    #include <shared_mutex>
+     
+    class R {
+        mutable std::shared_timed_mutex mut;
+        /* data */
+    public:
+        R& operator = (const R& other) {
+            // requires exclusive ownership to write to *this
+            std::unique_lock<std::shared_timed_mutex> lhs(mut, std::defer_lock);
+            // requires shared ownership to read from other
+            std::shared_lock<std::shared_timed_mutex> rhs(other.mut, std::defer_lock);
+            std::lock(lhs, rhs);
+            /* assign data */
+            return *this;
+        }
+    };
+    ```
+
+### `std::sherd_mutex`
+
+`std::shared_mutex`也提供了两种访问：
+
+1. 排他(exclusive)， 只有一个线程可以拥有该互斥量。排他上锁和解锁相关的接口
+
+    ```C++
+    void lock();
+    bool try_lock();
+    void unlock();
+    ```
+
+2. 共享(shared)，多个线程可以共享同一个互斥量的所有权
+
+    ```C++
+    void lock_shared();
+    bool try_lock_shared();
+    void unlock_shared();
+    ```
+
+    
+
+例如，实现多线程计数
+
+```C++
+#include <mutex>
+#include <shared_mutex>
+ 
+class ThreadSafeCounter {
+ public:
+  ThreadSafeCounter() = default;
+ 
+  // Multiple threads/readers can read the counter's value at the same time.
+  unsigned int get() const {
+    std::shared_lock lock(mutex_);
+    return value_;
+  }
+ 
+  // Only one thread/writer can increment/write the counter's value.
+  void increment() {
+    std::unique_lock lock(mutex_);
+    ++value_;
+  }
+ 
+  // Only one thread/writer can reset/write the counter's value.
+  void reset() {
+    std::unique_lock lock(mutex_);
+    value_ = 0;
+  }
+ 
+ private:
+  mutable std::shared_mutex mutex_;
+  unsigned int value_ = 0;
+};
+```
+
+### `boost::share_mutex`
+
+```C++
+#include <boost/thread/shared_mutex.hpp>
+
+class shared_mutex {
+public:
+   	// 禁止赋值和复制构造
+    shared_mutex(shared_mutex const&) = delete;
+    shared_mutex& operator=(shared_mutex const&) = delete;
+
+    shared_mutex();
+    ~shared_mutex();
+
+    // 共享, 支持多线程
+    void lock_shared();
+    bool try_lock_shared();
+    template <class Rep, class Period>
+    bool try_lock_shared_for(const chrono::duration<Rep, Period>& rel_time);
+    template <class Clock, class Duration>
+    bool try_lock_shared_until(const chrono::time_point<Clock, Duration>& abs_time);
+    void unlock_shared();
+
+    void lock();
+    bool try_lock();
+    template <class Rep, class Period>
+    bool try_lock_for(const chrono::duration<Rep, Period>& rel_time);
+    template <class Clock, class Duration>
+    bool try_lock_until(const chrono::time_point<Clock, Duration>& abs_time);
+    void unlock();
+};
+```
+
+
+
+## 递归加锁
+
+假如线程已经持有某个`std::mutex`实例，试图再次对其重新加锁就会出错，将导致未定义行为。但在某些场景中，确有需要让线程在同一互斥上多次重复加锁，而无须解锁。C++11标准库为此提供了`std::recursive_mutex`。但必须先释放全部的锁，才可以让另一个线程锁住该互斥。例如，若我们对它调用了3次lock()，就必须调用3次unlock()。只要正确地使用`std::lock_guard<std::recursive_mutex>`和`std::unique_lock<std::recursive_mutex>`。
+
+《C++并发编程实战》的作者并不推荐使用递归锁，原因如下：
+
+> 假如读者认为需要用到递归锁，然而实际上大多数时候并非如此，很有可能需要修改设计。若要设计一个类以支持多线程并发访问，就需要包含互斥来保护数据成员，**递归互斥常常用于这种情形**：
+>
+> >  每个公有函数都需先锁住互斥，然后才进行操作，最后解锁互斥。但有时在某些操作过程中，公有函数需要调用另一公有函数。在这种情况下，后者将同样试图锁住互斥，如果采用`std::mutex`便会导致未定义行为。
+>
+> 有一种“快刀斩乱麻”的解决方法：用递归互斥代替普通互斥。容许第二个公有函数成功地对递归互斥加锁，因此函数可以顺利地执行下去。
+>
+> 可是我不推荐上述方法，因为这有可能导致拙劣的设计。具体而言，当以上类型持有锁的时候，其不变量往往会被破坏。也就是说，即便不变量被破坏，只要第二个成员函数被调用，它依然必须工作。我们通常可以采取**更好的方法：**
+>
+> >  根据这两个公有函数的共同部分，提取出一个新的私有函数，新函数由这两个公有函数调用，而它假定互斥已经被锁住，遂无须重复加锁。
+>
+> 经过上面的改良设计，读者可以更进一步地仔细推敲，什么情形应当调用新函数，以及数据在该情形中处于什么状态。
+
+下面了解一下`std::recursive_mutex`。`std::recursive_mutex`可以被锁定的最大次数不确定，但是当达到最大次数后，调用unlock或抛出`std::system_error`的异常，如果调用`try_unlock()`将返回false。
+
+```C++
+void lock()
+bool try_lock() noexcept;
+void unlock();
+```
+
+
+
+```C++
+#include <mutex>
+ 
+class X {
+    std::recursive_mutex m;
+    std::string shared;
+public:
+    void fun1() {
+      std::lock_guard<std::recursive_mutex> lk(m);
+      shared = "fun1";
+    }
+
+    void fun2() {
+      std::lock_guard<std::recursive_mutex> lk(m);
+      shared = "fun2";
+      fun1(); // recursive lock becomes useful here
+    };
+};
+```
+
+
+
+# 参考资料
+
+1. C++并发编程实现(第2版)
+2. [cppreference:shared_timed_mutex](https://en.cppreference.com/w/cpp/thread/shared_timed_mutex)
+3. [cppreference:shared_mutex](https://en.cppreference.com/w/cpp/thread/shared_mutex)
+4. [boost:synchronization](https://www.boost.org/doc/libs/1_51_0/doc/html/thread/synchronization.html)
