@@ -42,3 +42,22 @@ int peakIndexInMountainArray(vector<int>& arr) {
     }
     return ans;
 }
+
+/**
+ * 剑指 Offer II 070. 排序数组中只出现一次的数字
+ *      https://leetcode.cn/problems/skFtm2/description/
+ *      https://leetcode-cn.com/problems/single-element-in-a-sorted-array/
+*/
+int singleNonDuplicate(vector<int>& nums) {
+    int l = 0, r = nums.size() - 1;
+    int ans;
+    while (l < r) {
+        int mid = ((r - l) >> 1) + l;
+        if (nums[mid] == nums[mid ^ 1]) {
+            l = mid + 1;
+        } else {
+            r = mid;
+        }
+    }
+    return nums[l];
+}
