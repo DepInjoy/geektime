@@ -194,3 +194,59 @@ string replaceWords(vector<string>& dictionary, string sentence) {
     }
     return ans;
 }
+
+/**
+ * 剑指 Offer II 064. 神奇的字典
+ *      https://leetcode.cn/problems/US1pGT/description/
+*/
+struct Trie {
+    bool isEnd{false};
+    std::vector<Trie*> children;
+    Trie():children(26, nullptr) {}
+};
+class MagicDictionary {
+private:
+    Trie* trie;
+public:
+    /** Initialize your data structure here. */
+    MagicDictionary() {
+        trie = new Trie();
+    }
+    
+    void buildDict(vector<string> dictionary) {
+        for (std::string word : dictionary) {
+            Trie* node = trie;
+            for (char ch : word) {
+                if (node->children[ch - 'a'] == nullptr) {
+                    node->children[ch - 'a'] = new Trie();
+                }
+                node = node->children[ch - 'a'];
+            }
+            node->isEnd = true;
+        }
+    }
+    
+    bool search(string searchWord) {
+        function<bool(Trie*, int, int)> dfs = [&](Trie* node, int pos, int edit) {
+            if (node == nullptr) {
+                return false;
+            }
+
+            if (pos == searchWord.size() && edit == 1 && node->isEnd) {
+                return true;
+            }
+
+            if (pos < searchWord.size() && edit <= 1) {
+                bool found = false;
+                for (int j = 0; j < 26 && !found; ++j) {
+                    int next = ((j == (searchWord[pos] - 'a')) ? edit : edit + 1);
+                    found = dfs(node->children[j], pos + 1, next);
+                }
+                return found;
+            }
+            return false;
+        };
+
+        return dfs(trie, 0, false);
+    }
+};
