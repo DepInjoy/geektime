@@ -277,3 +277,29 @@ int rob(vector<int>& nums) {
     return std::max(pre, pre2);
 }
 
+/**
+ * 剑指 Offer II 091. 粉刷房子
+ *      https://leetcode.cn/problems/JEj789/description/
+ * 
+ *      dp[i][0] = min(dp[i-1][1], dp[i-1][2]) + cost[i][j];
+ *      dp[i][1] = min(dp[i-1][0], dp[i-1][2]) + cost[i][j] ;
+ *      dp[i][2] = min(dp[i-1][0], dp[i-1][1]) + cost[i][j];
+ * 
+ *      dp[i][j] = min(dp[i-1][(j+1)%3], dp[i-1][(j+2)%3]);
+*/
+
+int minCost(vector<vector<int>>& costs) {
+    const int n = costs.size();
+    std::vector<std::vector<int>> dp(2, std::vector<int>(3));
+    for (int i = 0; i < 3; ++i) {
+        dp[0][i] = costs[0][i];
+    }
+
+    for (int i = 1; i < n; ++i) {
+        const int k = (i-1) %2;
+        for (int j = 0; j < 3; ++j) {
+            dp[i % 2][j] = std::min(dp[k][(j+1)%3], dp[k][(j+2)%3]) + costs[i][j];
+        }
+    }
+    return std::min(std::min(dp[(n - 1) % 2][0], dp[(n - 1) % 2][1]), dp[(n - 1) % 2][2]);
+}
