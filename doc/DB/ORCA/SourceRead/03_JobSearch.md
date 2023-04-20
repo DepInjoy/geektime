@@ -50,6 +50,8 @@ public:
 };
 ```
 
+# Job调度主流程
+
 Job调度通过CEngine:Optimize发起,去除一些不重要的代码了解调用流程
 
 ```C++
@@ -87,7 +89,6 @@ void CEngine::Optimize() {
         poc->Release();
 
         // 在当前search stage的末尾提取目前找到的最优的plan
-        extract best plan found at the end of current search stage
         CExpression *pexprPlan = m_pmemo->PexprExtractPlan(
             m_mp, m_pmemo->PgroupRoot(), m_pqc->Prpp(),
             m_search_stage_array->Size());
@@ -168,12 +169,6 @@ void CJobGroupOptimization::ScheduleJob(CSchedulerContext *psc, CGroup *pgroup,
     // 排队的job数量(m_ulpQueued)加1
 	psc->Psched()->Add(pjgo, pjParent);
 }
-```
-
-
-
-```C++
-
 ```
 
 
@@ -268,10 +263,11 @@ BOOL CScheduler::FExecute(CJob *pj, CSchedulerContext *psc) {
 	} else {
 		switch (pjq->EjqrAdd(pj)) {
 			case CJobQueue::EjqrMain:
-				// main job, runs job operation,对应于job的状态机
+				// main job, runs job operation,取决于job的状态机
+                 // 例如:CJobGroupOptimization::FExecute返回m_jsm.FRun(psc, this)
 				fCompleted = pj->FExecute(psc);
 				if (fCompleted) { // main job已经完成
-					// notify queued jobs
+					// m_listjQueued的头部的job移除，并恢复该job的parent job
 					pjq->NotifyCompleted(psc);
 				} else {
 					// task is suspended
@@ -294,12 +290,12 @@ BOOL CScheduler::FExecute(CJob *pj, CSchedulerContext *psc) {
 ```
 
 ```C++
+// Job队列先进先出，等待job队列的头部Job成为MainJob(m_pj)
 CJobQueue::EJobQueueResult CJobQueue::EjqrAdd(CJob *pj) {
 	EJobQueueResult ejer = EjqrCompleted;
 	// check if job has completed before getting the lock
 	if (!m_fCompleted) {
-		// check if this is the main job
-		if (pj == m_pj) {
+		if (pj == m_pj) { // check if this is the main job
 			ejer = EjqrMain;
 		} else {
 			// check if job is completed
@@ -317,6 +313,49 @@ CJobQueue::EJobQueueResult CJobQueue::EjqrAdd(CJob *pj) {
 		}
 	}
 	return ejer;
+}
+```
+
+
+
+```C++
+// Notify waiting jobs of job completion
+void CJobQueue::NotifyCompleted(CSchedulerContext *psc) {
+	m_fCompleted = true;
+	while (!m_listjQueued.IsEmpty()) {
+		CJob *pj = m_listjQueued.RemoveHead();
+		// check if job execution has completed
+		if (1 == pj->UlpDecrRefs()) {
+			// update job as completed
+			psc->Psched()->CompleteQueued(pj);
+			// recycle job
+			psc->Pjf()->Release(pj);
+		}
+	}
+}
+
+void CScheduler::CompleteQueued(CJob *pj) {
+    // 重新恢复调度parent job
+    // 将pj添加到m_listjlWaiting的头部进行调度
+    // 参见CScheduler::Resume -> CScheduler::Schedule
+	ResumeParent(pj);
+	// update statistics
+	m_ulpTotal--;
+	m_ulpStatsCompleted++;
+	m_ulpStatsCompletedQueued++;
+}
+
+void CScheduler::ResumeParent(CJob *pj) {
+	CJob *pjParent = pj->PjParent();
+	if (nullptr != pjParent) {
+		// notify parent job
+		if (pj->FResumeParent()) { 
+			// reschedule parent
+			Resume(pjParent);
+			// update statistics
+			m_ulpStatsResumed++;
+		}
+	}
 }
 ```
 
