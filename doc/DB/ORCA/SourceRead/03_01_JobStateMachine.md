@@ -86,13 +86,28 @@ BOOL FRun(CSchedulerContext *psc, CJob *pjOwner) {
 
         // use the event to transition state machine
         estNext = estCurrent;
+ 
         // CStateMachine::FAttemptTransition完成真实的状态转换
-        // eev代表stateOld， estNext代表stateNew
-        // for each : eventTransitions[stateOld][j=0:N] == stateNew
+        // eev代表将要处理的event
+        // stateOld是状态机当前状态, estNext代表stateNew
+        // for each : eventTransitions[stateOld][j=0:N] == eev
         //     查找成功, stateNew = j
         BOOL fSucceeded GPOS_ASSERTS_ONLY = m_sm.FTransition(eev, estNext);
     } while (estNext != estCurrent && estNext != m_sm.TesFinal());
     return (estNext == m_sm.TesFinal());
+}
+
+// CStateMachine::FTransition
+BOOL FTransition(TEnumEvent tenumevent, TEnumState &tenumstate) {
+    TEnumState tenumstateNew;
+    BOOL fSucceeded =
+        FAttemptTransition(m_tenumstate, tenumevent, tenumstateNew);
+
+    if (fSucceeded) {
+        m_tenumstate = tenumstateNew;
+    }
+    tenumstate = m_tenumstate;
+    return fSucceeded;
 }
 
 // CStateMachine::FAttemptTransition
