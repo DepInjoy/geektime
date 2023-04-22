@@ -250,3 +250,43 @@ public:
         return dfs(trie, 0, false);
     }
 };
+
+/**
+ *  剑指 Offer II 065. 最短的单词编码
+ *      https://leetcode.cn/problems/iSwD2y/description/
+ *      https://leetcode-cn.com/problems/short-encoding-of-words/
+*/
+struct Trie {
+    std::vector<Trie*> children;
+    int count;
+
+    Trie() : children(26, nullptr), count(0) {}
+    Trie* get(const char ch) {
+        if (nullptr == children[ch - 'a']) {
+            children[ch - 'a'] = new Trie();
+            ++count;
+        }
+        return children[ch - 'a'];
+    }
+};
+
+int minimumLengthEncoding(vector<string>& words) {
+    const int n = words.size();
+    Trie* trie = new Trie();
+    std::unordered_map<Trie*, int> map(n);
+    for (int i = 0; i < words.size(); ++i) {
+        Trie* cur = trie;
+        for (int j = words[i].size() - 1; j >= 0; --j) {
+            cur = cur->get(words[i][j]);
+        }
+        map[cur] = i;
+    }
+
+    int ans = 0;
+    for (auto iter : map) {
+        if (iter.first->count == 0) {
+            ans += words[iter.second].size() + 1;
+        }
+    }
+    return ans;
+}
