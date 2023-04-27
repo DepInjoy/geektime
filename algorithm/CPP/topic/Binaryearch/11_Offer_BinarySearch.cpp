@@ -61,3 +61,129 @@ int singleNonDuplicate(vector<int>& nums) {
     }
     return nums[l];
 }
+
+/**
+ *  剑指 Offer II 001. 整数除法
+ *      https://leetcode.cn/problems/xoh6Oh/description
+*/
+
+int divide(int a, int b) {
+    if (a == INT_MIN) {
+        if (b == 1) return INT_MIN;
+        if (b == -1) return INT_MAX;
+    }
+    if (b == INT_MIN) return a == INT_MIN ? 1 : 0;
+    if (a == 0) return 0;
+
+    bool flag = false;
+    if (a > 0) {
+        a = -a;
+        flag = !flag;
+    }
+
+    if (b > 0) {
+        b = -b;
+        flag = !flag;
+    }
+
+    int ans = 0;
+    while(a <= b) {
+        int times = 1, div = b;
+        while(div >= (INT_MIN >> 1) && a <= div + div) {
+            div += div;
+            times += times;
+        }
+        ans += times;
+        a -= div;
+    }
+    return flag ? -ans : ans;
+}
+
+// 快速乘法原理，不懂
+int divide(int a, int b) {
+    if (a == INT_MIN) {
+        if (b == 1) return INT_MIN;
+        if (b == -1) return INT_MAX;
+    }
+
+    if (b == INT_MIN) return a == INT_MIN ? 1 : 0;
+
+    bool flag = false;
+    if (a > 0) {
+        a = -a, flag = !flag;
+    }
+
+    if (b > 0) {
+        b = -b, flag = !flag;
+    }
+
+    auto quickAdd = [](int a, int b, int times) {
+        int add = b, ans = 0;
+        while(times > 0) {
+            if (times & 0x1) {
+                if (a - add > ans) {
+                    return false;
+                }
+                ans += add;
+            }
+            if (times != 1) {
+                if (a - add > add) {
+                    return false;
+                }
+                add += add;
+            }
+            times >>= 1;
+        }
+        return true;
+    };
+    int left = 0, right = INT_MAX, ans = 0;
+    while(left <= right) {
+        int mid = ((right - left) >> 1) + left;
+        bool lessed = quickAdd(a, b, mid);
+        if (lessed) {
+            ans = mid;
+            if (ans == INT_MAX) {
+                break;
+            }
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    return flag ? -ans : ans;
+}
+
+/**
+ * 50. Pow(x, n)
+ *  https://leetcode.cn/problems/powx-n/description/
+*/
+// 快速幂+递归
+double myPow(double x, int n) {
+    if (n == 0) return 1;
+    long long pn = n;
+    if (pn < 0) {
+        x = 1 / x;
+        pn *= -1;
+    }
+    double y = myPow(x, pn/2);
+    return (pn & 0x1) ? y * y * x : y * y;
+}
+
+// 快速幂+迭代
+double myPow(double x, int n) {
+    // 采用long long 防止n=MIN_INT溢出
+    long long pn = n;
+    double ans = 1;
+    if (pn < 0) {
+        x = 1 / x;
+        pn *= -1;
+    }
+    while (pn > 0) {
+        if (pn & 0x1) {
+            ans *= x;
+        }
+        x *= x;
+        pn >>= 1;
+    }
+    return ans;
+}
