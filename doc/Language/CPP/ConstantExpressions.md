@@ -1,0 +1,1 @@
+[cppreference:Constant expressions](https://en.cppreference.com/w/cpp/language/constant_expression)

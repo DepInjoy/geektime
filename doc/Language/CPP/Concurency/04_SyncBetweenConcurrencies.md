@@ -408,8 +408,6 @@ std::shared_future<std::string> sf(p.get_future());
 
 
 
-
-
 std::future可以根据初始化列表自动推断变量的类型，从而使`std::shared_future`更便于使用。`std::future`成员函数`share()`可以直接创建新的`std::shared_future`对象，并向它转移归属权
 
 ```C++
@@ -421,6 +419,10 @@ auto sf=p.get_future().share();
 ```
 
 
+
+# 限时等待
+
+有两种超时(`timeout`)机制可供选用：一是迟延超时(`duration-based timeout`)，线程根据指定的时长而继续等待（如30毫秒）；二是绝对超时(`absolute timeout`)。
 
 
 
