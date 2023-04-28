@@ -2,6 +2,10 @@
 - Exploration，探索和补全计划空间，生成逻辑等价的表达式，例如`a INNER JOIN b`和`b INNER JOIN a`。`CXformExploration`作为表达基类，在其上派生出子类来表示相应的规则。
 - Implementation,将逻辑算子转换成物理算子。例如`Join(A,B)-> HashJoin(A, B)`。`CXformImplementation`作为基类，对其派生出子类表示相应的转换规则。
 
+```
+EopttraceDisableXformBase
+```
+
 `CXformExploration`和`CXformImplementation`都继承自`CXform`，每个`XFrom`都有一个唯一的`EXformId`和`xformName`，之后注册到`CXformFactory`,外界通过`EXformId`或`xformName`便可以获取到`xform`指针。每个负责具体的`Transformation`主要实现`Transform`和`EXformPromise Exfp`计算Promise置信度，`ORCA`会选择Promise高的`GroupExpression`，对于promise为`ExfpNone`的不会调用`Transform`接口。
 
 关于Promise在ORCA的论文中有如下相关的描述
@@ -107,3 +111,62 @@ CXform <|-- CXformImplementation
 CXformFactory *-- CXform
 @enduml
 ```
+
+# 和Job接口关系
+任务调度的过程和`Xform`只有`CJobTransformation::EevtTransform`接口调用`CGroupExpression::Transform`调用`Xform::Transform`，各个Job通过调用这里进行RBO变换。
+```C++
+// 采用给定的xform进行Transform
+// 删除一些代码实现了解主调用逻辑
+void CGroupExpression::Transform(CMemoryPool *mp, CMemoryPool *pmpLocal, CXform *pxform
+        CXformResult *pxfres, ULONG *pulElapsedTime, ULONG *pulNumberOfBindings) {
+	// check traceflag and compatibility with origin xform
+	if (GPOPT_FDISABLED_XFORM(pxform->Exfid()) || !pxform->FCompatible(m_exfidOrigin)) {
+		return;
+	}
+
+	// check xform promise
+	CExpressionHandle exprhdl(mp);
+	exprhdl.Attach(this);
+	exprhdl.DeriveProps(nullptr /*pdpctxt*/);
+    // 
+	if (CXform::ExfpNone == pxform->Exfp(exprhdl)) {
+		return;
+	}
+
+	// pre-processing before applying xform to group expression
+	PreprocessTransform(pmpLocal, mp, pxform);
+
+	// extract memo bindings to apply xform
+	CBinding binding;
+	CXformContext *pxfctxt = GPOS_NEW(mp) CXformContext(mp);
+
+	COptimizerConfig *optconfig = COptCtxt::PoctxtFromTLS()->GetOptimizerConfig();
+	ULONG bindThreshold = optconfig->GetHint()->UlXformBindThreshold();
+	CExpression *pexprPattern = pxform->PexprPattern();
+	CExpression *pexpr = binding.PexprExtract(mp, this, pexprPattern, nullptr);
+	while (nullptr != pexpr) {
+		++(*pulNumberOfBindings);
+		ULONG ulNumResults = pxfres->Pdrgpexpr()->Size();
+		pxform->Transform(pxfctxt, pxfres, pexpr);
+		ulNumResults = pxfres->Pdrgpexpr()->Size() - ulNumResults;
+		PrintXform(mp, pxform, pexpr, pxfres, ulNumResults);
+
+		if ((bindThreshold != 0 && (*pulNumberOfBindings) > bindThreshold) || pxform->IsApplyOnce() ||
+			(0 < pxfres->Pdrgpexpr()->Size() && !CXformUtils::FApplyToNextBinding(pxform, pexpr))) {
+			// do not apply xform to other possible patterns
+			pexpr->Release();
+			break;
+		}
+
+		CExpression *pexprLast = pexpr;
+		pexpr = binding.PexprExtract(mp, this, pexprPattern, pexprLast);
+	}
+
+	// post-prcoessing before applying xform to group expression
+	PostprocessTransform(pmpLocal, mp, pxform);
+}
+```
+
+# 参考资料
+- [GPORCA优化器Transform流程](https://blog.csdn.net/dusx1981/article/details/124553274)
+- [深入浅出GPORCA 优化器Transform流程](https://view.inews.qq.com/a/20220512A08XU200?tbkt=A&uid=)

@@ -1,4 +1,4 @@
-ORCA采用Memo数据结构来存储执行计划的搜索空间，它由一系列的Group组成。Memo存有一个HashTable存储，其Key是GroupExpression的HashValue，Value是GroupExpression，当向memo中插入GroupExpression时，会先在HashTable中进行查找如果存在，就不需要新建Group来节省内存空间。
+ORCA采用`Memo`数据结构来存储执行计划的搜索空间，它由一系列的`Group`组成。`Memo`存有一个`HashTable`存储，其`Key`是GroupExpression的`HashValue`，`Value`是`GroupExpression`，当向`memo`中插入`GroupExpression`时，会先在`HashTable`中进行查找如果存在，就不需要新建`Group`来节省内存空间。
 
 ```C++
 // hash function

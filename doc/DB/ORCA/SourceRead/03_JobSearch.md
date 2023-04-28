@@ -14,7 +14,7 @@ CSearchStage::PdrgpssDefault(CMemoryPool *mp) {
 }
 ```
 
-CSearchStage数据结构的表示:
+`CSearchStage`数据结构的表示:
 ```C++
 class CSearchStage {
 private:
@@ -231,10 +231,8 @@ class CJob {
 private:
     // parent job
 	CJob *m_pjParent{nullptr};
-
 	// assigned job queue
 	CJobQueue *m_pjq{nullptr};
-
 	// 引用计数, 当为1时可以恢复parent job，参见FResumeParent
 	ULONG_PTR m_ulpRefs{0};
 
@@ -244,7 +242,8 @@ private:
 	// job type
 	EJobType m_ejt;
 
-	// flag indicating if job is initialized,在
+	// 标识Job是否已经初始化,在CJob::SetInit中设置
+    // 负责具体职责的Job重写Init接口并调用CJob::SetInit
 	BOOL m_fInit{false};
 }
 ```
