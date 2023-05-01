@@ -35,9 +35,10 @@ private:
 }
 
 // 默认Optimizer配置
-//  统计信息配置采用CStatisticsConfig::PstatsconfDefault
+//  统计信息配置采用
 //	代价模型采用CCostModelGPDB，参见ICostModel::PcmDefault
-COptimizerConfig * COptimizerConfig::PoconfDefault(CMemoryPool *mp) {
+COptimizerConfig * COptimizerConfig::PoconfDefault(CMemoryPool *mp)
+{
 	return GPOS_NEW(mp) COptimizerConfig(
 		GPOS_NEW(mp) CEnumeratorConfig(mp, 0 /*plan_id*/, 0 /*ullSamples*/),
 		CStatisticsConfig::PstatsconfDefault(mp),
@@ -46,7 +47,8 @@ COptimizerConfig * COptimizerConfig::PoconfDefault(CMemoryPool *mp) {
 }
 
 static CStatisticsConfig * PstatsconfDefault(CMemoryPool *mp) {
-    return GPOS_NEW(mp) CStatisticsConfig(mp, 0.75 /* damping_factor_filter */,
+    return GPOS_NEW(mp) CStatisticsConfig(
+        mp, 0.75 /* damping_factor_filter */,
         0.01 /* damping_factor_join */, 0.75 /* damping_factor_groupby */,
         MAX_STATS_BUCKETS);
 }
@@ -143,75 +145,6 @@ CXformSet * CLogicalNAryJoin::PxfsCandidates(CMemoryPool *mp) const {
 }
 ```
 
-# 代价计算
-
-```C++
-CJobGroupExpressionOptimization::EevtInitialize
-    -> CGroupExpression::PccComputeCost(计算并存储group expression在指定上下文中)
-        -> CGroupExpression::CostCompute
-            -> CCostContext::CostCompute
-                -> CCostContext::DeriveStats(计算当前Group Expression的Stat存于m_pstats)
-                -> CCostModelGPDB::Cost(代价模型完成代价计算)
-```
-
-
-
-```C++
-//		Compute and store expression's cost under a given context;
-//		the function returns the cost context containing the computed cost
-CCostContext * CGroupExpression::PccComputeCost(
-	CMemoryPool *mp, COptimizationContext *poc, ULONG ulOptReq,
-	COptimizationContextArray *pdrgpoc,	 // array of child contexts
-	BOOL fPruned,  // is created cost context pruned based on cost bound
-	CCost costLowerBound	// lower bound on the cost of plan carried by cost context
-) {
-	if (!fPruned && !FValidContext(mp, poc, pdrgpoc)) {
-		return nullptr;
-	}
-
-	// check if the same cost context is already created for current group expression
-	if (FCostContextExists(poc, pdrgpoc)) {
-		return nullptr;
-	}
-
-	CCostContext *pcc = GPOS_NEW(mp) CCostContext(mp, poc, ulOptReq, this);
-	BOOL fValid = true;
-	pcc->SetState(CCostContext::estCosting);
-
-	if (!fPruned) {
-		pcc->SetChildContexts(pdrgpoc);
-		fValid = pcc->IsValid(mp);
-		if (fValid) {
-			CCost cost = CostCompute(mp, pcc);
-			pcc->SetCost(cost);
-		}
-	} else {
-		pcc->SetPruned();
-		pcc->SetCost(costLowerBound);
-	}
-
-	pcc->SetState(CCostContext::estCosted);
-	if (fValid) {
-		return PccInsertBest(pcc);
-	}
-	return nullptr; // invalid cost context
-}
-
-CCost CGroupExpression::CostCompute(CMemoryPool *mp, CCostContext *pcc) {
-	// prepare cost array
-	COptimizationContextArray *pdrgpoc = pcc->Pdrgpoc();
-	CCostArray *pdrgpcostChildren = GPOS_NEW(mp) CCostArray(mp);
-	const ULONG length = pdrgpoc->Size();
-	for (ULONG ul = 0; ul < length; ul++) {
-		COptimizationContext *pocChild = (*pdrgpoc)[ul];
-		pdrgpcostChildren->Append(GPOS_NEW(mp) CCost(pocChild->PccBest()->Cost()));
-	}
-	CCost cost = pcc->CostCompute(mp, pdrgpcostChildren);
-	pdrgpcostChildren->Release();
-	return cost;
-}
-```
-
 
 
 
@@ -235,7 +168,90 @@ COptimizationContext * CGroup::PocLookupBest(CMemoryPool *mp,
 			pccBest = pccCurrent;
 		}
 	}
+
 	return pocBest;
+}
+
+//		Compute and store expression's cost under a given context;
+//		the function returns the cost context containing the computed cost
+CCostContext * CGroupExpression::PccComputeCost(
+	CMemoryPool *mp, COptimizationContext *poc, ULONG ulOptReq,
+	COptimizationContextArray *pdrgpoc,	 // array of child contexts
+	BOOL fPruned,  // is created cost context pruned based on cost bound
+	CCost costLowerBound	// lower bound on the cost of plan carried by cost context
+) {
+
+	if (!fPruned && !FValidContext(mp, poc, pdrgpoc))
+	{
+		return nullptr;
+	}
+
+	// check if the same cost context is already created for current group expression
+	if (FCostContextExists(poc, pdrgpoc))
+	{
+		return nullptr;
+	}
+
+	poc->AddRef();
+	this->AddRef();
+	CCostContext *pcc = GPOS_NEW(mp) CCostContext(mp, poc, ulOptReq, this);
+	BOOL fValid = true;
+
+	// computing cost
+	pcc->SetState(CCostContext::estCosting);
+
+	if (!fPruned)
+	{
+		if (nullptr != pdrgpoc)
+		{
+			pdrgpoc->AddRef();
+		}
+		pcc->SetChildContexts(pdrgpoc);
+
+		fValid = pcc->IsValid(mp);
+		if (fValid)
+		{
+			CCost cost = CostCompute(mp, pcc);
+			pcc->SetCost(cost);
+		}
+		GPOS_ASSERT_IMP(COptCtxt::FAllEnforcersEnabled(),
+						fValid && "Cost context carries an invalid plan");
+	}
+	else
+	{
+		pcc->SetPruned();
+		pcc->SetCost(costLowerBound);
+	}
+
+	pcc->SetState(CCostContext::estCosted);
+	if (fValid)
+	{
+		return PccInsertBest(pcc);
+	}
+
+	pcc->Release();
+
+	// invalid cost context
+	return nullptr;
+}
+
+CCost CGroupExpression::CostCompute(CMemoryPool *mp, CCostContext *pcc) {
+
+	// prepare cost array
+	COptimizationContextArray *pdrgpoc = pcc->Pdrgpoc();
+	CCostArray *pdrgpcostChildren = GPOS_NEW(mp) CCostArray(mp);
+	const ULONG length = pdrgpoc->Size();
+	for (ULONG ul = 0; ul < length; ul++)
+	{
+		COptimizationContext *pocChild = (*pdrgpoc)[ul];
+		pdrgpcostChildren->Append(GPOS_NEW(mp)
+									  CCost(pocChild->PccBest()->Cost()));
+	}
+
+	CCost cost = pcc->CostCompute(mp, pdrgpcostChildren);
+	pdrgpcostChildren->Release();
+
+	return cost;
 }
 ```
 
@@ -272,17 +288,32 @@ CCost CGroupExpression::CostLowerBound(CMemoryPool *mp, CReqdPropPlan *prppInput
 
 
 ```C++
-void CGroup::UpdateBestCost(COptimizationContext *poc, CCostContext *pcc) {
+void
+CGroup::UpdateBestCost(COptimizationContext *poc, CCostContext *pcc)
+{
+	GPOS_ASSERT(CCostContext::estCosted == pcc->Est());
+
 	COptimizationContext *pocFound = nullptr;
+
 	{
+		// scope for accessor
 		ShtAcc shta(Sht(), *poc);
 		pocFound = shta.Find();
+	}
+
+	if (nullptr == pocFound)
+	{
+		// it should never happen, but instead of crashing, raise an exception
+		GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
+				   GPOS_WSZ_LIT(
+					   "Updating cost for non-existing optimization context"));
 	}
 
 	// update best cost context
 	CCostContext *pccBest = pocFound->PccBest();
 	if (GPOPT_INVALID_COST != pcc->Cost() &&
-		(nullptr == pccBest || pcc->FBetterThan(pccBest))) {
+		(nullptr == pccBest || pcc->FBetterThan(pccBest)))
+	{
 		pocFound->SetBest(pcc);
 	}
 }
