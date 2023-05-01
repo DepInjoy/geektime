@@ -113,7 +113,7 @@ BOOL CJobGroupOptimization::FScheduleGroupExpressions(CSchedulerContext *psc) {
         // 在上面的EevtStartOptimization将当前optimization level设置为最大
         // 因此child group expression有优先权
 		if (psc->Peng()->FOptimizeChild(m_pgexprOrigin, pgexpr, m_poc, EolCurrent())) {
-			const ULONG ulOptRequests =CPhysical::PopConvert(pgexpr->Pop())->UlOptRequests();
+			const ULONG ulOptRequests = CPhysical::PopConvert(pgexpr->Pop())->UlOptRequests();
 			for (ULONG ul = 0; ul < ulOptRequests; ul++) {
 				// schedule an optimization job for each request
 				CJobGroupExpressionOptimization::ScheduleJob(psc, pgexpr, m_poc,ul, this);
@@ -586,7 +586,8 @@ CJobGroupExpressionImplementation::EevtImplementSelf(CSchedulerContext *psc, CJo
 void CJobGroupExpressionImplementation::ScheduleApplicableTransformations(CSchedulerContext *psc) {
     // 从算子中获取所有候选的xform
 	COperator *pop = m_pgexpr->Pop();
-	CXformSet *xform_set = CLogical::PopConvert(pop)->PxfsCandidates(psc->GetGlobalMemoryPool());
+	CXformSet *xform_set = CLogical::PopConvert(pop)->PxfsCandidates(
+        	psc->GetGlobalMemoryPool());
 
 	// 取算子候选xform, XformFactory所有支持的exploration xform
     // 当前search stage设置的xform取交集
@@ -666,15 +667,13 @@ CJobGroupExploration::EevtStartExploration(CSchedulerContext *,	CJob *pjOwner) {
 }
 ```
 
-
-
 ```C++
 // Explore child group expression
 CJobGroupExploration::EEvent
 CJobGroupExploration::EevtExploreChildren(CSchedulerContext *psc, CJob *pjOwner) {
 	CJobGroupExploration *pjge = PjConvert(pjOwner);
     // 对所有没有Exploration group expression, schedule group expression exploration job
-    // (重要开始schedule JobGroupExpressionExploration的入口)
+    // (重要:开始schedule JobGroupExpressionExploration的入口)
 	if (pjge->FScheduleGroupExpressions(psc)) {
 		// new expressions have been added to group
 		return eevNewChildren;
@@ -687,7 +686,7 @@ CJobGroupExploration::EevtExploreChildren(CSchedulerContext *psc, CJob *pjOwner)
 
 		if (psc->Peng()->FRoot(pjge->m_pgroup)) 
             // 1. merge group
-            // 2. derived stat(重要derive stat入口)
+            // 2. derive statistic(重要:derive stat入口)
 			psc->Peng()->FinalizeExploration();
 		}
 		return eevExplored;
@@ -881,7 +880,7 @@ CJobTransformation::EevtTransform(CSchedulerContext *psc, CJob *pjOwner) {
 					  &ulNumberOfBindings);
     // 将xform transformation的结果插入到memo
 	psc->Peng()->InsertXformResult(pgexpr->Pgroup(), pxfres, pxform->Exfid(),
-								   pgexpr, ulElapsedTime, ulNumberOfBindings);
+               pgexpr, ulElapsedTime, ulNumberOfBindings);
 	pxfres->Release();
 	return eevCompleted;
 }

@@ -134,7 +134,24 @@ public:
 };
 
 class CDrvdPropScalar : public CDrvdProp;
-class CDrvdPropRelational : public CDrvdProp;
+// CExpression构造中new CDrvdPropRelational并提供一系列相关调用接口
+// 外层通过CExpressionHandle调用CExpression的接口
+class CDrvdPropRelational : public CDrvdProp {
+    friend class CExpression;
+protected:
+	CColRefSet *DeriveOutputColumns(CExpressionHandle &);
+	CColRefSet *DeriveOuterReferences(CExpressionHandle &);
+	CColRefSet *DeriveNotNullColumns(CExpressionHandle &);
+	CColRefSet *DeriveCorrelatedApplyColumns(CExpressionHandle &);
+	CKeyCollection *DeriveKeyCollection(CExpressionHandle &);
+	CFunctionalDependencyArray *DeriveFunctionalDependencies(CExpressionHandle &);
+	CMaxCard DeriveMaxCard(CExpressionHandle &);
+	ULONG DeriveJoinDepth(CExpressionHandle &);
+	CPartInfo *DerivePartitionInfo(CExpressionHandle &);
+	CPropConstraint *DerivePropertyConstraint(CExpressionHandle &);
+	CFunctionProp *DeriveFunctionProperties(CExpressionHandle &);
+	CTableDescriptor *DeriveTableDescriptor(CExpressionHandle &);
+};
 class CDrvdPropPlan : public CDrvdProp;
 ```
 
@@ -223,37 +240,6 @@ private:
 	CCTEMap *m_pcm{nullptr};
 };
 ```
-
-
-
-```C++
-//		Set required properties of attached expr/gexpr, and compute required
-//		properties of all children
-void CExpressionHandle::ComputeReqdProps(CReqdProp *prpInput, ULONG ulOptReq) {
-	InitReqdProps(prpInput);
-	const ULONG arity = Arity();
-	for (ULONG ul = 0; ul < arity; ul++) {
-		ComputeChildReqdProps(ul, nullptr /*pdrgpdpCtxt*/, ulOptReq);
-	}
-}
-
-// Compute required properties of the n-th child
-void CExpressionHandle::ComputeChildReqdProps(ULONG child_index,
-			CDrvdPropArray *pdrgpdpCtxt, ULONG ulOptReq) {
-	CReqdProp *prp = m_prp;
-	if (FScalarChild(child_index)) {
-		// use local reqd properties to fill scalar child entry in children array
-		prp->AddRef();
-	} else {
-		// compute required properties based on child type
-		prp = Pop()->PrpCreate(m_mp);
-		prp->Compute(m_mp, *this, m_prp, child_index, pdrgpdpCtxt, ulOptReq);
-	}
-	m_pdrgprp->Replace(child_index, prp);
-}
-```
-
-
 
 
 

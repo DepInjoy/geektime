@@ -1,4 +1,16 @@
+相关配置`CXform::ExfMaxOneRow2Assert`
+逻辑算子`CLogicalMaxOneRow`
+
+```C++
+// Transform MaxOneRow into LogicalAssert
+class CXformMaxOneRow2Assert : public CXformExploration
+class CLogicalAssert : public CLogicalUnary
+```
+
+
+
 orca对于子查询可以采用去关联化和相关执行两种方式实现：
+
 - **去关联化(Decoorelation或Unnesting)**，理论上可以对任意一个查询去关联化。
 
 例如，对于非相关查询:

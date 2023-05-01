@@ -7,8 +7,7 @@ EevtOptimizeChildren(状态机调用入口)
 ```
 
 ```C++
-void CJobGroupExpressionOptimization::ComputeCurrentChildRequirements(
-    		CSchedulerContext *psc) {
+void CJobGroupExpressionOptimization::ComputeCurrentChildRequirements(CSchedulerContext *psc) {
 	if (m_ulChildIndex != m_pexprhdlPlan->UlFirstOptimizedChildIndex()) {
         // derive前一个child的plan property(重要:derive plan prop的入口函数)
 		DerivePrevChildProps(psc);
@@ -34,8 +33,7 @@ void CJobGroupExpressionOptimization::ComputeCurrentChildRequirements(
 //		Derive plan properties and stats of the child previous to
 //		the one being optimized
 void CJobGroupExpressionOptimization::DerivePrevChildProps(CSchedulerContext *psc) {
-	ULONG ulPrevChildIndex =
-		m_pexprhdlPlan->UlPreviousOptimizedChildIndex(m_ulChildIndex);
+	ULONG ulPrevChildIndex = m_pexprhdlPlan->UlPreviousOptimizedChildIndex(m_ulChildIndex);
 
 	// retrieve plan properties of the optimal implementation of previous child group
 	CGroup *pgroupChild = (*m_pgexpr)[ulPrevChildIndex];
@@ -76,6 +74,53 @@ void CJobGroupExpressionOptimization::DerivePrevChildProps(CSchedulerContext *ps
 	pstat->AddRef();
 	m_pdrgpstatCurrentCtxt->Append(pstat);
 }
+```
+
+```C++
+// 递归derive属性
+void CExpressionHandle::DeriveProps(CDrvdPropCtxt *pdpctxt) {
+	.....
+	CopyStats();
+	m_pexpr->PdpDerive(pdpctxt);
+}
+
+// derive所有属性
+CDrvdProp * CExpression::PdpDerive(CDrvdPropCtxt *pdpctxt) {
+	const CDrvdProp::EPropType ept = Ept();
+	CExpressionHandle exprhdl(m_mp);
+	exprhdl.Attach(this);
+
+	// see if suitable prop is already cached. This only applies to plan properties.
+	// relational properties are never null and are handled in the next case
+	if (nullptr == Pdp(ept)) { //must be plan derived prop
+		const ULONG arity = Arity();
+		for (ULONG ul = 0; ul < arity; ul++) {
+			CExpression *pexprChild = (*m_pdrgpexpr)[ul];
+			CDrvdProp *pdp = pexprChild->PdpDerive(pdpctxt);
+			// add child props to derivation context
+			CDrvdPropCtxt::AddDerivedProps(pdp, pdpctxt);
+		}
+		exprhdl.CopyStats();
+		switch (ept) {
+			case CDrvdProp::EptPlan:
+				m_pdpplan = GPOS_NEW(m_mp) CDrvdPropPlan();
+				break;
+			default:
+				break;
+		}
+		Pdp(ept)->Derive(m_mp, exprhdl, pdpctxt);
+	} else if (!Pdp(ept)->IsComplete()) {
+         // If we havn't derived all properties, do that now. If we've derived some
+		// of the properties, this will only derive properties that have not yet been derived.
+		Pdp(ept)->Derive(m_mp, exprhdl, pdpctxt);
+	}
+	return Pdp(ept);
+}
+```
+
+
+
+```C++
 ```
 
 
@@ -130,8 +175,7 @@ void CReqdPropPlan::Compute(CMemoryPool *mp, CExpressionHandle &exprhdl,
     // 2. 生成enforce分布式属性,通过CPhysical::Ped
     //		2.1 对应物理算子实现Physical::PdsRequired计算第n个孩子的分布式属性
     //		2.2 Physical::Edm计算分布式matching function
-	m_ped = popPhysical->Ped(mp, exprhdl, prppInput, child_index, pdrgpdpCtxt,
-							 ulDistrReq);
+	m_ped = popPhysical->Ped(mp, exprhdl, prppInput, child_index, pdrgpdpCtxt,ulDistrReq);
 
 	m_per = GPOS_NEW(mp) CEnfdRewindability(
 		popPhysical->PrsRequired(mp, exprhdl, prppInput->Per()->PrsRequired(),
@@ -139,10 +183,9 @@ void CReqdPropPlan::Compute(CMemoryPool *mp, CExpressionHandle &exprhdl,
 		popPhysical->Erm(prppInput, child_index, pdrgpdpCtxt, ulRewindReq));
 
 	m_pepp = GPOS_NEW(mp) CEnfdPartitionPropagation(
-		popPhysical->PppsRequired(mp, exprhdl,
-								  prppInput->Pepp()->PppsRequired(),
-								  child_index, pdrgpdpCtxt, ulPartPropagateReq),
-		CEnfdPartitionPropagation::EppmSatisfy);
+			popPhysical->PppsRequired(mp, exprhdl, prppInput->Pepp()->PppsRequired(),
+			child_index, pdrgpdpCtxt, ulPartPropagateReq),
+			CEnfdPartitionPropagation::EppmSatisfy);
 }
 
 //-------------------------------------------------------------------------------------
