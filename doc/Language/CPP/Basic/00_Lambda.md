@@ -6,7 +6,7 @@
 [ captures ] ( params ) specifiers exception -> ret { body }
 ```
 
-`[captures]`： 捕获列表，它可以捕获当前函数作用域的零个或多个变量，变量之间用逗号分隔。捕获列表的捕获方式有两种：按值捕获和引用捕获。Lambda表达式的列表捕获方法除了指定不或变量之外，还有：
+`[captures]`： 捕获列表，它可以捕获当前函数作用域的零个或多个变量，变量之间用逗号分隔。捕获列表的捕获方式有两种：按值捕获和引用捕获。Lambda表达式的列表捕获方法除了指定捕获变量之外，还有：
 
 - `[this]`：捕获`this`指针，让我们使用`this`类型的成员变量和函数。
 - `[=]`：捕获Lambda表达式定义作用域的全部变量的值，包括`this`。
@@ -101,8 +101,86 @@ int main() {
     return 0;
 }
 ```
+### 按值捕获和引用捕获
+lambda表达式的一个特性：捕获的变量默认为常量，或者说lambda是一个常量函数（类似于常量成员函数）.
+```C++
+void bar1()
+{
+    int x = 5, y = 8;
+    auto foo = [x, y] {
+        x += 1;             // 编译失败，无法改变捕获变量的值
+        y += 2;             // 编译失败，无法改变捕获变量的值
+        return x * y;
+    };
+    std::cout << foo() << std::endl;
+}
 
+void bar2() {
+    int x = 5, y = 8;
+    auto foo = [&x, &y] {
+        x += 1;
+        y += 2;
+        return x * y;
+    };
+    std::cout << foo() << std::endl;
+}
+```
 
+使用mutable说明符可以移除lambda表达式的常量性
+```C++
+void bar3() {
+    int x = 5, y = 8;
+    auto foo = [x, y] () mutable {
+        x += 1;
+        y += 2;
+        return x * y;
+    };
+    std::cout << foo() << std::endl;
+}
+```
+
+捕获值和捕获引用还是存在着本质区别。当lambda表达式捕获值时，表达式内实际获得的是捕获变量的复制，我们可以任意地修改内部捕获变量，但不会影响外部变量。而捕获引用则不同，在lambda表达式内修改捕获引用的变量，对应的外部变量也会被修改：
+```C++
+#include <iostream>
+/**
+    lambda x = 6, y = 10
+    call1  x = 5, y = 10
+    lambda x = 7, y = 12
+    call2  x = 5, y = 12
+*/
+int main() {
+    int x = 5, y = 8;
+    auto foo = [x, &y]() mutable {
+        x += 1;
+        y += 2;
+        std::cout << "lambda x = " << x << ", y = " << y << std::endl;
+        return x * y;
+    };
+    foo();
+    std::cout << "call1  x = " << x << ", y = " << y << std::endl;
+    foo();
+    std::cout << "call2  x = " << x << ", y = " << y << std::endl;
+}
+```
+
+捕获值的变量在lambda表达式定义的时候已经固定下来了，无论函数在lambda表达式定义后如何修改外部变量的值，lambda表达式捕获的值都不会变化，
+```C++
+#include <iostream>
+
+// lambda x = 6, y = 22
+int main() {
+    int x = 5, y = 8;
+    auto foo = [x, &y]() mutable {
+        x += 1;
+        y += 2;
+        std::cout << "lambda x = " << x << ", y = " << y << std::endl;
+        return x * y;
+    };
+    x = 9;
+    y = 20;
+    foo();
+}
+```
 
 # 参考资料
 
