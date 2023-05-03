@@ -282,10 +282,10 @@ int rob(vector<int>& nums) {
  *      https://leetcode.cn/problems/JEj789/description/
  * 
  *      dp[i][0] = min(dp[i-1][1], dp[i-1][2]) + cost[i][j];
- *      dp[i][1] = min(dp[i-1][0], dp[i-1][2]) + cost[i][j] ;
+ *      dp[i][1] = min(dp[i-1][0], dp[i-1][2]) + cost[i][j];
  *      dp[i][2] = min(dp[i-1][0], dp[i-1][1]) + cost[i][j];
  * 
- *      dp[i][j] = min(dp[i-1][(j+1)%3], dp[i-1][(j+2)%3]);
+ *      dp[i][j] = min(dp[i-1][(j+1)%3], dp[i-1][(j+2)%3]) + cost[i][j];
 */
 
 int minCost(vector<vector<int>>& costs) {
