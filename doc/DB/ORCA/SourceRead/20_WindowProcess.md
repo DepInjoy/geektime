@@ -17,3 +17,10 @@ class CWindowPreprocessor {
 @startuml
 @enduml
 ```
+
+```C++
+// 窗口统计信息计算
+IStatistics * CLogicalUnary::PstatsDeriveProject
+CStatistics *CProjectStatsProcessor::CalcProjStats
+```
+
