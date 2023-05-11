@@ -87,13 +87,9 @@ public abstract class PhysicalTransformation<T> extends Transformation<T> {
 ```C++
 @Internal
 public class OneInputTransformation<IN, OUT> extends PhysicalTransformation<OUT> {
-
     private final Transformation<IN> input;
-
     private final StreamOperatorFactory<OUT> operatorFactory;
-
     private KeySelector<IN, ?> stateKeySelector;
-
     private TypeInformation<?> stateKeyType;
 }
 ```
@@ -304,7 +300,7 @@ public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
 # DataStream
 
 DataStream的map方法实现:
-```
+```java
     public <R> SingleOutputStreamOperator<R> map(
             MapFunction<T, R> mapper, TypeInformation<R> outputType) {
         return transform("Map", outputType, new StreamMap<>(clean(mapper)));
