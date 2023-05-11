@@ -256,6 +256,7 @@ public:
  *      https://leetcode.cn/problems/iSwD2y/description/
  *      https://leetcode-cn.com/problems/short-encoding-of-words/
 */
+// 字典树
 struct Trie {
     std::vector<Trie*> children;
     int count;
@@ -287,6 +288,23 @@ int minimumLengthEncoding(vector<string>& words) {
         if (iter.first->count == 0) {
             ans += words[iter.second].size() + 1;
         }
+    }
+    return ans;
+}
+
+// set储存
+int minimumLengthEncoding(vector<string>& words) {
+    int ans = 0;
+    std::unordered_set<std::string> uset(words.begin(), words.end());
+    for (auto& word : uset) {
+        for (int i = 1; i < word.size(); ++i) {
+            // 取后缀并尝试将其从unordered_set中删除
+            uset.erase(word.substr(i));
+        }
+    }
+
+    for (auto& word : uset) {
+        ans += word.size() + 1;
     }
     return ans;
 }
