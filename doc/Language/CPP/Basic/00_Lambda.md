@@ -432,7 +432,33 @@ auto f = []<typename T>(T const& x) {
 
 C++17标准对lambda表达式同样有两处增强:
 
-1. 常量lambda表达式，主要特性体现在`constexpr`关键字。
+1. 常量lambda表达式。
+    lambda表达式可以声明为`constexpr`或在常量表达式中使用，当lambda表达式捕获或传入的数据成员都是常量表达式。
+    ```C++
+    int y = 32;
+    auto answer = [y]() constexpr {
+        int x = 10;
+        return y + x;
+    };
+
+    constexpr int Increment(int n) {
+        return [n] { return n + 1; }();
+    }
+    ```
+    如果lambda表达式需要满足constexpr函数的要求，它是隐式的常量lambda表达式。
+    ```C++
+    auto answer = [](int n) {
+        return 32 + n;
+    };
+    constexpr int response = answer(10);
+    ```
+    如果lambda表达式是隐式或显式的constexpr，并且将其转换为函数指针，则生成的函数也是 constexpr
+    ```C++
+    auto Increment = [](int n) {
+        return n + 1;
+    };
+    constexpr int(*inc)(int) = Increment;
+    ```
 
 2. 对捕获`*this`的增强。`[*this]`的语法让程序生成了一个`*this`对象的副本并存储在lambda表达式内，可以在lambda表达式内直接访问这个复制对象的成员。
 
@@ -461,3 +487,4 @@ C++17标准对lambda表达式同样有两处增强:
 # 参考资料
 
 1. 现代C++语言核心特性解析
+2. [MSDN:constexpr lambda expressions in C++](https://learn.microsoft.com/en-us/cpp/cpp/lambda-expressions-constexpr?view=msvc-170)
