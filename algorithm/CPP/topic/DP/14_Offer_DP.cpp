@@ -303,3 +303,28 @@ int minCost(vector<vector<int>>& costs) {
     }
     return std::min(std::min(dp[(n - 1) % 2][0], dp[(n - 1) % 2][1]), dp[(n - 1) % 2][2]);
 }
+
+/**
+ *  剑指 Offer II 092. 翻转字符
+ *      https://leetcode.cn/problems/cyJERH/description/
+ *      如果一个由 '0' 和 '1' 组成的字符串，是以一些 '0'（可能没有 '0'）后面跟着一些 '1'（也可能没有 '1'）的形式组成的，
+ *      那么该字符串是单调递增的。我们给出一个由字符 '0' 和 '1' 组成的字符串 s，我们可以将任何 '0' 翻转为 '1' 或者将 '1' 翻转为 '0'。
+ *      返回使 s 单调递增 的最小翻转次数。
+ * 
+ *      单调递增的字符串满足以下性质：
+ *        1. 首个字符是 000 或 111
+ *        2. 其余的每个字符，字符 000 前面的相邻字符一定是 000，字符 111 前面的相邻字符可以是 000 或 111
+ *      dp[i][0]表示dp[i][0]分别表示下标i处的字符为0和1的情况下使得 s[0..i]单调递增的最小翻转次数
+ * 
+ *      dp[i][0] = dp[i-1][0] + I(s[i]='1')
+ *      dp[i][1] = min(dp[i-1][0], dp[i-1]) + I(s[i]='0')
+*/
+int minFlipsMonoIncr(string s) {
+    int dp0 = 0, dp1 = 0;
+    for (char ch : s) {
+        int next_dp0 = dp0 + (ch == '1' ? 1 : 0);
+        int next_dp1 = std::min(dp0, dp1) + (ch == '0' ? 1 : 0);
+        dp0 = next_dp0, dp1 = next_dp1;
+    }
+    return std::min(dp0, dp1);
+}
