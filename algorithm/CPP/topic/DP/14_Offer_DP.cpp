@@ -328,3 +328,27 @@ int minFlipsMonoIncr(string s) {
     }
     return std::min(dp0, dp1);
 }
+
+/**
+ *  剑指 Offer 46. 把数字翻译成字符串
+ *      https://leetcode.cn/problems/ba-shu-zi-fan-yi-cheng-zi-fu-chuan-lcof/description/
+ *  
+ * 状态转移方程:
+ *      dp[i] = dp[i-2] + dp[i-1]  10 <= s[i-1,i] <= 25
+ *      dp[i] = dp[i-1]
+*/
+int translateNum(int num) {
+    std::string str = std::to_string(num);
+    int prepre = 1, pre = 1, cur = 1;
+    for (int i = 1; i < str.size(); ++i) {
+        int num = (str[i-1] - '0')  * 10 + (str[i]-'0');
+        if (num >= 10 && num <= 25) {
+            cur = prepre + pre;
+        } else {
+            cur = pre;
+        }
+        prepre = pre;
+        pre = cur;
+    }
+    return cur;
+}
