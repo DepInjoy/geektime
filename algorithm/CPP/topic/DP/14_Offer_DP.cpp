@@ -352,3 +352,50 @@ int translateNum(int num) {
     }
     return cur;
 }
+
+/**
+ *  剑指 Offer 48. 最长不含重复字符的子字符串
+ *      https://leetcode.cn/problems/zui-chang-bu-han-zhong-fu-zi-fu-de-zi-zi-fu-chuan-lcof/description/
+ *      https://leetcode.cn/problems/longest-substring-without-repeating-characters/
+*/
+// 滑动窗口
+int lengthOfLongestSubstring(string s) {
+    std::unordered_set<char> uset;
+    int ans = 0;
+    // 右指针,初始为-1,相当于字符串左边界的左侧,还没开始
+    int j = -1;
+    for (int i = 0; i < s.size(); ++i) {
+        // 左指针移动一个，移除一个字符
+        if (i != 0) uset.erase(s[i-1]);
+        while(j + 1 < s.size() && uset.find(s[j+1]) == uset.end()) {
+            // 移动右指针
+            ++j;
+            uset.insert(s[j]);
+        }
+        // i到j指针是无重复字符
+        ans = std::max(ans, j - i + 1);
+    }
+    return ans;
+}
+
+// 动态规划
+// 如果第i个字符之前没有出现过,那么dp[i]=dp[i-1]+1
+// 如果第一个字符已经出现过,d=i-该字符上次出现的位置
+//  d <= dp[i-1], 说明第i个字符出现在dp[i-1]对应的字符串之中 dp[i]=d
+//  d > dp[i-1], 说明第i个字符出现在dp[i-1]对应的最长字符串之前 dp[i]=dp[i-1]+1
+int lengthOfLongestSubstring(string s) {
+    // 假设所有的字符都没有出现过
+    std::vector<int> position(128, -1);
+    int curLen = 0, maxLen = 0;
+    for (int i = 0; i < s.size(); ++i) {
+        int preIndex = position[s[i]];
+        if (preIndex < 0 || i - preIndex > curLen) {
+            ++curLen;
+        } else {
+            maxLen = std::max(maxLen, curLen);
+            curLen = i - preIndex;
+        }
+        position[s[i]] = i;
+    }
+    return std::max(maxLen, curLen);
+}
