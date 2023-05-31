@@ -1,4 +1,6 @@
-> Orca uses a search mechanism to navigate through the space of possible plan alternatives and identify the plan with the least estimated cost.The search mechanism is enabled by a specialized Job Scheduler that creates dependent or parallel work units to perform query optimization in three main steps: exploration, where equivalent logical expressions are generated, implementation where physical plans are generated, and optimization, where required physical properties (e.g., sort order) are enforced and plan alternatives are costed.
+
+
+> Orca uses a search mechanism to navigate through the space of possible plan alternatives and identify the plan with the least estimated cost.The search mechanism is enabled by a specialized Job Scheduler that creates dependent or parallel work units to perform query optimization in three main steps: exploration, where equivalent logical expressions are generated, implementation where physical plans are generated, and optimization, where required physical properties (e.g., sort order) are enforced and plan alternatives are costed.
 >
 > Orca使用一种搜索机制在可能的计划空间中导航，改变土著，并以最小的估计成本确定计划。搜索机制由专门的作业调度器启用，该调度器创建依赖的或并行的工作单元，以三个主要步骤执行查询优化:探索(生成等价的逻辑表达式)、实现(生成物理计划)和优化(执行所需的物理属性(例如排序顺序)并计算计划替代)。
 
