@@ -81,7 +81,70 @@
 
 5. <b><font color="orange">Push SubQurery</font></b>
 
-6. 其他。
+6. <b><font color="orange">bool-valued子查询重写为聚集</font></b>
+
+---
+
+> For boolean-valued subqueries, i. e. exists, not exists, in subquery, and quantified comparisons, the subquery can be rewritten as a scalar count aggregate. From the utilization context of the aggregate result, either equal to zero or greater than zero, it is possible for the aggregate operator to stop requesting rows as soon as one has been found, since additional rows do not affect the result of the comparison.
+>
+> ​						from  《Orthogonal Optimization of Subqueries and Aggregation》
+>
+> 对于布尔值子查询，即exists、 not exists、in和比较，子查询可以重写为标量COUNT Agg。从Agg结果的使用上下文中来看，无论是等于零还是大于零，只要找到一行，聚合操作符就可以停止请求行，因为额外的行不会影响比较的结果。
+
+对于下面这些情况的子查询(`bool-valued`子查询)：
+
+- `[NOT] IN (SELECT ... FROM ...)`
+- `[NOT] EXISTS (SELECT ... FROM ...)`
+- `... >/>=/</<=/=/!= (SELECT ... FROM ...)`
+
+可以将其转化为AGG来执行。
+
+
+
+对于`... < ALL (SELECT ... FROM ...)` 或者 `... > ANY (SELECT ... FROM ...)`，对于这种情况可以将`ALL`或`ANY`用`MIN`或`MAX`来替代，由于在表为空时，`MAX(EXPR)` 以及 `MIN(EXPR)` 的结果会为 `NULL`，将其改写为
+
+```sql
+t.id < all(select s.id from s)
+-- 改写为
+t.id < min(s.id) and if(sum(s.id is null) != 0, null, true)
+
+t.id < any (select s.id from s)
+-- 改写为
+t.id < max(s.id) or if(sum(s.id is null) != 0, null, false)
+```
+
+
+
+对于`... != ANY (SELECT ... FROM ...)`，当子查询中不同值的个数只有一种的话，那只要和这个值对比就即可。如果子查询中不同值的个数多于 1 个，那么必然会有不相等的情况出现。可以将其改写为
+
+```sql
+select * from t where t.id != any (select s.id from s)
+-- 改写为
+
+select t.* from t, (
+    select s.id, count(distinct s.id) as cnt_distinct from s)
+	-- 多于一个值定位真,只有一个值t.id != s.id为真，否则为假
+	where (t.id != s.id or cnt_distinct > 1)
+```
+
+
+
+对于`... IN (SELECT ... FROM ...)`，会将 `IN` 的子查询改写为 `SELECT ... FROM ... GROUP ...` 的形式，然后将 `IN` 改写为普通的 `JOIN` 的形式。```sql`
+
+```sql
+select * from t1
+	where t1.a in (select t2.a from t2); 
+-- 改写为
+select t1.* from t1, (
+    	select distinct(a) a from t2) t2
+    where t1.a = t2.a;
+```
+
+---
+
+
 
 # 参考资料
+
 1. 数据库查询优化器的艺术：原理解析与SQL性能优化
+2. [TiDB:子查询相关的优化](https://docs.pingcap.com/zh/tidb/stable/subquery-optimization)
