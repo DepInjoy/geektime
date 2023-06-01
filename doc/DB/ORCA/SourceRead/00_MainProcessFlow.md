@@ -1,4 +1,9 @@
+ORCA是自上而下的基于Cascades优化框架的查询优化器，是一款可以独立于数据库系统运行的查询优化器。ORCA包含一个用于优化器和数据库系统之间交换信息的框架`DXL(Data Exchange Language)`，它采用XML语言对必要的通信信息进行编码，例如查询输入(`DXL Query`)，元数据(`DXL MD`)和输出计划`DXL Plan`。DXL建立了一个通信机制解耦数据库系统和优化器，实现ORCA作为一个独立的产品。
+
+
+
 入口函数是`libgpopt\include\gpopt\optimizer\COptimizer.h`的`static CDXLNode *PdxlnOptimiz`。
+
 ```c++
 static CDXLNode *PdxlnOptimize(
     CMemoryPool *mp, CMDAccessor *md_accessor,  /* MD accessor */
@@ -16,20 +21,6 @@ static CDXLNode *PdxlnOptimize(
 ```
 
 删除`COptimizer::PdxlnOptimize`的部分非主要代码来了解一下执行的主流程。
-```plantuml
-@startuml
-COptimizer -> CTranslatorDXLToExpr:**PexprTranslateQuery**
-CTranslatorDXLToExpr --> COptimizer : CExpression(expr treee)
-note left of CTranslatorDXLToExpr : translate DXL Query -> Logical Expression Tree
-COptimizer -> CQueryContext:**PqcGenerate**
-note left of CQueryContext : 生成querycontext和输出列的ref id以及required plan属性
-COptimizer -> COptimizer:**PexprOptimize**
-note right of COptimizer : 实现主体，逻辑表达式树转化为物理表达式树
-
-COptimizer -> COptimizer: **CreateDXLNode**
-note right of COptimizer : 将计划转换为DXL Plan
-@enduml
-```
 ```C++
 // COptimizer的主要流程
 CDXLNode* COptimizer::PdxlnOptimize(
@@ -43,13 +34,15 @@ CDXLNode* COptimizer::PdxlnOptimize(
   CTranslatorDXLToExpr dxltr(mp, md_accessor);
   CExpression *pexprTranslated = dxltr.PexprTranslateQuery(query,
        query_output_dxlnode_array, cte_producers);
-  
+
   /**
    * 2. 根据logical Expression Tree创建Querycontext
+   *	output column ref id以及required plan属性
    *    2.1  创建querycontext(CQueryContext::PqcGenerate)
    *        1) 创建required plan属性(CReqdPropPlan)存储于CQueryContext::m_prpp
-   *        2) 根据query_output_dxlnode_array构造output column id ref
+   *        2) 根据query_output_dxlnode_array构造output column id ref(存于m_pdrgpcr)
    *           并将相关信息存储于required plan属性的m_pcrs(CReqdPropPlan::m_pcrs)
+   *		3) 收集必须的system columns(output columns中IsSystemCol为true的列)
    *    2.2 CQueryContext构造:
    *        1) 对logical expression预处理(CExpressionPreprocessor::PexprPreprocess)
    *            例如无用信息删除等
@@ -57,10 +50,10 @@ CDXLNode* COptimizer::PdxlnOptimize(
   CQueryContext *pqc = CQueryContext::PqcGenerate(mp, pexprTranslated, 
         pdrgpul, pdrgpmdname, true /*fDeriveStats*/);
   
-  // 3. 优化主实现, 将logical expression tree转化为physical expression tree
+  // 3. 优化实现主体, 将logical expression tree转化为physical expression tree
   CExpression *pexprPlan = PexprOptimize(mp, pqc, search_stage_array);
   
-  // 4. translate plan into DXL
+  // 4. 将plan转化为DXL Plan
   CDXLNode *pdxlnPlan = NULL;
   pdxlnPlan = CreateDXLNode(mp, md_accessor, pexprPlan, pqc->PdrgPcr(), pdrgpmdname,ulHosts);
 }
@@ -116,7 +109,7 @@ CExpression * COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
      *     2.2 root group创建JobGroupOptimization(参见CEngine::ScheduleMainJob)，
      *         之后通过状态机调度Implementation和Exploration Job等等
      *     2.3 运行optimize job(参见CScheduler::Run),
-     *         在job内部将通过SchedulerContext将创建的job添加单jobquue中
+     *         在job内部将通过SchedulerContext将创建的job添加单到jobquue中
      *         借助CScheduler进行job执行(参见CScheduler::ExecuteJobs)
      *     2.3 在每个search stage的末尾提取最优计划(见CMemo::PexprExtractPlan)
      *         并更新CSearchStage中的m_pexprBest和m_costBest(参见CSearchStage::SetBestExpr)
@@ -124,7 +117,10 @@ CExpression * COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
     eng.Optimize();
 
     /**
-     * 3. 
+     * 3. 从Memo中提取计划
+     *		如果启用了枚举指定计划，挑选制定计划返回(相关配置EopttraceEnumeratePlans)
+     *		否则，从Memo中选取最优计划(CMemo::PexprExtractPlan)
+     *		其实现：如果根Group含Scalar,只有一group直接返回否则查找最优计划
     */
     CExpression *pexprPlan = eng.PexprExtractPlan();
 
@@ -173,7 +169,7 @@ void CEngine::Optimize() {
         /**
          *  3. run optimization job,从JobQueue中取job并执行
          *     参见CScheduler::FExecute -> CJob::FExecute
-         *     负责完成Job任务的类重写FExecute接口和CScheduler交互
+         *     负责完成Job具体任务的类重写FExecute接口和CScheduler交互
         */
         CScheduler::Run(&sc);
         poc->Release();
