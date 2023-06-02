@@ -47,5 +47,42 @@ $\forall (t\in r)(F(t))$表示$t \in r$对r中的每个t进行F(t)检验
 
 上述运算符的优先级次序由高到底为括弧、$\theta$、$\exists$、$\forall$, $\neg$、$\wedge$，$\vee$
 
+## 元组演算等价性变换
+
+ $\neg$、$\wedge$，$\vee$运算间的等价性
+$$
+\begin{array}{l}
+P1 \wedge P2 \Longleftrightarrow \neg(\neg P1 \vee P2 ) \\
+n个否定的或操作的再否定，便是n个肯定的与操作 \\
+
+\\
+P1 \vee P2 \Longleftrightarrow \neg(\neg P1 \wedge \neg P2) \\
+n个否定的与操作的再否定，便是n个肯定的或操作\\
+\end{array}
+$$
+$\exists$、$\forall$, $\neg$运算间的等价
+$$
+\forall(t \in R)(P(t)) \Longleftrightarrow \neg(\exists(t \in R)(\neg P(t))) \\
+\exists(t \in R)(P(t)) \Longleftrightarrow \neg(\forall(t \in R)(\neg P(t)))
+$$
+
+
+## 元组演算和关系代数的等价性
+
+$$
+\begin{array}{l}
+并运算：R \cup S = \{ t | t \in R \vee t \in S \} \\
+差运算：R - S = \{ t | t \in R \vee \neg(t \in S) \} \\
+交运算：R \cap S = \{ t | t \in R \wedge  t \in S \} \\
+\\
+广义笛卡尔积：R(A) \times S(B) = \{ t | \exists(u \in R) \exists(s \in S(t[A]=u[A] \wedge t[B]=S[B])) \} \\
+\\
+\sigma_{con}(R) = \{ t | t \in R \wedge F(con) \} \\
+\pi_A(R) = \{ t[A] | t \in R \} \\
+\end{array}
+$$
+
+
+
 # 关系域演算
 
