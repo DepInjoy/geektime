@@ -309,7 +309,7 @@ int main() {
 原子类型的操作服从6中内存次序：
 
 1. `std::memory_order_seq_cst`，可选的最严格的内存次序，默认遵循此次序。
-2. ``std::memory_order_relaxed`
+2. `std::memory_order_relaxed`
 3. `std::memory_order_release`
 4. `std:: memory_order_acquire`
 5. `std::memory_order_consume`
@@ -504,13 +504,139 @@ int main() {
 
 ### 获取-释放序列
 
+获取-释放次序比宽松次序严格一些，会产生一定程度的同步效果，而不会形成服从先后一致次序的全局总操作序列。在该内存模型中，原子化载入即为获取操作(`memory_order_acquire`)，原子化存储即为释放操作(`memory_order_release`)，而原子化“读-改-写”操作(比如`fetch_add()`和`exchange()`)则为获取或释放操作或二者皆是(`memory_order_acq_rel`)。这种内存次序**在成对的读写线程之间起到同步作用**。释放与获取操作构成同步关系，前者写出的值由后者读取。若多个线程服从获取-释放次序，则其所见的操作序列可能各异，但其差异的程度和方式都受到一定条件的制约。
 
+获取-释放操作不会构成单一的全局总操作序列
+
+```C++
+#include <atomic>
+#include <thread>
+#include <assert.h>
+std::atomic<bool> x,y;
+std::atomic<int> z;
+void write_x() {
+    x.store(true,std::memory_order_release);
+}
+
+void write_y() {
+    y.store(true,std::memory_order_release);
+}
+
+void read_x_then_y() {
+    while (!x.load(std::memory_order_acquire));
+    // y的载入读取到的值可能是false
+    if (y.load(std::memory_order_acquire))
+        ++z;
+}
+void read_y_then_x() {
+    while (!y.load(std::memory_order_acquire));
+    // x的载入读取到的值可能是false
+    if (x.load(std::memory_order_acquire))
+        ++z;
+}
+
+int main() {
+    x = false;
+    y = false;
+    z = 0;
+    std::thread a(write_x);
+    std::thread b(write_y);
+    std::thread c(read_x_then_y);
+    std::thread d(read_y_then_x);
+    a.join();
+    b.join();
+    c.join();
+    d.join();
+    // 这里断言可能会发生
+    assert(z.load() != 0);
+}
+```
+
+
+
+| write_x                 | read_x_then_y           | read_x_then_y           | write_y                 |
+| ----------------------- | ----------------------- | ----------------------- | ----------------------- |
+| `x.store(true,release)` |                         |                         | `y.store(true,release)` |
+|                         | `x.load(acquire) true`  | `y.load(acquire) true`  |                         |
+|                         | `y.load(acquire) false` | `x.load(acquire) false` |                         |
+
+
+
+为了分析获取-释放次序的优势，我们需要考虑同一线程上的两个存储操作。若我们将变量y的存储操作改用`memory_order_release`次序，将y的载入操作改用`memory_order_acquire`次序，就会强制变量x上的宽松操作服从一定的次序。获取-释放操作可以令宽松操作服从一定的次序。
+
+```C++
+#include <atomic>
+#include <thread>
+#include <assert.h>
+std::atomic<bool> x,y;
+std::atomic<int> z;
+void write_x_then_y() {
+    // 变量x的存储操作和y的存储操作同属一个线程,所以x的存储会在y存储前发生
+    x.store(true,std::memory_order_relaxed);
+    y.store(true,std::memory_order_release);
+}
+void read_y_then_x() {
+    // 以自旋方式等待变量y的值设置为true
+    // write_x_then_y中对y的存储操作需要在这里被看见
+    while(!y.load(std::memory_order_acquire));
+    // x被加载的值肯定是true
+    if(x.load(std::memory_order_relaxed))
+        ++z;
+}
+
+int main() {
+    x=false;
+    y=false;
+    z=0;
+    std::thread a(write_x_then_y);
+    std::thread b(read_y_then_x);
+    a.join();
+    b.join();
+    // 断言肯定不会发生
+    assert(z.load()!=0);
+}
+```
+
+
+
+运用获取-释放次序传递同步
+
+```C++
+std::atomic<int> data[5];
+std::atomic<bool> sync1(false),sync2(false);
+void thread_1() {
+    data[0].store(42,std::memory_order_relaxed);
+    data[1].store(97,std::memory_order_relaxed);
+    data[2].store(17,std::memory_order_relaxed);
+    data[3].store(-141,std::memory_order_relaxed);
+    data[4].store(2003,std::memory_order_relaxed);
+    // 设置sync1为true
+    sync1.store(true, std::memory_order_release);
+}
+void thread_2() {
+    // 一直循环，到sync1为true,thread_1完成改动data
+    while(!sync1.load(std::memory_order_acquire));
+    // 设置sync2为true
+    sync2.store(true,std::memory_order_release);
+}
+
+void thread_3() {
+   	// 一直循环直到sync2为true
+    while(!sync2.load(std::memory_order_acquire));
+    // assert肯定不成立
+    assert(data[0].load(std::memory_order_relaxed) == 42);
+    assert(data[1].load(std::memory_order_relaxed) == 97);
+    assert(data[2].load(std::memory_order_relaxed) == 17);
+    assert(data[3].load(std::memory_order_relaxed) == -141);
+    assert(data[4].load(std::memory_order_relaxed) == 2003);
+}
+```
 
 
 
 ## 栅栏
 
-如果缺少栅栏(fence)功能，原子操作的程序库就不完整。栅栏具备多种操作，用途是强制施加内存次序，却无须改动任何数据。通常，它们与服从memory_order_relaxed次序的原子操作组合使用。栅栏操作全部通过全局函数执行。当线程运行至栅栏处时，它便对线程中其他原子操作的次序产生作用。栅栏也常常被称作“内存卡”或“内存屏障”，其得名原因是它们在代码中划出界线，限定某些操作不得通行。针对不同变量上的宽松操作，编译器或硬件往往可以自主对其进行重新编排。栅栏限制了这种重新编排。在一个多线程程序中，可能原来并非处处具备先行关系和同步关系，栅栏则在欠缺之处引入这两种关系。
+如果缺少栅栏(fence)功能，原子操作的程序库就不完整。栅栏具备多种操作，用途是强制施加内存次序，却无须改动任何数据。通常，它们与服从`memory_order_relaxed`次序的原子操作组合使用。栅栏操作全部通过全局函数执行。当线程运行至栅栏处时，它便对线程中其他原子操作的次序产生作用。栅栏也常常被称作“内存卡”或“内存屏障”，其得名原因是它们在代码中划出界线，限定某些操作不得通行。针对不同变量上的宽松操作，编译器或硬件往往可以自主对其进行重新编排。栅栏限制了这种重新编排。在一个多线程程序中，可能原来并非处处具备先行关系和同步关系，栅栏则在欠缺之处引入这两种关系。
 
 栅栏可以令宽松操作服从一定的次序。
 ```C++
