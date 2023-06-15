@@ -16,8 +16,21 @@
 sub1：不含第i个物品, dp[i-1][j]
 sub2: 含第i个物品, dp[i-1][j-vi] + wi$
 
-由此状态转移方程为:dp[i][j] = max(dp[i-1][j], dp[i-1][j-wi] + vi)
+由此，状态转移方程为:dp[i][j] = max(dp[i-1][j], dp[i-1][j-wi] + vi)
 ```
+
+状态转移方程:
+$$
+\begin{array}{l}
+dp[i][j] = max(dp[i-1][j], dp[i-1][j-v[i]] + w[i])
+\end{array}
+$$
+对于j的遍历，从大到小进行更新，可以进行空间压缩到一维dp[j]
+$$
+\begin{array}{l}
+dp[j] = max(dp[j], dp[j-v[i]] + w[i])
+\end{array}
+$$
 
 ```C++
 #include <vector>
