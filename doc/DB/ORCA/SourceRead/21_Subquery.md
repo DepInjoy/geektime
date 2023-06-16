@@ -171,36 +171,7 @@ Alternatives:
       +--CScalarProjectElement "sum" (23)
          +--CScalarIdent "sum" (22)
 ```
-```plantuml
 
-```
-
-```C++
-// Scalar subquery
-class CScalarSubquery : public CScalar
-
-//	@class:
-//		CScalarSubqueryQuantified
-//
-//	@doc:
-//		Parent class for quantified subquery operators (ALL/ANY subqueries);
-//		A quantified subquery expression has two children:
-//		- Logical child: the inner logical expression
-//		- Scalar child:	the scalar expression in the outer expression that
-//		is used in quantified comparison;
-//
-//		Example: SELECT * from R where a+b = ANY (SELECT c from S);
-//		- logical child: (SELECT c from S)
-//		- scalar child : (a+b)
-class CScalarSubqueryQuantified : public CScalar
-class CScalarSubqueryAll : public CScalarSubqueryQuantified
-class CScalarSubqueryAny : public CScalarSubqueryQuantified
-
-// Parent class for EXISTS/NOT EXISTS subquery operators
-class CScalarSubqueryExistential : public CScalar
-class CScalarSubqueryExists : public CScalarSubqueryExistential
-class CScalarSubqueryNotExists : public CScalarSubqueryExistential
-```
 
 ```C++
 // Logical Apply operator used in scalar subquery transformations

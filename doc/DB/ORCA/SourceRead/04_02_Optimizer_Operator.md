@@ -144,7 +144,45 @@ public:
     virtual CXformSet *PxfsCandidates(CMemoryPool *mp) const = 0;
 }
 ```
+## Project
+```C++
+// Project operator
+class CLogicalProject : public CLogicalUnary
+```
+## Agg
+```C++
+```C++
+class CLogicalGbAgg : public CLogicalUnary {
+protected:
+	// does local / intermediate / global aggregate generate duplicate values for the same group
+	BOOL m_fGeneratesDuplicates;
 
+	// array of columns used in distinct qualified aggregates (DQA)
+	// used only in the case of intermediate aggregates
+	CColRefArray *m_pdrgpcrArgDQA;
+
+	// compute required stats columns for a GbAgg
+	CColRefSet *PcrsStatGbAgg(CMemoryPool *mp, CExpressionHandle &exprhdl,
+							  CColRefSet *pcrsInput, ULONG child_index,
+							  CColRefArray *pdrgpcrGrp) const;
+            ....
+
+private:
+	// array of grouping columns
+	CColRefArray *m_pdrgpcr;
+
+	// minimal grouping columns based on FD's
+	CColRefArray *m_pdrgpcrMinimal;
+
+	// local / intermediate / global aggregate
+	COperator::EGbAggType m_egbaggtype;
+
+	// which type of multi-stage agg it is
+	EAggStage m_aggStage;
+
+};	// class CLogicalGbAgg
+```
+```
 # PhysicalOperator
 
 ```C++
