@@ -23,8 +23,6 @@
         </font>
    </b>
 </div>
-
-
 本文描述了在Microsoft SQL Server(7.0版和8.0版)中实现的基于一些用于包含子查询和/或聚合的查询的正交优化，分别专注于删除相关的子查询，也称为“查询扁平化”，以及有效执行带有聚合的查询。最终的结果是一个模块化、灵活的实现，产生了非常有效的执行计划。
 
 ---
@@ -33,7 +31,7 @@
 
 SQL中有两种聚合形式，这两种聚合行为在空输入处理有所不同
 
-1. 矢量聚合(Vector Aggregation)：指定分组列和Agg来计算，DISTINCT去除重复是一种是矢量聚合的一种特殊情况，即将相等的值折叠成一行，但实际上没有聚合函数来计算，Microsoft SQL Server将`DISTINCT`规范化(Normalize)为`GroupBy`。
+1. 矢量聚合(Vector Aggregation)：指定分组列和Agg来计算，DISTINCT去除重复是矢量聚合的一种特殊情况，即将相等的值折叠成一行，但实际上没有聚合函数来计算，Microsoft SQL Server将`DISTINCT`规范化(Normalize)为`GroupBy`。
 
     ```sql
     -- 计算每天的销售总额
@@ -79,9 +77,10 @@ SELECT c_custkey
     ```sql
     SELECT c_custkey
     	-- 1. 先Left Outer Join, 建立所有customer的order信息
-    	-- 采用LOJ即使customer无法和orders不匹配也会被保留，对于不匹配的行agg结果为NULL
+    	-- 采用LOJ即使customer和orders不匹配也会被保留，对于不匹配的行agg结果为NULL
     	-- 这里如果聚集函数是COUT(*)先Join再agg不对，需要将其转换COUNT(column)
-    	FROM customer LEFT OUTER JOIN orders ON o_custkey = c_custkey
+    	FROM customer LEFT OUTER JOIN orders
+    	ON o_custkey = c_custkey
     	-- 2. 再分组并聚集
     	GROUP BY c_custkey
     	HAVING SUM(o_totalprice) > 1000000;
@@ -120,11 +119,11 @@ SELECT c_custkey
 1. `Algebrize into initial operator tree`：通过引入Apply算子来表示关联subquery，这是一个二阶的关系代数运算符，用来表达参数化的子查询。
 2. `Remove correlations`：去关联化就是把Apply改些成其他算子，比如outer join。
 3. `Simplify outerjoin`：在拒绝null的条件下，可以将outer join简化成join，这样可以和join使用同一个执行框架，但需要在`GroupBy`增加null-rejection的判断。去关联化通常产生outer join，然后在计算正确的情况下简化成join。比如：`1000000 < x`会拒绝`x`为`null`的情况，因此可以将outer join最终转换成ioin。
-4. `Reorder GroupBy`：在outer join的上游或者下游重排序Agg。
+4. `Reorder GroupBy`：对Join和Agg重排序，也就是将Agg下推或上拉。
 
 
 
-## 参数化的关系代数描述关联子查询
+## 参数化执行的代数表示
 
 <b><font color="orange">增加逻辑算子进行关系代数表达：引入Apply处理标量子查询(row-valued)和SegmentApply处理tabled-valued子查询</font></b>
 
@@ -140,11 +139,11 @@ $$
     <img src="./img/Apply-Operator.png">
 </center>
 
-Apply使用于标量作为表达式的参数。Apply在(sub-)query的处理至少被三个组织研究：` Tandem`称为`tuple substitution`;`Oregon Graduate Institue and Portland State University`和微软称作`d-join`。<b><font color="red">值得注意的是，这三个研究小组都采用了Goetz Graefe的Cascades查询优化器。</font></b>
+Apply适用于于标量作为表达式的参数。Apply在(sub-)query的处理至少被三个组织研究：` Tandem`称为`tuple substitution`;`Oregon Graduate Institue and Portland State University`和微软称作`d-join`。<b><font color="red">值得注意的是，这三个研究小组都采用了Goetz Graefe的Cascades查询优化器。</font></b>
 
----
 
-`SegmentApply`算子：table-valued做为表达式的参数。它采用关系R作为输入，采用列`A`对`R`进行分组(类似于`GroupBy`),将每一个分组`S`传递给`E`，执行参数化表达式`E(S)`。其公式：
+
+`SegmentApply`算子：table-valued做为表达式的参数。它采用关系R作为输入，采用R的列`A`进行分组(类似于`GroupBy`),将每一个分组`S`传递给`E`，执行参数化表达式`E(S)`。其公式：
 $$
 \begin{array}{l}
 R \ \mathcal{S}\mathcal{A}_A \ E = \bigcup_{a}(\{a\} \times E(\sigma_{A = a} \ R))
@@ -152,8 +151,6 @@ R \ \mathcal{S}\mathcal{A}_A \ E = \bigcup_{a}(\{a\} \times E(\sigma_{A = a} \ R
 其中, a取域A中所有值
 \end{array}
 $$
-
----
 
 # 形式化表达和规范化(Normalizing)
 
@@ -223,7 +220,7 @@ R \ A^{\times}\ (\mathcal{G}^{1}_{F}E) = \mathcal{G}_{A \cup pk(R), F^{'}}(R \ A
 \end{array}
 $$
 
-(7) ~(9)需要R包含key`(R.key)`，公式(9)，$F'$包含$F$中通过单列表示的Agg，例如$F$为`COUNT(*)​`，则$F'$是`COUNT(c)`，c是E中非空的列。（9）对于所有$agg{\oslash } = agg(null)$的聚集运算都有效。
+(7) ~(9)需要R包含key`(R.key)`，公式(9)，$F'$包含$F$中通过单列表示的Agg，例如$F$为`COUNT(*)​`，则$F'$是`COUNT(c)`，c是E中非空的列。（9）对于所有$agg(\oslash) = agg(null)$的聚集运算都有效。
 
 
 
@@ -237,8 +234,14 @@ $$
 		</ol>
 	</b>
 </div>
+上述查询去相关转换：
 
-   
+<center>
+    <img src="./img/Figure_5.png">
+</center>
+
+
+
 
 <center>
     <img src="./img/E1_Transforme.png">
@@ -248,7 +251,7 @@ $$
 
 ## 任意子查询去关联
 
-对于bool值的子查询，即`EXISTS, NOT EXISTS,IN`和集合比较，子查询可以被重写为标量`COUNT`。无论等于0还是大于0，只要获取到一行，Agg算子都可以立马停止行请求计算，因为多余的行不会影响比较运算的结果。
+对于boolean-valued的子查询，即`EXISTS, NOT EXISTS,IN`和集合比较，子查询可以被重写为标量`COUNT`。无论等于0还是大于0，只要获取到一行，Agg算子都可以立马停止行请求计算，因为多余的行不会影响比较运算的结果。
 
 如果select中有且仅有一个存在性子查询（或从多个AND分离出这样的只含一个存在性子查询），这时select运算可以`exists -> ApplySemiJoin`，`NOT EXISTS -> ApplyAntiSemiJoin`，再运用公式(2)将其转换非相关。
 
