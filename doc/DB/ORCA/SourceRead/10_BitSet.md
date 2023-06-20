@@ -49,6 +49,10 @@ CBitVector::CBitVector(CMemoryPool *mp, ULONG nbits)
     <div><b>BitVector数据存储图形化表示</b></div>
 </center>
 
+<center>
+    <img img src="./img/BitVector-DataStruct.png">
+    <div><b>BitVector数据存储图形化表示</b></div>
+</center>
 
 `Get`接口获取指定的位是否被设置，如果被设置则响应值为1，否则相应值为0。
 

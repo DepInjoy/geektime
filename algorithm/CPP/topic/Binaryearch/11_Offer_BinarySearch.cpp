@@ -117,16 +117,20 @@ int divide(int a, int b) {
         b = -b, flag = !flag;
     }
 
+    // a 和 b 是负数，times是正数
+    // 需要判断 times * b >= a 是否成立
     auto quickAdd = [](int a, int b, int times) {
         int add = b, ans = 0;
         while(times > 0) {
             if (times & 0x1) {
+                // 需要保证 ans + add >= x
                 if (a - add > ans) {
                     return false;
                 }
                 ans += add;
             }
             if (times != 1) {
+                // 需要保证 add + add >= x
                 if (a - add > add) {
                     return false;
                 }
@@ -136,6 +140,7 @@ int divide(int a, int b) {
         }
         return true;
     };
+
     int left = 0, right = INT_MAX, ans = 0;
     while(left <= right) {
         int mid = ((right - left) >> 1) + left;
