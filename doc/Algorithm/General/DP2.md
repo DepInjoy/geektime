@@ -566,8 +566,160 @@ int main() {
 ```
 
 # 区间DP
+[282. 石子合并](https://www.acwing.com/problem/content/284/)
+> 设有 N 堆石子排成一排，其编号为 1,2,3,…,N。每堆石子有一定的质量，可以用一个整数来描述，现在要将这 N 堆石子合并成为一堆。每次只能合并相邻的两堆，合并的代价为这两堆石子的质量之和，合并后与这两堆石子相邻的石子将和新堆相邻，合并时由于选择的顺序不同，合并的总代价也不相同。
+>
+> 问题是：找出一种合理的方法，使总的代价最小，输出最小代价。
 
+- 状态表示dp[i, j]
+    - 集合: 编号从i到j合并到一起的所有操作
+    - 属性: 最小代价`min`
+
+- 状态计算
+```
+----------------------------------------------------------------------------
+|  subi  | sub(i+1)  |  sub(i+2)  |  ... |  sub(i+k)  |  .... |  sub(j-1)  |
+----------------------------------------------------------------------------
+
+subi：将i到i合并到起一些的操作 dp[i][i]
+sub(i+1)：将i到i+1合并到起一些的操作 dp[i][i+1]
+...
+sub(i+k): 将i到(i+k)合并到一起的操作, dp[i][i+k]
+...
+sub(j-1): 将i到(j-1)合并到一起的操作, dp[i][j-1]
+
+对于sub(i+k)，由于题目要求是合并相邻两堆，因此可以分解为
+i-------------------k k+1-----------------------j
+     dp[i][k]                    dp[k+1][j]          sum(i...j)
+
+因此，有
+dp[i][k] + dp[k+1][j] + s[j] - s[i-1]
+```
+
+```C++
+#include <vector>
+#include <iostream>
+#include <climits>
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    std::vector<int> s(n+1, 0);
+    for (int i = 1; i <= n; ++i) {
+        scanf("%d", &s[i]);
+        s[i] += s[i-1];
+    }
+    
+    std::vector<std::vector<int>> dp(n+1, std::vector<int>(n+1));
+    for (int len = 2; len <= n; ++len) {
+        for (int i = 1; i + len - 1 <= n; ++i) {
+            int j = i + len - 1;
+            dp[i][j] = INT_MAX;
+            for (int k = i; k < j; ++k) {
+                dp[i][j] = std::min(dp[i][j], dp[i][k] + dp[k+1][j] + s[j] - s[i-1]);
+            }
+        }
+    }
+    std::cout << dp[1][n];
+    return 0;
+}
+```
 # 计数类DP
+[900. 整数划分](https://www.acwing.com/problem/content/902/)
+> 一个正整数 n 可以表示成若干个正整数之和，形如：n=n1+n2+…+nk，其中n1≥n2≥…≥nk,k≥1。我们将这样的一种表示称为正整数 n 的一种划分。现在给定一个正整数 n，请你求出 n 共有多少种不同的划分方法。
+
+<b><font color="orange">完全背包解法</font></b>
+- 状态表示dp[i][j]
+    - 集合：用整数1~i正好表示j的所有方法的集合
+    - 属性：数量
+- 状态计算
+```
+-------------------------------------------------------------------
+| sub0  | sub(1)  |  sub(2)  |  ... |  sub(k)  |  .... |  sub(s)  |
+-------------------------------------------------------------------
+sub0: 采用用一个i正好表示j   dp[i-1][j]
+sub1: 采用用一个i正好表示j   dp[i-1][j-i]
+sub2: 采用2个i正好表示j     dp[i-1][j-2i]
+......
+
+subk: 采用k个i正好表示j     dp[i-1][j-k*i]
+...
+subs: 采用s个i正好表示j     dp[i-1][j-s*i]
+
+dp[i][j] =   dp[i-1][j] + dp[i-1][j-i] + dp[i-1][j-2i] +  .... + dp[i-1][j-s*i]
+dp[i][j-i] =            + dp[i-1][j-i] + dp[i-1][j-2*i] + .... + dp[i-1][j-s*i]
+
+dp[i][j] = dp[i-1][j] + dp[i][j-i]
+
+进行降维,从小到大遍历，可以得到
+
+dp[j] = dp[j] + dp[j-i]
+```
+
+```C++
+#include <vector>
+#include <iostream>
+
+int main() {
+    const int mod = 1e9 + 7;
+    int n;
+    scanf("%d", &n);
+    
+    std::vector<int> dp(n+1);
+    dp[0] = 1;
+    for (int i = 1; i <= n; ++i) {
+       for (int j = i; j <= n; ++j) {
+           dp[j] = (dp[j] + dp[j-i]) % mod;
+       } 
+    }
+    std::cout << dp[n];
+    return 0;
+}
+```
+
+
+<b><font color="orange">其他解法</font></b>
+
+- 状态表示dp[i][j]
+    - 集合：总和是i且正好表示成j个数的所有方法的集合
+    - 属性：数量
+- 状态计算
+```
+-------------------
+|  sub0  |  sub1  |
+-------------------
+
+sub0: 最小值是1    dp[i-1][j-1]
+sub1: 最小值大于1  dp[i-j][j] (表示中的j个数每个减1依然是可行的方法，因此转化为总和恰好是i-j且正好表示成j个数的方法)
+
+dp[i][j] = dp[i-1][j-1] + dp[i-j][j]
+```
+
+```C++
+#include <vector>
+#include <iostream>
+
+int main() {
+    const int mod = 1e9 + 7;
+    int n;
+    scanf("%d", &n);
+
+    std::vector<std::vector<int>> dp(n+1, std::vector<int>(n+1));
+    dp[0][0] = 1;
+    for (int i = 1; i <= n; ++i) {
+        for (int j = i; j >= 1; --j) {
+            dp[i][j] = (dp[i-1][j-1] + dp[i-j][j]) % mod;
+        }
+    }
+
+    int ans = 0;
+    for (int i = 1; i <= n; ++i) {
+        ans = (ans + dp[n][i]) % mod;
+    }
+    std::cout << ans << std::endl;
+    return 0;
+}
+```
 
 # 数位统计DP
 
