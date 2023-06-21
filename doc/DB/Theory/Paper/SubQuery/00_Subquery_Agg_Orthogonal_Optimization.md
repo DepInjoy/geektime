@@ -251,7 +251,7 @@ $$
 
 ## 任意子查询去关联
 
-对于boolean-valued的子查询，即`EXISTS, NOT EXISTS,IN`和集合比较，子查询可以被重写为标量`COUNT`。无论等于0还是大于0，只要获取到一行，Agg算子都可以立马停止行请求计算，因为多余的行不会影响比较运算的结果。
+对于boolean-valued的子查询，即`EXISTS, NOT EXISTS,IN`和集合比较，子查询可以被重写为标量`COUNT`聚合。无论等于0还是大于0，只要获取到一行，Agg算子都可以立马停止行请求计算，因为多余的行不会影响比较运算的结果。
 
 如果select中有且仅有一个存在性子查询（或从多个AND分离出这样的只含一个存在性子查询），这时select运算可以`exists -> ApplySemiJoin`，`NOT EXISTS -> ApplyAntiSemiJoin`，再运用公式(2)将其转换非相关。
 
