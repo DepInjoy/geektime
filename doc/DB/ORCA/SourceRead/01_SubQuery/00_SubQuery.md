@@ -183,14 +183,10 @@ class CScalarIf : public CScalar;
 
 ```C++
 CXformSimplifyGbAgg::CXformSimplifyGbAgg(CMemoryPool *mp)
-	: CXformExploration(
-		  // pattern
-		  GPOS_NEW(mp) CExpression(
-			  mp, GPOS_NEW(mp) CLogicalGbAgg(mp),
-			  GPOS_NEW(mp) CExpression(
-				  mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
-			  GPOS_NEW(mp) CExpression(
-				  mp, GPOS_NEW(mp) CPatternTree(mp))  // scalar project list
+	: CXformExploration(// pattern
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalGbAgg(mp),
+			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
+			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // scalar project list
 			  )) {}
 ```
 
@@ -209,21 +205,19 @@ public:
 	explicit CXformSimplifyProjectWithSubquery(CMemoryPool *mp) :  // pattern
 		  CXformSimplifySubquery(GPOS_NEW(mp) CExpression(
 			  mp, GPOS_NEW(mp) CLogicalProject(mp),
-			  GPOS_NEW(mp) CExpression(
-				  mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
-			  GPOS_NEW(mp) CExpression(
-				  mp, GPOS_NEW(mp) CPatternTree(mp))  // project list
+			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
+			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // project list
 			  )) {}
+};
+
 class CXformSimplifySelectWithSubquery : public CXformSimplifySubquery {
 public:
 	explicit CXformSimplifySelectWithSubquery(CMemoryPool *mp) :  // pattern
-		  CXformSimplifySubquery(GPOS_NEW(mp) CExpression(
-			  mp, GPOS_NEW(mp) CLogicalSelect(mp),
-			  GPOS_NEW(mp) CExpression(
-				  mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
-			  GPOS_NEW(mp) CExpression(
-				  mp, GPOS_NEW(mp) CPatternTree(mp))  // predicate tree
-			  )) {} 
+		  CXformSimplifySubquery(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
+			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // predicate tree
+			  )) {}
+};
 
 class CXformSimplifySubquery : public CXformExploration;
 //		Transform existential subqueries to count(*) subqueries;
@@ -239,61 +233,48 @@ BOOL CXformSimplifySubquery::FSimplifyQuantified(CMemoryPool *mp,
 
 
 ```C++
+//		Transform Project to Apply; this transformation is only applicable
+//		to a Project expression with subqueries in its scalar project list
+class CXformProject2Apply : public CXformSubqueryUnnest;
+CXformProject2Apply::CXformProject2Apply(CMemoryPool *mp) :  // pattern
+	  CXformSubqueryUnnest(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // scalar project list
+		  )) {}
+
 // Transform GbAgg to Apply; this transformation is only applicable
 // to GbAgg expression with aggregate functions that have subquery arguments
-class CXformGbAgg2Apply::CXformGbAgg2Apply(CMemoryPool *mp)
-	:  // pattern
-	  CXformSubqueryUnnest(GPOS_NEW(mp) CExpression(
-		  mp, GPOS_NEW(mp) CLogicalGbAgg(mp),
-		  GPOS_NEW(mp) CExpression(
-			  mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
+class CXformGbAgg2Apply : public CXformSubqueryUnnest
+CXformGbAgg2Apply::CXformGbAgg2Apply(CMemoryPool *mp) :  // pattern
+	  CXformSubqueryUnnest(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalGbAgg(mp),
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
 		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // project list
 		  )) {}
-```
 
-
-
-```C++
 //		Transform Select to Apply; this transformation is only applicable
 //		to a Select expression with subqueries in its scalar predicate
 class CXformSelect2Apply : public CXformSubqueryUnnest;
-CXformSelect2Apply::CXformSelect2Apply(CMemoryPool *mp)
-	:  // pattern
-	  CXformSubqueryUnnest(GPOS_NEW(mp) CExpression(
-		  mp, GPOS_NEW(mp) CLogicalSelect(mp),
-		  GPOS_NEW(mp) CExpression(
-			  mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
-		  GPOS_NEW(mp)
-			  CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // predicate tree
-		  )) { }
-
-//		Transform Project to Apply; this transformation is only applicable
-//		to a Project expression with subqueries in its scalar project list
-CXformProject2Apply::CXformProject2Apply(CMemoryPool *mp)
-	:  // pattern
-	  CXformSubqueryUnnest(GPOS_NEW(mp) CExpression(
-		  mp, GPOS_NEW(mp) CLogicalProject(mp),
-		  GPOS_NEW(mp) CExpression(
-			  mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
-		  GPOS_NEW(mp) CExpression(
-			  mp, GPOS_NEW(mp) CPatternTree(mp))  // scalar project list
+CXformSelect2Apply::CXformSelect2Apply(CMemoryPool *mp)  :  // pattern
+	  CXformSubqueryUnnest(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // relational child
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // predicate tree
 		  )) {}
 ```
 
 
 
 ```C++
-//		Transform MaxOneRow into LogicalAssert
+// Transform MaxOneRow into LogicalAssert
 class CXformMaxOneRow2Assert : public CXformExploration;
 CXformMaxOneRow2Assert::CXformMaxOneRow2Assert(CMemoryPool *mp)
-	: CXformExploration(
-		  // pattern
-		  GPOS_NEW(mp) CExpression(
-			  mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp),
-			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp))))
-{
-}
+	: CXformExploration(// pattern
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp),
+			  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)))) { }
 ```
+
+
+
+
 
 # 转化为subplan
 

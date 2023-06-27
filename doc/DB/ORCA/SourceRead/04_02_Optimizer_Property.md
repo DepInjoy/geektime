@@ -1,3 +1,26 @@
+```C++
+class CExpression : public CRefCount {
+	friend class CExpressionHandle;
+private:
+	// derived relational properties
+	CDrvdPropRelational *m_pdprel;
+	// required plan properties
+	CReqdPropPlan *m_prpp;
+	// derived physical properties
+	CDrvdPropPlan *m_pdpplan;
+	// derived scalar properties
+	CDrvdPropScalar *m_pdpscalar;
+    		.....
+}
+
+// 在CExpression的构造中创建derived relational属性和derived scalar属性
+CExpression::CExpression(CMemoryPool *mp, COperator *pop, CExpressionArray *pdrgpexpr)
+	: m_mp(mp), m_pop(pop), m_pdrgpexpr(pdrgpexpr), ...... {
+	m_pdprel = GPOS_NEW(m_mp) CDrvdPropRelational(m_mp);
+	m_pdpscalar = GPOS_NEW(m_mp) CDrvdPropScalar(m_mp);
+}
+```
+
 # Required Property
 
 算子的`Required`属性采用`CReqdProp`为基类，在其上派生出
@@ -120,6 +143,8 @@ class CEnfdRewindability : public CEnfdProp
 1. `CDrvdPropScalar`
 2. `CDrvdPropRelational`
 3. `CDrvdPropPlan`
+
+
 
 ```C++
 class CDrvdProp {

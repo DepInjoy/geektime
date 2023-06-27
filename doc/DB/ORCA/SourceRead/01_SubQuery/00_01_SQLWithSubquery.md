@@ -11,7 +11,19 @@ EXPLAIN
 -- Enforce correlated execution in the optimizer
 SET optimizer_enforce_subplans=on;
 ```
+对于可能会返回多行的子链接，如果将`optimizer_enable_assert_maxonerow`设置为false，禁用将`MaxOneRows`转化成`Assert`生成的计划也不会扁平化。
+
+```sql
+-- disable Assert MaxOneRow plans
+set optimizer_enable_assert_maxonerow=off;
+```
+
+例如`SELECT SUM((SELECT a FROM test_a)) FROM test_b`生成Apply二元运算只有`CLogicalLeftOuterCorrelatedApply`。而对于子连接不会返回多行的子链接，依然会生成`SELECT SUM((SELECT sum(a) FROM test_a)) FROM test_b;`会生成`CLogicalLeftOuterCorrelatedApply`和`CLogicalLeftOuterApply`二元运算，后者可以实现扁平化，生成Join计划。
+
+
+
 采取相关执行，也就是子连接得到subplan广播+物化的方式， 可以得到下面的执行计划，
+
 ```
  Gather Motion 3:1  (slice1; segments: 3)  (cost=0.00..1324044.43 rows=2 width=8)
    ->  HashAggregate  (cost=0.00..1324044.43 rows=1 width=8)
