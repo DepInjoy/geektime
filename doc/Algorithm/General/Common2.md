@@ -16,13 +16,14 @@ void merge(std::vector<PII>& segs) {
     int start = INT_MIN, end = INT_MIN;
     for (auto& seg : segs) {
         if (end < seg.first) {
-            if (start != seg.first)
-                ans.push_back({seg.first, seg.second});
+            if (start != INT_MIN) ans.push_back({start, end});
             start = seg.first, end = seg.second;
         } else {
             end = std::max(end, seg.second);
         }
     }
+    
+    if (start != INT_MIN) ans.push_back({start, end});
     segs = ans;
 }
 
