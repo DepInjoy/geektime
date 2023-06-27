@@ -732,3 +732,66 @@ int main() {
 [901. 滑雪](https://www.acwing.com/problem/content/903/)
 > 给定一个 R行 C列的矩阵，表示一个矩形网格滑雪场。矩阵中第 i行第 j列的点表示滑雪场的第 i行第 j列区域的高度。一个人从滑雪场中的某个区域内出发，每次可以向上下左右任意一个方向滑动一个单位距离。当然，一个人能够滑动到某相邻区域的前提是该区域的高度低于自己目前所在区域的高度。
 
+分析:
+- 状态表示dp[i][j]
+    - 集合:从第i行j列开始滑的所有路径
+    - 属性：最长滑雪轨迹`max`
+- 状态计算
+```
+---------------------------
+|    sub1    |    sub2    |
+---------------------------
+|    sub3    |    sub4    |
+---------------------------
+
+sub1:从i行j列向上滑所有的路径, dp[i][j-1] + 1
+sub2:从i行j列向下滑所有的路径, dp[i][j+1] + 1
+sub3:从i行j列向左滑所有的路径, dp[i-1][j] + 1
+sub4:从i行j列向右滑所有的路径, dp[i+1][j] + 1
+
+
+```
+
+```C++
+#include <vector>
+#include <iostream>
+
+int dx[4] = {-1, 0, 1, 0};
+int dy[4] = {0, -1, 0, 1};
+
+int search(int x, int y, int m, int n, const std::vector<std::vector<int>>& h,
+        std::vector<std::vector<int>>& dp) {
+    if (dp[x][y] != -1) return dp[x][y];
+    
+    dp[x][y] = 1;
+    for (int i = 0; i < 4; ++i) {
+        int a = x + dx[i], b = y + dy[i];
+        if (a >= 1 && a <= m && b >= 1 && b <= n && h[a][b] < h[x][y]) {
+            dp[x][y] = std::max(dp[x][y], search(a, b, m , n, h, dp) + 1);
+        }
+    }
+    return dp[x][y];
+}
+
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+    
+    std::vector<std::vector<int>> h(m+1, std::vector<int>(n+1));
+    for (int i = 1; i <= m; ++i) {
+        for (int j = 1; j <= n; ++j) {
+            scanf("%d", &h[i][j]);
+        }
+    }
+    
+    int ans = 0;
+    std::vector<std::vector<int>> dp(m+1, std::vector<int>(n+1, -1));
+    for (int i = 1; i <= m; ++i) {
+        for(int j = 1; j <= n; ++j) {
+            ans = std::max(ans, search(i, j, m, n, h, dp));
+        }
+    }
+    std::cout << ans << std::endl;
+    return 0;
+}
+```
