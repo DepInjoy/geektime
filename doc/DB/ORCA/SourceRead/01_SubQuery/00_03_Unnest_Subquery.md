@@ -49,23 +49,40 @@ private:
 class CLogicalInnerApply : public CLogicalApply;
 class CLogicalInnerCorrelatedApply : public CLogicalInnerApply;
 
-class CLogicalLeftAntiSemiApply : public CLogicalApply;
-// Logical Apply operator used in NOT IN/ALL subqueries
-class CLogicalLeftAntiSemiApplyNotIn : public CLogicalLeftAntiSemiApply;
-// Logical Apply operator used in correlated execution of NOT EXISTS subqueries
-class CLogicalLeftAntiSemiCorrelatedApply : public CLogicalLeftAntiSemiApply;
-// Logical Apply operator used in correlated execution of NOT IN/ALL subqueries
-class CLogicalLeftAntiSemiCorrelatedApplyNotIn : public CLogicalLeftAntiSemiApplyNotIn;
 
-// Logical Apply operator used in EXISTS subquery transformations
+// 对于Exists子查询依然可以采取相关执行和去关联
+// 例如：select * from test_a where exists (select b from test_b);
+//		如果相关执行在unnest时转换成CLogicalLeftSemiCorrelatedApply二元算子
+//		否则转化成CLogicalLeftSemiApply转换成CLogicalLeftSemiApply二元算子
+// 参见CSubqueryHandler::FRemoveExistsSubquery
 class CLogicalLeftSemiApply : public CLogicalApply;
-// Logical Apply operator used in IN/ANY subqueries
-class CLogicalLeftSemiApplyIn : public CLogicalLeftSemiApply;
-// Logical Apply operator used in scalar subquery transformations
 class CLogicalLeftSemiCorrelatedApply : public CLogicalLeftSemiApply;
-// Logical Apply operator used in scalar subquery transformations
+
+// 逻辑Apply算子用于IN/ANY subqueries
+// 对于IN(代数表达为ANY(=))或ANY子查询依然可以采取相关执行和去关联
+// 例如:select * from test_a where IN (select b from test_b);
+// 	 如果相关执行在unnest时转换成CLogicalLeftSemiCorrelatedApplyIn
+//	 否则,转换成CLogicalLeftSemiApplyIn进行去关联
+// 	参见CSubqueryHandler::FRemoveAnySubquery
+class CLogicalLeftSemiApplyIn : public CLogicalLeftSemiApply;
 class CLogicalLeftSemiCorrelatedApplyIn : public CLogicalLeftSemiApplyIn;
 
+// 对于NOT EXISTS也可以采取相关执行和去关联转AntiJoin两种方式执行
+// NOT EXISTS代数表达为CScalarSubqueryNotExists
+//   例如:select * from test_a where NOT EXISTS (select b from test_b);
+//       对于相关执行在unnest时转换成CLogicalLeftAntiSemiCorrelatedApply
+//       对于非相关执行则转化为CLogicalLeftAntiSemiApply之后进行去关联
+// 参见CSubqueryHandler::FRemoveNotExistsSubquery
+class CLogicalLeftAntiSemiApply : public CLogicalApply;
+class CLogicalLeftAntiSemiCorrelatedApply : public CLogicalLeftAntiSemiApply;
+
+// 逻辑Apply算子用在NOT IN(代数表达为ALL(<>))/ALL subqueries
+// 可以采取相关执行和去关联两种方式执行:
+//  如果采取相关执行则转换为CLogicalLeftAntiSemiCorrelatedApplyNotIn
+//  否则, 转换为CLogicalLeftAntiSemiApplyNotIn
+// 参见CSubqueryHandler::FRemoveAllSubquery
+class CLogicalLeftAntiSemiApplyNotIn : public CLogicalLeftAntiSemiApply;
+class CLogicalLeftAntiSemiCorrelatedApplyNotIn : public CLogicalLeftAntiSemiApplyNotIn;
 
 class CLogicalIndexApply : public CLogicalApply;
 ```
@@ -410,6 +427,8 @@ BOOL CSubqueryHandler::FProcessScalarOperator(CExpression *pexprOuter,
 }
 ```
 
+
+
 ```C++
 //		Replace a scalar subquery node with a column identifier, and create
 //		a new Apply expression;
@@ -417,16 +436,14 @@ BOOL CSubqueryHandler::FProcessScalarOperator(CExpression *pexprOuter,
 //		when subquery is defined on top of a Project node, the function simplifies
 //		subquery expression by pulling-up project above subquery to facilitate
 //		detecting special subquery types such as count(*) subqueries
-BOOL
-CSubqueryHandler::FRemoveScalarSubquery(CExpression *pexprOuter,CExpression *pexprSubquery, 
+BOOL CSubqueryHandler::FRemoveScalarSubquery(CExpression *pexprOuter,CExpression *pexprSubquery, 
         ESubqueryCtxt esqctxt, CExpression **ppexprNewOuter, CExpression **ppexprResidualScalar) {
 	CMemoryPool *pmp = m_mp;
 	CScalarSubquery *popScalarSubquery = CScalarSubquery::PopConvert(pexprSubquery->Pop());
 	const CColRef *pcrSubquery = popScalarSubquery->Pcr();
 
 	SSubqueryDesc *psd = Psd(pmp, pexprSubquery, pexprOuter, pcrSubquery, esqctxt);
-	if (psd->m_fReturnedPcrIsOuterRef)
-	{
+	if (psd->m_fReturnedPcrIsOuterRef) {
 		// The subquery returns an outer reference. We can't simply replace the subquery with that
 		// expression, because we would miss the case where the subquery is an empty table and we
 		// would have to substitute the outer ref with a NULL.
@@ -437,6 +454,7 @@ CSubqueryHandler::FRemoveScalarSubquery(CExpression *pexprOuter,CExpression *pex
 	}
 
 	BOOL fSuccess = false;
+    // 关于count的处理不太清楚，待完善理论
 	if (psd->m_fProjectCount && !psd->m_fCorrelatedExecution) {
 		// count(*)/count(Any) have special semantics: they produce '0' if their input is empty,
 		// all other agg functions produce 'NULL' if their input is empty
@@ -445,7 +463,6 @@ CSubqueryHandler::FRemoveScalarSubquery(CExpression *pexprOuter,CExpression *pex
 		// we first create a LeftOuterApply expression to compute 'count' value and replace NULL
 		// count values with '0' in the output of LOA expression,
 		// we then pull the Project node below subquery to be above the LOA expression
-
 		// create a new subquery to compute count(*) agg
 		CExpression *pexprPrj = (*pexprSubquery)[0];
 		CExpression *pexprPrjList = (*pexprPrj)[1];
@@ -467,9 +484,9 @@ CSubqueryHandler::FRemoveScalarSubquery(CExpression *pexprOuter,CExpression *pex
 			m_mp, pexprOuter, pexprNewSubq, EsqctxtValue, psd,
 			m_fEnforceCorrelatedApply, &pexprNewOuter, &pexprResidualScalar);
 
-		if (fSuccess)
-		{
-			// unnesting succeeded -- replace all occurrences of count(*) column in project list with residual expression
+		if (fSuccess) {
+			// unnesting succeeded -- replace all occurrences of
+             // count(*) column in project list with residual expression
 			pexprPrj->Pop()->AddRef();
 			CExpression *pexprPrjListNew = PexprReplace(
 				m_mp, pexprPrjList, psd->m_pcrCountAgg, pexprResidualScalar);
@@ -538,6 +555,225 @@ BOOL CSubqueryHandler::FRemoveScalarSubqueryInternal(
 		mp, pexprOuter, pexprInner, colref, pexprSubquery->Pop()->Eopid());
 	*ppexprResidualScalar = CUtils::PexprScalarIdent(mp, colref);
 
+	return fSuccess;
+}
+```
+
+
+
+```C++
+//		Replace a subquery EXISTS node with a constant True, and
+//		create a new Apply expression
+BOOL CSubqueryHandler::FRemoveExistsSubquery(CExpression *pexprOuter,
+        CExpression *pexprSubquery, ESubqueryCtxt esqctxt,
+        CExpression **ppexprNewOuter, CExpression **ppexprResidualScalar) {
+	if (m_fEnforceCorrelatedApply) {
+		return FCreateCorrelatedApplyForExistOrQuant(
+			m_mp, pexprOuter, pexprSubquery, esqctxt, ppexprNewOuter,
+			ppexprResidualScalar);
+	}
+
+	return FRemoveExistentialSubquery(m_mp, COperator::EopScalarSubqueryExists,
+									  pexprOuter, pexprSubquery, esqctxt,
+									  ppexprNewOuter, ppexprResidualScalar);
+}
+```
+
+
+
+````C++
+//		Replace a subquery NOT EXISTS node with a constant True, and
+//		create a new Apply expression
+BOOL CSubqueryHandler::FRemoveNotExistsSubquery(CExpression *pexprOuter,
+       CExpression *pexprSubquery, ESubqueryCtxt esqctxt,
+       CExpression **ppexprNewOuter, CExpression **ppexprResidualScalar) {
+	if (m_fEnforceCorrelatedApply) {
+		return FCreateCorrelatedApplyForExistOrQuant(
+			m_mp, pexprOuter, pexprSubquery, esqctxt, ppexprNewOuter,
+			ppexprResidualScalar);
+	}
+	return FRemoveExistentialSubquery(
+		m_mp, COperator::EopScalarSubqueryNotExists, pexprOuter, pexprSubquery,
+		esqctxt, ppexprNewOuter, ppexprResidualScalar);
+}
+````
+
+
+
+```C++
+BOOL CSubqueryHandler::FRemoveAllSubquery(CExpression *pexprOuter,
+         CExpression *pexprSubquery, ESubqueryCtxt esqctxt,
+         CExpression **ppexprNewOuter, CExpression **ppexprResidualScalar) {
+	CMemoryPool *mp = m_mp;
+	// 1. 采取相关执行
+    //		1.1 出现在谓词中,例如:
+    //			select a from test_a where a = ALL(select b from test_b)
+    //			转化成CLogicalLeftAntiSemiCorrelatedApplyNotIn二元算子
+    //		1.2 出现在投影中,例如:
+    //			select (a=ALL(select b from test_b)) from test_a
+    //			转化为CLogicalLeftOuterCorrelatedApply
+    if (m_fEnforceCorrelatedApply) {
+		return FCreateCorrelatedApplyForExistOrQuant(mp, pexprOuter,
+             pexprSubquery, esqctxt, ppexprNewOuter, ppexprResidualScalar);
+	}
+
+	BOOL fSuccess = true;
+	BOOL fUseCorrelated = false;
+	CExpression *pexprPredicate = nullptr;
+	CExpression *pexprInner = (*pexprSubquery)[0];
+	COperator::EOperatorId eopidSubq = pexprSubquery->Pop()->Eopid();
+	const CColRef *colref = CScalarSubqueryAll::PopConvert(pexprSubquery->Pop())->Pcr();
+	BOOL fOuterRefsUnderInner = pexprInner->HasOuterRefs();
+	BOOL fUseNotNullOptimization = false;
+	pexprInner->AddRef();
+	// 子连接使用了外层查询的列
+    // 如果EsqctxtFilter(在谓词中)创建CLogicalLeftAntiSemiCorrelatedApplyNotIn
+    // 否则需要相关执行(fUseCorrelated = true)
+	if (fOuterRefsUnderInner) {
+		if (EsqctxtFilter == esqctxt) {
+			// build subquery quantified comparison
+			CExpression *pexprResult = nullptr;
+			CExpression *pexprPredicate = PexprSubqueryPred(
+				pexprInner, pexprSubquery, &pexprResult, esqctxt);
+
+			*ppexprResidualScalar = CUtils::PexprScalarConstBool(mp, true /*value*/);
+			*ppexprNewOuter = CUtils::PexprLogicalApply<
+				CLogicalLeftAntiSemiCorrelatedApplyNotIn>(
+				mp, pexprOuter, pexprResult, colref, eopidSubq, pexprPredicate);
+			return fSuccess;
+		} else {
+			fUseCorrelated = true;
+		}
+	}
+
+	// generate a select with the inverse predicate as the selection predicate
+	// TODO: Handle the case where pexprInversePred == NULL
+	CExpression *pexprInversePred = CXformUtils::PexprInversePred(mp, pexprSubquery);
+	pexprPredicate = pexprInversePred;
+	if (EsqctxtValue == esqctxt) {
+		CMDAccessor *md_accessor = COptCtxt::PoctxtFromTLS()->Pmda();
+		CScalarCmp *scalarComp = CScalarCmp::PopConvert(pexprPredicate->Pop());
+		if (nullptr != scalarComp) {
+			const IMDScalarOp *pmdOp = md_accessor->RetrieveScOp(scalarComp->MdIdOp());
+			const IMDFunction *pmdFunc = md_accessor->RetrieveFunc(pmdOp->FuncMdId());
+			if (IMDFunction::EfsVolatile == pmdFunc->GetFuncStability()) {
+				// the non-correlated plan would evaluate the comparison operation twice
+				// per outer row, that is not a good idea when the operation is volatile
+				fUseCorrelated = true;
+			}
+		}
+
+		CExpression *pexprInnerSelect = PexprInnerSelect(
+			mp, colref, pexprInner, pexprPredicate, &fUseNotNullOptimization);
+		if (!fUseCorrelated) {
+            // 非相关执行，创建outer apply
+			fSuccess = FCreateOuterApply(
+				mp, pexprOuter, pexprInnerSelect, pexprSubquery, pexprPredicate,
+				fOuterRefsUnderInner, ppexprNewOuter, ppexprResidualScalar,
+				fUseNotNullOptimization);
+		}
+ 
+		if (!fSuccess || fUseCorrelated) {
+            // 相关执行失败或相关执行，创建outer apply
+			fSuccess = FCreateCorrelatedApplyForExistOrQuant(
+				mp, pexprOuter, pexprSubquery, esqctxt, ppexprNewOuter,
+				ppexprResidualScalar);
+		}
+	} else {
+        // 3. 出现在谓词中,生成CLogicalLeftSemiApplyNotIn二元算子和Const True谓词
+		GPOS_ASSERT(EsqctxtFilter == esqctxt);
+		*ppexprResidualScalar = CUtils::PexprScalarConstBool(mp, true);
+		*ppexprNewOuter = CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(
+				mp, pexprOuter, pexprInner, colref, eopidSubq, pexprPredicate);
+	}
+
+	return fSuccess;
+}
+```
+
+
+
+```C++
+BOOL
+CSubqueryHandler::FRemoveAnySubquery(CExpression *pexprOuter,
+         CExpression *pexprSubquery, ESubqueryCtxt esqctxt,
+         CExpression **ppexprNewOuter, CExpression **ppexprResidualScalar) {
+	CMemoryPool *mp = m_mp;
+	CScalarSubqueryAny *pScalarSubqAny = CScalarSubqueryAny::PopConvert(pexprSubquery->Pop());
+	// 1. 采取相关执行
+    //		1.1 出现在谓词中,例如:
+    //			select a from test_a where a = ANY(select b from test_b)
+    //			转化成CLogicalLeftSemiCorrelatedApplyIn二元算子
+    //		1.2 出现在投影中,例如:
+    //			select (a=ALL(select b from test_b)) from test_a
+    //			转化为CLogicalLeftOuterCorrelatedApply
+	if (m_fEnforceCorrelatedApply) {
+		return FCreateCorrelatedApplyForExistOrQuant(
+			mp, pexprOuter, pexprSubquery, esqctxt, ppexprNewOuter,
+			ppexprResidualScalar);
+	}
+
+	// get the logical child of subquery
+	CExpression *pexprInner = (*pexprSubquery)[0];
+	BOOL fOuterRefsUnderInner = pexprInner->HasOuterRefs();
+	const CColRef *colref = CScalarSubqueryAny::PopConvert(pexprSubquery->Pop())->Pcr();
+	COperator::EOperatorId eopidSubq = pexprSubquery->Pop()->Eopid();
+
+	// build subquery quantified comparison
+	CExpression *pexprResult = nullptr;
+	CExpression *pexprPredicate =
+		PexprSubqueryPred(pexprInner, pexprSubquery, &pexprResult, esqctxt);
+
+	// generate a select for the quantified predicate
+	pexprInner->AddRef();
+	CExpression *pexprSelect =
+		CUtils::PexprLogicalSelect(mp, pexprResult, pexprPredicate);
+	BOOL fSuccess = true;
+	BOOL fUseCorrelated = false;
+	BOOL fUseNotNullableInnerOpt = false;
+
+	if (EsqctxtValue == esqctxt) {
+        // 2. 出现在投影中，待完善
+		CExpression *pexprNewSelect = PexprInnerSelect(
+			mp, colref, pexprResult, pexprPredicate, &fUseNotNullableInnerOpt);
+		CMDAccessor *md_accessor = COptCtxt::PoctxtFromTLS()->Pmda();
+		const IMDScalarOp *pmdOp =
+			md_accessor->RetrieveScOp(pScalarSubqAny->MdIdOp());
+		// function attributes of the comparison operator itself
+		// TODO: Synthesize the function attibutes of general operators, like
+		//       CScalarSubqueryAny/All, CScalarCmp, CScalarOp by providing a
+		//       DeriveFunctionProperties() method in these classes.
+		//       Once we do that, we can remove the line below and related code.
+		const IMDFunction *pmdFunc =
+			md_accessor->RetrieveFunc(pmdOp->FuncMdId());
+
+		if (IMDFunction::EfsVolatile == pmdFunc->GetFuncStability() ||
+			IMDFunction::EfsVolatile == pexprSubquery->DeriveScalarFunctionProperties()->Efs()) {
+			// the non-correlated plan would evaluate the comparison operation twice
+			// per outer row, that is not a good idea when the operation is volatile
+			fUseCorrelated = true;
+		}
+		pexprSelect = pexprNewSelect;
+
+		if (!fUseCorrelated) {
+			fSuccess = FCreateOuterApply(
+                  mp, pexprOuter, pexprSelect, pexprSubquery, pexprPredicate,
+				fOuterRefsUnderInner, ppexprNewOuter, ppexprResidualScalar,
+				fUseNotNullableInnerOpt);
+		}
+		if (!fSuccess || fUseCorrelated) {
+			pexprSelect->Release();
+			fSuccess = FCreateCorrelatedApplyForExistOrQuant(
+				mp, pexprOuter, pexprSubquery, esqctxt, ppexprNewOuter,
+				ppexprResidualScalar);
+		}
+	} else {
+        // 3. 出现在谓词中,生成CLogicalLeftSemiApplyIn二元算子和Const True谓词
+		GPOS_ASSERT(EsqctxtFilter == esqctxt);
+		*ppexprNewOuter = CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+			mp, pexprOuter, pexprSelect, colref, eopidSubq);
+		*ppexprResidualScalar = CUtils::PexprScalarConstBool(mp, true /*value*/);
+	}
 	return fSuccess;
 }
 ```
