@@ -89,7 +89,7 @@
 >
 > ​						from  《Orthogonal Optimization of Subqueries and Aggregation》
 >
-> 对于布尔值子查询，即exists、 not exists、in和比较，子查询可以重写为标量COUNT Agg。从Agg结果的使用上下文中来看，无论是等于零还是大于零，只要找到一行，聚合操作符就可以停止请求行，因为额外的行不会影响比较的结果。
+> 对于布尔值子查询，即exists、 not exists、in和集合比较，子查询可以重写为标量COUNT Agg。从Agg结果的使用上下文中来看，无论是等于零还是大于零，只要找到一行，聚合操作符就可以停止请求行，因为额外的行不会影响比较的结果。
 
 对于下面这些情况的子查询(`bool-valued`子查询)：
 
