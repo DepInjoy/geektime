@@ -157,3 +157,52 @@ int uniquePaths(int m, int n) {
     }
     return ans;
 }
+
+/**
+ * 面试题 08.01. 三步问题
+ * https://leetcode.cn/problems/three-steps-problem-lcci/description/
+*/
+int waysToStep(int n) {
+    const int mod = 1000000007;
+    int pre1 = 0, pre2 = 0, pre3 = 1, cur = 1;
+    for (int i = 1; i <= n; ++i) {
+        cur = ((pre1 + pre2) % mod + pre3) % mod;
+        pre1 = pre2;
+        pre2 = pre3;
+        pre3 = cur;
+    }
+    return cur;   
+}
+
+/**
+ *  118. 杨辉三角
+ *  https://leetcode.cn/problems/pascals-triangle/description/
+*/
+vector<vector<int>> generate(int numRows) {
+    std::vector<std::vector<int>> ans(numRows);
+    for (int i = 0; i < numRows; ++i) {
+        ans[i].resize(i+1);
+        ans[i][0] = ans[i][i] = 1;
+        for (int j = 1; j < i; ++j) {
+            ans[i][j] = ans[i-1][j-1] + ans[i-1][j];
+        }
+    }
+    return ans;
+}
+
+/**
+ * 119. 杨辉三角 II
+ * https://leetcode.cn/problems/pascals-triangle-ii/description/
+*/
+vector<int> getRow(int rowIndex) {
+    std::vector<int> ans(rowIndex+1);
+    for (int i = 0; i <= rowIndex; ++i) {
+        ans[0] = ans[i] = 1;
+        for (int j = i - 1; j >= 1; --j) {
+            ans[j] += ans[j-1];
+        }
+    }
+    return ans;
+}
+
+// todo C(n, m)
