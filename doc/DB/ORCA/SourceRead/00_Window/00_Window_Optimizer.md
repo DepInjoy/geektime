@@ -105,11 +105,11 @@ class CDistributionSpec : public CPropSpec;
 /**
 	根据DXL logical window创建CLogicalSequenceProject逻辑算子
     CDXLLogicalWindow								CLogicalSequenceProject
-        |-- Relation(eg,CDXLLogicalGet)					|-- Relation(eg,CLogicalGet)
-        +-- CDXLScalarProjList			     ->			  +-- CScalarProjectList
-            +-- CDXLScalarProjElem							+-- CScalarProjectElement
-                +-- CDXLScalarWindowRef							+-- CScalarWindowFunc
-                    +-- CDXLScalarIdent								+-- CScalarIdent		
+        |-- CDXLScalarProjList			   			  |-- Relation(eg,CLogicalGet)
+        	+-- CDXLScalarProjElem	        ->			   	+-- CScalarProjectList
+            	+-- CDXLScalarWindowRef							+-- CScalarProjectElement
+                	+-- CDXLScalarIdent								+-- CScalarWindowFunc
+         +-- Relation(eg,CDXLLogicalGet)								+-- CScalarIdent
 */
 CExpression * CTranslatorDXLToExpr::PexprLogicalSeqPr(const CDXLNode *dxlnode) {
 	CDXLLogicalWindow *pdxlopWindow = CDXLLogicalWindow::Cast(dxlnode->GetOperator());
@@ -279,7 +279,13 @@ CExpression * CTranslatorDXLToExpr::PexprWindowFunc(const CDXLNode *pdxlnWindowR
 
 # 预处理
 
+```
+CExpressionPreprocessor::PexprPreprocess
+	-> CWindowPreprocessor::PexprPreprocess
+```
+
 ```C++
+// 没有写出满足的实际示例,之后再完善
 class CWindowPreprocessor
 ```
 
