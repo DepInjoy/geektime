@@ -289,3 +289,160 @@ CExpressionPreprocessor::PexprPreprocess
 class CWindowPreprocessor
 ```
 
+# 算子
+
+```C++
+class CLogicalSequenceProject : public CLogicalUnary {
+private:
+	CDistributionSpec *m_pds; // 分区条件(partition by)
+	COrderSpecArray *m_pdrgpos; // order by specs
+	CWindowFrameArray *m_pdrgpwf; // frames
+
+    // 标识是否有非空order specs,如果没有order spec, orca会插入一个空order spec
+    // 参见CLogicalSequenceProject::SetHasOrderSpecs
+	BOOL m_fHasOrderSpecs;
+    // 标识是否有非空的frame, 如果没有frame, orca会插入一个空frame
+    // 参见CLogicalSequenceProject::SetHasFrameSpecs
+	BOOL m_fHasFrameSpecs;
+}
+
+class CDistributionSpec : public CPropSpec;
+class COrderSpec : public CPropSpec;
+/**
+	ROWS between 1 preceding and 1 following
+
+	打印出结果和数据结构的映射
+	Rows,						  -- m_efs(FrameSpe)
+	
+	Trail: Bounded Preceding		-- m_efbTrailing(type of trailing edge)
+		+--CScalarConst (1), 		-- m_pexprTrailing(scalar value of trailing edge)
+	
+	Lead: Bounded Following			-- m_efbLeading(type of leading edge)
+		+--CScalarConst (1)		    -- m_pexprLeading(scalar value of leading edge)
+	
+	, Nulls						   -- m_efes(exclusion strategy)
+*/
+class CWindowFrame : public CRefCount{
+private:
+	const EFrameSpec m_efs; // 标识是Rows还是Rangs
+
+	// type of leading edge
+	const EFrameBoundary m_efbLeading;
+    // scalar value of leading edge
+	CExpression *m_pexprLeading;
+ 
+	// type of trailing edge
+	const EFrameBoundary m_efbTrailing;
+	// scalar value of trailing edge
+	CExpression *m_pexprTrailing;
+
+	// exclusion strategy
+	const EFrameExclusionStrategy m_efes;
+
+	// columns used by frame edges
+	CColRefSet *m_pcrsUsed;
+	static const CWindowFrame m_wfEmpty; // empty frame单例
+}
+```
+
+```C++
+// Return a copy of the operator with remapped columns
+virtual COperator * CLogicalSequenceProject::PopCopyWithRemappedColumns(
+	CMemoryPool *mp, UlongToColRefMap *colref_mapping, BOOL must_exist) {
+    // 对DistributionSpec, OrderSpec, Frames分别Copy Remapped Columns
+		......
+	return GPOS_NEW(mp) CLogicalSequenceProject(mp, pds, pdrgpos, pdrgpwf);
+}
+
+// 如果可以将它的孩子上拉至该算子之上,返回true
+virtual BOOL FCanPullProjectionsUp(ULONG) const {
+    return false;
+}
+```
+
+derives关系属性
+
+```C++
+// derive output columns
+virtual CColRefSet *DeriveOutputColumns(CMemoryPool *mp,
+	CExpressionHandle &exprhdl) {
+    CColRefSet *pcrs = GPOS_NEW(mp) CColRefSet(mp);
+    
+    // 下层关系+scalar孩子的output columns
+	pcrs->Union(exprhdl.DeriveOutputColumns(0));
+	pcrs->Union(exprhdl.DeriveDefinedColumns(1));
+    
+    return pcrs;
+}
+
+// derive outer references
+virtual CColRefSet *DeriveOuterReferences(CMemoryPool *mp,
+		CExpressionHandle &exprhdl) {
+    // 
+    CColRefSet *outer_refs = CLogical::DeriveOuterReferences(mp,
+			exprhdl, m_pcrsLocalUsed);
+	return outer_refs;
+}
+
+// dervive keys
+virtual CKeyCollection *DeriveKeyCollection(
+    CMemoryPool *mp, CExpressionHandle &exprhdl) const {
+    return PkcDeriveKeysPassThru(exprhdl, 0 /* ulChild */);
+}
+
+// derive max card
+virtual CMaxCard DeriveMaxCard(CMemoryPool *mp,
+	CExpressionHandle &exprhdl) const {
+    return exprhdl.DeriveMaxCard(0);
+}
+
+// derive constraint property
+virtual CPropConstraint *
+DerivePropertyConstraint(CMemoryPool *,	CExpressionHandle &exprhdl) const {
+    return PpcDeriveConstraintPassThru(exprhdl, 0 /*ulChild*/);
+}
+```
+
+transform变换
+
+```C++
+// 可选的xform变换
+CXformSet * CLogicalSequenceProject::PxfsCandidates(CMemoryPool *mp) const {
+	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
+    // 去关联
+	(void) xform_set->ExchangeSet(CXform::ExfSequenceProject2Apply);
+    // 逻辑算子转物理算子
+	(void) xform_set->ExchangeSet(CXform::ExfImplementSequenceProject);
+	return xform_set;
+}
+```
+
+derive statistics
+
+```C++
+IStatistics * CLogicalSequenceProject::PstatsDerive(CMemoryPool *mp,
+	CExpressionHandle &exprhdl, IStatisticsArray *stats_ctxt) const {
+	return PstatsDeriveProject(mp, exprhdl);
+}
+
+IStatistics * CLogicalUnary::PstatsDeriveProject(CMemoryPool *mp,
+		CExpressionHandle &exprhdl,UlongToIDatumMap *phmuldatum) const {
+    // 获取第0个孩子的统计信息
+	IStatistics *child_stats = exprhdl.Pstats(0);
+	CReqdPropRelational *prprel = 
+        	CReqdPropRelational::GetReqdRelationalProps(exprhdl.Prp());
+    // stat columns
+	CColRefSet *pcrs = prprel->PcrsStat();
+	ULongPtrArray *colids = GPOS_NEW(mp) ULongPtrArray(mp);
+    // 从ColRefSet中提取真实的column id
+	pcrs->ExtractColIds(mp, colids);
+
+    // 计算统计信息
+	IStatistics *stats = CProjectStatsProcessor::CalcProjStats(
+		mp, dynamic_cast<CStatistics *>(child_stats), colids, phmuldatum);
+
+	colids->Release();
+	return stats;
+}
+```
+
