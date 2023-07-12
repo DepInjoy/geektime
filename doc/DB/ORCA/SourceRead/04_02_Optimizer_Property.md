@@ -266,11 +266,25 @@ private:
 };
 ```
 
+```C++
+// add required enforcer, 生成Sort算子
+void COrderSpec::AppendEnforcers(CMemoryPool *mp, CExpressionHandle &,  // exprhdl
+        CReqdPropPlan * prpp, CExpressionArray *pdrgpexpr, CExpression *pexpr) {
+	CExpression *pexprSort = GPOS_NEW(mp)
+		CExpression(mp, GPOS_NEW(mp) CPhysicalSort(mp, this), pexpr);
+	pdrgpexpr->Append(pexprSort);
+}
+```
+
 
 
 ```C++
 // CEnfdProp	
 // append enforcers to dynamic array for the given plan properties
+// CEngine::FCheckEnfdProps
+//		-> CEnfdOrder::Epet(获取order endforce type, 例如EpetRequired或EpetUnnecessary)
+// 		-> CEnfdProp::AppendEnforcers
+//			-> CPropSpec::AppendEnforcers(例如排序生成Sort算子等)
 void AppendEnforcers(CMemoryPool *mp, CReqdPropPlan *prpp,
     CExpressionArray *pdrgpexpr,  // array of enforcer expressions
     CExpression *pexprChild,	  // leaf in the target group where
