@@ -9,9 +9,7 @@ class CPattern : public COperator;
 class CScalar : public COperator;
 ```
 
-# Operator基类
-
-先了解`COperator`的表示
+先了解`COperator`算子基类的表示
 
 ```C++
 class COperator : public CRefCount, public DbgPrintMixin<COperator> {
@@ -77,6 +75,7 @@ public:
 	virtual CColRefSet *DeriveOutputColumns(CMemoryPool *mp, CExpressionHandle &exprhdl) = 0;
 
 	// derive outer references
+    // outer references是scalar孩子使用的列，但不含在relation孩子的output columns
 	virtual CColRefSet * DeriveOuterReferences(CMemoryPool *mp, CExpressionHandle &exprhdl)
 
 	// derive outer references for index get and dynamic index get operators
@@ -100,8 +99,11 @@ public:
 	// derive partition information
 	virtual CPartInfo *DerivePartitionInfo(CMemoryPool *mp, CExpressionHandle &exprhdl) const = 0;
 
-	// derive constraint property
-	virtual CPropConstraint *DerivePropertyConstraint(CMemoryPool *mp, CExpressionHandle &exprhdl) const = 0;
+	// derive约束条件属性,数据模型中存在约束条件
+    // CLogical提供了CLogical::PpcDeriveConstraintPassThru
+    // 实现获取指定孩子的约束条件
+	virtual CPropConstraint *DerivePropertyConstraint(CMemoryPool *mp,
+		CExpressionHandle &exprhdl) const = 0;
 
 	// derive function properties
 	virtual CFunctionProp *DeriveFunctionProperties(CMemoryPool *mp, CExpressionHandle &exprhdl) const;
@@ -144,14 +146,106 @@ public:
     virtual CXformSet *PxfsCandidates(CMemoryPool *mp) const = 0;
 }
 ```
+## 关系属性
+
+derive约束条件
+
+```C++
+// derive约束条件属性,数据模型中存在约束条件
+// CLogical定义了纯虚函数派生子类需要自定义实现
+virtual CPropConstraint *DerivePropertyConstraint(CMemoryPool *mp,
+    CExpressionHandle &exprhdl) const = 0;
+
+// CLogical提供了默认实现实现获取指定孩子的约束条件
+// 在其上派生的子类, 可以通过该接口实现derive指定孩子的约束条件
+// 例如,窗口CLogicalSequenceProject::DerivePropertyConstraint
+//				-> PpcDeriveConstraintPassThru(exprhdl, 0);
+CPropConstraint * CLogical::PpcDeriveConstraintPassThru(
+    	CExpressionHandle &exprhdl, ULONG ulChild){
+	// return constraint property of child
+	CPropConstraint *ppc = exprhdl.DerivePropertyConstraint(ulChild);
+	if (NULL != ppc) {
+		ppc->AddRef();
+	}
+	return ppc;
+}
+```
+
+`CLogical`算子提供了一些公共函数实现`derive`约束条件。
+
+```C++
+// derive constraint property from a table/index get
+static CPropConstraint *PpcDeriveConstraintFromTable(
+    CMemoryPool *mp, const CTableDescriptor *ptabdesc,
+    const CColRefArray *pdrgpcrOutput);
+
+// derive constraint property from a table/index get with predicates
+static CPropConstraint *PpcDeriveConstraintFromTableWithPredicates(
+    CMemoryPool *mp, CExpressionHandle &exprhdl,
+    const CTableDescriptor *ptabdesc, const CColRefArray *pdrgpcrOutput);
+
+// shorthand to addref and pass through constraint from a given child
+static CPropConstraint *PpcDeriveConstraintPassThru(
+    CExpressionHandle &exprhdl, ULONG ulChild);
+
+// derive constraint property only on the given columns
+static CPropConstraint *PpcDeriveConstraintRestrict(
+    CMemoryPool *mp, CExpressionHandle &exprhdl, CColRefSet *pcrsOutput);
+```
+
+
+
+derive outer reference
+
+```C++
+// Derive outer references
+CColRefSet* CLogical::DeriveOuterReferences(CMemoryPool *mp,
+		CExpressionHandle &exprhdl, CColRefSet *pcrsUsedAdditional) {
+	ULONG arity = exprhdl.Arity();
+	CColRefSet *outer_refs = GPOS_NEW(mp) CColRefSet(mp);
+	
+    // collect output columns from relational children
+	// and used columns from scalar children
+	CColRefSet *pcrsOutput = GPOS_NEW(mp) CColRefSet(mp);
+	CColRefSet *pcrsUsed = GPOS_NEW(mp) CColRefSet(mp);
+	for (ULONG i = 0; i < arity; i++) {
+		if (exprhdl.FScalarChild(i)) {
+			pcrsUsed->Union(exprhdl.DeriveUsedColumns(i));
+		} else {
+			// add outer references from relational children
+			outer_refs->Union(exprhdl.DeriveOuterReferences(i));
+			pcrsOutput->Union(exprhdl.DeriveOutputColumns(i));
+		}
+	}
+
+	if (NULL != pcrsUsedAdditional) {
+		pcrsUsed->Include(pcrsUsedAdditional);
+	}
+
+	// outer references are columns used by scalar child
+	// but are not included in the output columns of relational children
+	outer_refs->Union(pcrsUsed);
+	outer_refs->Exclude(pcrsOutput);
+
+	pcrsOutput->Release();
+	pcrsUsed->Release();
+	return outer_refs;
+}
+```
+
+
+
 ## Project
+
 ```C++
 // Project operator
 class CLogicalProject : public CLogicalUnary
 ```
 ## Agg
+
+
 ```C++
-```C++
+​```C++
 class CLogicalGbAgg : public CLogicalUnary {
 protected:
 	// does local / intermediate / global aggregate generate duplicate values for the same group
@@ -185,7 +279,7 @@ private:
 ```
 # PhysicalOperator
 
-```C++
+​```C++
 class CPhysical : public COperator {
 public:
 	//-------------------------------------------------------------------------------------
@@ -278,6 +372,45 @@ public:
 		CReqdPropPlan *prppInput, ULONG child_index,
 		CDrvdPropArray *pdrgpdpCtxt, ULONG ulOptReq);
 };
+```
+
+```C++
+// Helper, 用于计算child_index孩子的required output columns
+// 需要调用方的ulScalarIndex-th孩子是scalar
+CColRefSet * CPhysical::PcrsChildReqd(CMemoryPool *mp, CExpressionHandle &exprhdl,
+     CColRefSet *pcrsRequired, ULONG child_index, ULONG ulScalarIndex) {
+    pcrsRequired->AddRef();
+    // 通过Hash Map(m_phmrcr)缓存了child的columns request
+    // 构造CReqdColsRequest用于m_phmrcr的查找
+    // HashValue是根据child index计算
+	CReqdColsRequest *prcr =
+        	GPOS_NEW(mp) CReqdColsRequest(pcrsRequired, child_index, ulScalarIndex);
+	CColRefSet *pcrs = NULL;
+	pcrs = m_phmrcr->Find(prcr);
+    // 在缓存的child columns request map中查找成功
+    // 将对应的n-th孩子的required columns直接返回,不用计算
+	if (NULL != pcrs) {
+		prcr->Release();
+		pcrs->AddRef();
+		return pcrs;
+	}
+
+	// 缓存没命中，需要计算
+	pcrs = GPOS_NEW(mp) CColRefSet(mp, *pcrsRequired);
+	if (gpos::ulong_max != ulScalarIndex) {
+		// include used columns and exclude defined columns of scalar child
+		pcrs->Union(exprhdl.DeriveUsedColumns(ulScalarIndex));
+		pcrs->Exclude(exprhdl.DeriveDefinedColumns(ulScalarIndex));
+	}
+
+	// 和child_index-th孩子的output columns取交集
+	pcrs->Intersection(exprhdl.DeriveOutputColumns(child_index));
+
+	// 将计算出的n-th的required columns request信息插入缓存的Hash Map
+	pcrs->AddRef();
+	m_phmrcr->Insert(prcr, pcrs);
+	return pcrs;
+}
 ```
 
 
