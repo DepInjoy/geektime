@@ -1,7 +1,6 @@
 在`Flink`中，执行图按层级顺序分为以下四层
 
-1. `StreamingGraph`：是根据用户通过`Stream API`编写的代码生成的初始流程图，用于表示程序的拓扑结构。`
-   JobGraph`:`StreamGraph`经过优化后生成
+1. `StreamingGraph`：是根据用户通过`Stream API`编写的代码生成的初始流程图，用于表示程序的拓扑结构。`StreamGraph`经过优化后生成`JobGraph`。
 2. `JobGraph`，提交给`JobManager`的数据结构。主要的优化为将多个符合条件的节点链接在一起作为一个节点（任务链`Operator Chains`）后放在一个作业中执行，这样可以减少数据在节点之间流动所需要的序列化/反序列化/传输消耗。
 3. `ExecutionGraph`：`JobManager`根据`JobGraph`生成`ExecutionGraph`，`ExecutionGraph`是`JobGraph`的并行化版本，是调度层最核心的数据结构。
 4. 物理执行图：`JobManager`根据`ExecutionGraph`对任务进行调度后，在各个`TaskManager`上部署作业后形成的“图”，并不是一个具体的数据结构。
