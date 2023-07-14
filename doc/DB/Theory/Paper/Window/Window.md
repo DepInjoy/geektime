@@ -28,7 +28,7 @@ frame_end可以是下面其一:
     CURRENT ROW
     UNBOUNDED FOLLOWING
 ```
-`PARTITION BY`在横向上对表进行分组，`ORDER BY`决定了纵向排序的规则，通过`PARTITION BY`分组后的记录集合称为窗口(代表范围)。可以不指定`PARTITION BY`，如果不指定`PARTITION BY`则表示将整个表作为一个大的窗口来计算。
+`PARTITION BY`在横向上对表进行分组，`ORDER BY`决定了纵向排序的规则，表明分区中的行如何排序，分区中`ORDER BY`相等的行被认为是对等(peers)的，如果没有`ORDER BY`则分区行是无序的，没有隐式的处理顺序，分区中的所有行是对等的。通过`PARTITION BY`分组后的记录集合称为窗口(代表范围)。可以不指定`PARTITION BY`，如果不指定`PARTITION BY`则表示将整个表作为一个大的窗口来计算
 
 `window_function`可能是：
 1. 排名函数，不可以指定frame(窗口范围)。
@@ -69,3 +69,4 @@ frame_end可以是下面其一:
 # 参考资料
 1. [知乎:SQL 窗口函数的优化和执行](https://zhuanlan.zhihu.com/p/80051518)
 2. [Drill:SQL Window Functions Introduction](https://drill.apache.org/docs/sql-window-functions-introduction/)
+3. [MySQL:Window Function Concepts and Syntax](https://dev.mysql.com/doc/refman/8.0/en/window-functions-usage.html)
