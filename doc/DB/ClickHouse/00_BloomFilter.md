@@ -41,38 +41,39 @@ ClickHouse就利用了查表的原理，根据输入的误判率的大小，反�
  * @return std::pair<size_t, size_t>    由m/n和hash函数个数k组成的pair
  */
 static std::pair<size_t, size_t> calculationBestPractices(double max_conflict_probability) {
-    // 查表的最大行数,即m/n的最大值为20
+    // 查表的最大行数,即m/n的最大值为20    
     static const size_t MAX_BITS_PER_ROW = 20;
-    // hash函数的最大个数，即15
+    // hash函数的最大个数，即15    
     static const size_t MAX_HASH_FUNCTION_COUNT = 15;
 
-    // m/n固定,表格中误差率最低对应的k的值
+    // m/n固定,表格中误差率最低对应的k的值    
     static const size_t min_probability_index_each_bits[] =
         {0, 0, 1, 2, 3, 3, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10, 11, 12, 12, 13, 14};
 	// 差误差表格,横轴为m/n,纵轴为k
     static const long double probability_lookup_table[MAX_BITS_PER_ROW + 1]
-        [MAX_HASH_FUNCTION_COUNT] = {
+                [MAX_HASH_FUNCTION_COUNT] = {
             ...... // 省略
     };
-
+    
     // 其中, bits_per_row代表m/n,size_of_hash_functions代表Hash函数个数k
     for (size_t bits_per_row = 1; bits_per_row < MAX_BITS_PER_ROW; ++bits_per_row) {
         // 存在m/n和k的最小误差率小于用户输入的误判率
         if (probability_lookup_table[bits_per_row][min_probability_index_each_bits[bits_per_row]]
-            	<= max_conflict_probability) {
-            // k越大,误差率越小, 这里获取到的是小于用户输入误差率的最大的hash函数个数(k)
+            	            <= max_conflict_ {
+            // k越大,误差率越小, 这里获取到的是小于用户输入误差率的最大的hash函数个数(k)                                                
             size_t max_size_of_hash_functions = min_probability_index_each_bits[bits_per_row];
-            // 从最大的k开始递减，查找最小满足误判率的k值
+            // 从最大的k开始递减，查找最小满足误判率的k值                        
             for (size_t size_of_hash_functions = max_size_of_hash_functions;
-                 	size_of_hash_functions > 0; --size_of_hash_functions)
+                 	                 size_of_hash_functions > 0; --size_o                f_hash_functions)
                 if (probability_lookup_table[bits_per_row][size_of_hash_functions]
-                    	> max_conflict_probability)
+                    	                    > max_conflict_probability)
                     return std::pair<size_t, size_t>(bits_per_row, size_of_hash_functions + 1);
         }
     }
 	// 不存在满足用户要求的误判率的数据，返回最大m/n和k
+    //     也就是表格中最小的误判率对应的m/n和k
     return std::pair<size_t, size_t>(MAX_BITS_PER_ROW - 1, 
-                                     min_probability_index_each_bits[MAX_BITS_PER_ROW - 1]);
+                                                                          min_probability_index_each_bits[MAX_BITS_PER_ROW - 1]);
 }
 ```
 
@@ -103,17 +104,17 @@ public:
     using Container = std::vector<UnderType>;
 private:
    	// 位数组大小
-    size_t size;
-    // Hash函数个数
+        size_t s
+    // Hash函数个数    ize;
     size_t hashes;
-    // hash函数random seed
+    // hash函数random seed    
     size_t seed;
     // 采用UInt64数组进行数据存储,即UInt64数据存储基本单位
     // 根据位数组大小size计算出需要的UInt64的个数即words
-    // 参见BloomFilter的构造函数
+    // 参见BloomFilter的构造函数                
     size_t words;
-    // 位数组空间
-    Container filter;
+    // 位数组空间    
+    Container filter;    
 };
 
 BloomFilter::BloomFilter(size_t size_, size_t hashes_, size_t seed_)
@@ -121,7 +122,7 @@ BloomFilter::BloomFilter(size_t size_, size_t hashes_, size_t seed_)
 	// UnderType即UInt64是位数组空间的基本单位
 	// 向上取整，计算需要的最少的UnderType的个数
     words((size + sizeof(UnderType) - 1) / sizeof(UnderType)),
-    filter(words, 0) {}
+    filter(words, 0) {}    
 ```
 
 
@@ -149,20 +150,20 @@ bool BloomFilter::find(const char * data, size_t len) {
     size_t hash2 = CityHash_v1_0_2::CityHash64WithSeed(data, len, SEED_GEN_A * seed + SEED_GEN_B);
 
     for (size_t i = 0; i < hashes; ++i) {
-        // 按照插入数据的方式计算bit偏移
+        // 按照插入数据的方式计算bit偏移        
         size_t pos = (hash1 + i * hash2 + i * i) % (8 * size);
-        // 存在任意位不在集合中,则判定肯定不存在
+        // 存在任意位不在集合中,则判定肯定不存在        
         if (!(filter[pos / (8 * sizeof(UnderType))] & (1ULL << (pos % (8 * sizeof(UnderType))))))
             return false;
     }
-    // 否则判定数据在集合中
+    // 否则判定数据在集合中    
     return true;
 }
 
 // 判断布隆过滤器是否为空
 UInt64 BloomFilter::isEmpty() const {
     for (size_t i = 0; i < words; ++i)
-        // 存在不为0的元素，则非空
+        // 存在不为0的元素，则非空        
         if (filter[i] != 0) return false;
     return true;
 }
