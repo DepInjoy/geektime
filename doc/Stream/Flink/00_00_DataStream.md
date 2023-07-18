@@ -1086,6 +1086,7 @@ public class ProcTimeDeduplicateKeepLastRowFunction
    ```java
    private abstract static class WatermarkContext<T> implements SourceFunction.SourceContext<T> {
    @Override
+   // 从Source算子接入的数据中抽取事件时间的时间戳信息
    public final void collectWithTimestamp(T element, long timestamp) {
        synchronized (checkpointLock) {
            processAndEmitWatermarkStatus(WatermarkStatus.ACTIVE);
@@ -1100,6 +1101,7 @@ public class ProcTimeDeduplicateKeepLastRowFunction
    }
    
    @Override
+   // 生成Watermark
    public final void emitWatermark(Watermark mark) {
        if (allowWatermark(mark)) {
            synchronized (checkpointLock) {
@@ -1109,7 +1111,7 @@ public class ProcTimeDeduplicateKeepLastRowFunction
                } else {
                    scheduleNextIdleDetectionTask();
                }
-   		   // 处理并发送Watermark至下游的算子继续处理
+   		        // 处理并发送Watermark至下游的算子继续处理
                processAndEmitWatermark(mark);
            }
        }
@@ -1121,10 +1123,11 @@ public class ProcTimeDeduplicateKeepLastRowFunction
 
    也可以在DataStream数据转换的过程中进行相应操作，此时转换操作对应的算子就能使用生成的Timestamp和Watermark信息了。在DataStream API中提供了3种与抽取Timestamp和生成Watermark相关的Function接口，分别为
 
-   1. `TimestampExtractor`：定义抽取Timestamp的方法，在`AssignerWithPeriodicWatermarks`和`AssignerWithPunctuatedWatermarks`接口中定义生成Watermark的方法。
+    `TimestampExtractor`：定义抽取Timestamp的方法，在`AssignerWithPeriodicWatermarks`和`AssignerWithPunctuatedWatermarks`接口中定义生成Watermark的方法。两者最大的区别在于：
 
-   2. `AssignerWithPeriodicWatermarks`:事件时间驱动，会周期性地根据事件时间与当前算子中最大的Watermark进行对比，如果当前的EventTime大于Watermark，则触发Watermark更新逻辑，将最新的EventTime赋予CurrentWatermark，并将新生成的Watermark推送至下游算子。AssignerWithPeriodicWatermarks中生成Watermark的默认周期为0，用户可以根据具体情况对周期进行调整，但周期过大会增加数据处理的时延。
-   3. `AssignerWithPunctuatedWatermarks`。特殊事件驱动，主要根据数据元素中的特殊事件生成Watermark。例如数据中有产生Watermark的标记，接入数据元素时就会根据该标记调用相关方法生成Watermark。
+     `AssignerWithPeriodicWatermarks`:事件时间驱动，会周期性地根据事件时间与当前算子中最大的Watermark进行对比，如果当前的EventTime大于Watermark，则触发Watermark更新逻辑，将最新的EventTime赋予CurrentWatermark，并将新生成的Watermark推送至下游算子。AssignerWithPeriodicWatermarks中生成Watermark的默认周期为0，用户可以根据具体情况对周期进行调整，但周期过大会增加数据处理的时延。
+     
+      `AssignerWithPunctuatedWatermarks`。特殊事件驱动，主要根据数据元素中的特殊事件生成Watermark。例如数据中有产生Watermark的标记，接入数据元素时就会根据该标记调用相关方法生成Watermark。
 
    
 
