@@ -419,7 +419,7 @@ CXformSet * CLogicalSequenceProject::PxfsCandidates(CMemoryPool *mp) const {
 }
 ```
 
-derive statistics
+## derive statistics
 
 ```C++
 IStatistics * CLogicalSequenceProject::PstatsDerive(CMemoryPool *mp,
@@ -428,7 +428,7 @@ IStatistics * CLogicalSequenceProject::PstatsDerive(CMemoryPool *mp,
 }
 
 IStatistics * CLogicalUnary::PstatsDeriveProject(CMemoryPool *mp,
-		CExpressionHandle &exprhdl,UlongToIDatumMap *phmuldatum) const {
+		CExpressionHandle &exprhdl, UlongToIDatumMap *phmuldatum) const {
     // 获取第0个孩子的统计信息
 	IStatistics *child_stats = exprhdl.Pstats(0);
 	CReqdPropRelational *prprel = 
