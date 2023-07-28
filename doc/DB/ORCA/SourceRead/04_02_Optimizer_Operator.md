@@ -3,8 +3,10 @@
 ```C++
 // 逻辑算子
 class CLogical : public COperator;
-// 物理算子
+// 物理算子,有四个属性
+// order, distribution, rewindability and partition propagation
 class CPhysical : public COperator;
+
 class CPattern : public COperator;
 class CScalar : public COperator;
 ```
@@ -413,7 +415,130 @@ CColRefSet * CPhysical::PcrsChildReqd(CMemoryPool *mp, CExpressionHandle &exprhd
 }
 ```
 
+# 物理算子
 
+基类是`CPhysical`
+
+## 属性计算
+
+计算`required`属性，`CReqdPropPlan::Compute -> CPhysical::LookupRequest`
+
+```C++
+// Compute required props
+void CReqdPropPlan::Compute(CMemoryPool *mp, CExpressionHandle &exprhdl,
+       CReqdProp *prpInput, ULONG child_index,
+       CDrvdPropArray *pdrgpdpCtxt, ULONG ulOptReq) {
+    			......
+		popPhysical->LookupRequest(ulOptReq, &ulOrderReq, &ulDistrReq,
+                                   &ulRewindReq, &ulPartPropagateReq);
+    			......
+}
+```
+
+```C++
+void CPhysical::LookupRequest(
+    ULONG ulReqNo,				// input: request number
+	ULONG *pulOrderReq,			// output: order request number
+	ULONG *pulDistrReq,			// output: distribution request number
+	ULONG *pulRewindReq,		// output: rewindability request number
+	ULONG *pulPartPropagateReq	// output: partition propagation request number
+){
+    // m_pdrgpulpOptReqsExpanded存储了属性请求相关信息
+    // 0 : oerder prop
+    // 1 : distribute prop
+    // 2 : rewindability prop
+    // 3 : partition propagation prop
+	ULONG_PTR *pulpRequest = (*m_pdrgpulpOptReqsExpanded)[ulReqNo];
+	*pulOrderReq = (ULONG) pulpRequest[0];
+	*pulDistrReq = (ULONG) pulpRequest[1];
+	*pulRewindReq = (ULONG) pulpRequest[2];
+	*pulPartPropagateReq = (ULONG) pulpRequest[3];
+}
+```
+
+下面来了解一下，`m_pdrgpulpOptReqsExpanded`的初始化和相关计算
+
+```C++
+CPhysical::CPhysical(CMemoryPool *mp) : COperator(mp),m_phmrcr(nullptr), 
+		m_pdrgpulpOptReqsExpanded(nullptr), m_ulTotalOptRequests(1) { // 默认一个属性请求
+	for (ULONG ul = 0; ul < GPOPT_PLAN_PROPS; ul++) {
+		m_rgulOptReqs[ul] = 1;
+	}
+	UpdateOptRequests(0 /*ulPropIndex*/, 1 /*ulOrderReqs*/);
+	m_phmrcr = GPOS_NEW(mp) ReqdColsReqToColRefSetMap(mp);
+}
+
+// CPhysical提供了一系列接口来设置属性请求
+void CPhysical::UpdateOptRequests(ULONG ulPropIndex, ULONG ulRequests) {
+	// 1. 更新属性请求的数量,其中ulPropIndex代表属性，其中
+    //    0 : order 		1 : distribution
+    //	  2 : rewindability  3 : partition propagation
+	m_rgulOptReqs[ulPropIndex] = ulRequests;
+	// 2. 计算并更新request总数量
+	ULONG ulOptReqs = 1;
+	for (ULONG ul = 0; ul < GPOPT_PLAN_PROPS; ul++) {
+		ulOptReqs = ulOptReqs * m_rgulOptReqs[ul];
+	}
+	m_ulTotalOptRequests = ulOptReqs;
+
+	// 3. 更新expanded属性请求, 一组四个属性,计算结果存储在m_pdrgpulpOptReqsExpanded
+    //		结果是一个 ulOrderRequests * ulDistrRequests *
+    //					ulRewindRequests * ulPartPropagateRequests
+    // 		的数组矩阵
+	const ULONG ulOrderRequests = UlOrderRequests();
+	const ULONG ulDistrRequests = UlDistrRequests();
+	const ULONG ulRewindRequests = UlRewindRequests();
+	const ULONG ulPartPropagateRequests = UlPartPropagateRequests();
+
+	CRefCount::SafeRelease(m_pdrgpulpOptReqsExpanded);
+	m_pdrgpulpOptReqsExpanded = nullptr;
+	m_pdrgpulpOptReqsExpanded = GPOS_NEW(m_mp) UlongPtrArray(m_mp);
+	for (ULONG ulOrder = 0; ulOrder < ulOrderRequests; ulOrder++) {
+		for (ULONG ulDistr = 0; ulDistr < ulDistrRequests; ulDistr++) {
+			for (ULONG ulRewind = 0; ulRewind < ulRewindRequests; ulRewind++) {
+				for (ULONG ulPartPropagate = 0; ulPartPropagate <
+                     		ulPartPropagateRequests; ulPartPropagate++) {
+					ULONG_PTR *pulpRequest = GPOS_NEW_ARRAY(
+                        		m_mp, ULONG_PTR, GPOPT_PLAN_PROPS);
+					pulpRequest[0] = ulOrder;
+					pulpRequest[1] = ulDistr;
+					pulpRequest[2] = ulRewind;
+					pulpRequest[3] = ulPartPropagate;
+                      // 存储
+					m_pdrgpulpOptReqsExpanded->Append(pulpRequest);
+				}
+			}
+		}
+	}
+}
+```
+
+CPhysical提供了一系列`SetXXXRequests`接口来设置属性请求
+
+```C++
+class CPhysical : public COperator {
+protected:	
+    // 当前算子为child创建的order请求数量
+    void SetOrderRequests(ULONG ulOrderReqs) {
+		UpdateOptRequests(0 /*ulPropIndex*/, ulOrderReqs);
+	}
+
+	// 当前算子为child创建的distribute请求数量
+	void SetDistrRequests(ULONG ulDistrReqs) {
+		UpdateOptRequests(1 /*ulPropIndex*/, ulDistrReqs);
+	}
+
+    // 当前算子为child创建的rewindability请求数量
+	void SetRewindRequests(ULONG ulRewindReqs) {
+		UpdateOptRequests(2 /*ulPropIndex*/, ulRewindReqs);
+	}
+
+    // 当前算子为child创建的partition propagation请求数量
+	void SetPartPropagateRequests(ULONG ulPartPropagationReqs) {
+		UpdateOptRequests(3 /*ulPropIndex*/, ulPartPropagationReqs);
+	}
+}
+```
 
 # Pattern
 
