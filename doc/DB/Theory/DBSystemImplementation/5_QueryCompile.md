@@ -37,10 +37,10 @@
 关系代数的多个运算符同时满足结合律与交换律,下面这个几个规则对于包和集合都成立。
 $$
 \begin{array}{l}
-R \times S = S \times R; (R \times S)T = R \times (S \times T) \\
-R \Join S = S \Join R; (R \Join S) \Join T = R \Join (S \Join T)\\
-R \cup S = S \cup R; (R \cup S) \cup T = R \cup (S \cup T)\\
-R \cap S = S \cap R; (R \cap S) \cap T = R \cap (S \cap T)\\
+R \times S &=& S \times R && (R \times S)T &=& R \times (S \times T) \\
+R \Join S &=& S \Join R && (R \Join S) \Join T &=& R \Join (S \Join T)\\
+R \cup S &=& S \cup R && (R \cup S) \cup T &=& R \cup (S \cup T)\\
+R \cap S &=& S \cap R && (R \cap S) \cap T &=& R \cap (S \cap T)\\
 \end{array}
 $$
 $\theta$连接可交换
