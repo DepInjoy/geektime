@@ -20,8 +20,129 @@ typedef uint32 TransactionId;
 #define MaxTransactionId			((TransactionId) 0xFFFFFFFF)
 
 typedef uint32 LocalTransactionId;
+
+// 子事务ID,用于设置检查点
 typedef uint32 SubTransactionId;
+#define InvalidSubTransactionId		((SubTransactionId) 0)
+#define TopSubTransactionId			((SubTransactionId) 1)
+
 typedef uint32 CommandId;
+#define FirstCommandId	((CommandId) 0)
+#define InvalidCommandId	(~(CommandId)0)
+```
+
+```C++
+// src/include/access/transam.h
+// 64位, 由epoch(前32位)和TransactionId(后32位)组成
+typedef struct FullTransactionId {
+	uint64		value;
+} FullTransactionId;
+
+#define EpochFromFullTransactionId(x)	((uint32) ((x).value >> 32))
+#define XidFromFullTransactionId(x)		((uint32) (x).value)
+```
+
+
+
+```C++
+// src/backend/access/transam/xact.c
+
+// 子事务实现通过TransactionState的栈操作来实现
+// 每个TransactionState都有一个指向父事务结构的指针(parent)
+typedef struct TransactionStateData {
+  // 
+	FullTransactionId fullTransactionId;	/* my FullTransactionId */
+
+	SubTransactionId subTransactionId;		// 子事务号
+	char	   *name;											// 检查点名称
+	int			savepointLevel; /* savepoint level */
+	TransState	state;			/* low-level state */
+	TBlockState blockState;		/* high-level state */
+	int			nestingLevel;	/* transaction nesting depth */
+	int			gucNestLevel;	/* GUC context nesting depth */
+	MemoryContext curTransactionContext;	/* my xact-lifetime context */
+	ResourceOwner curTransactionOwner;	/* my query resources */
+	TransactionId *childXids;	/* subcommitted child XIDs, in XID order */
+	int			nChildXids;		/* # of subcommitted child XIDs */
+	int			maxChildXids;	/* allocated size of childXids[] */
+	Oid			prevUser;		/* previous CurrentUserId setting */
+	int			prevSecContext; /* previous SecurityRestrictionContext */
+	bool		prevXactReadOnly;	/* entry-time xact r/o state */
+	bool		startedInRecovery;	/* did we start in recovery? */
+	bool		didLogXid;		/* has xid been included in WAL record? */
+	int			parallelModeLevel;	/* Enter/ExitParallelMode counter */
+	bool		chain;			/* start a new block after this one */
+	bool		assigned;		/* assigned to top-level XID */
+	struct TransactionStateData *parent;			// 父事务状态指针
+} TransactionStateData;
+
+typedef TransactionStateData *TransactionState;
+```
+
+
+
+```C++
+// 如果当前没有在执行事务, CurrentTransactionState指向TopTransactionStateData
+static TransactionStateData TopTransactionStateData = {
+	.state = TRANS_DEFAULT,
+	.blockState = TBLOCK_DEFAULT,
+	.assigned = false,
+};
+
+static TransactionState CurrentTransactionState = &TopTransactionStateData;
+
+// 当前子事务号,没创建一个子事务(PushTransaction)自增1
+static SubTransactionId currentSubTransactionId;
+
+static void StartTransaction(void) {
+  // 开始执行第一条SQL之前，假设state stack是空
+	s = &TopTransactionStateData;
+	CurrentTransactionState = s;
+  		......
+}
+```
+
+```C++
+// 为子事务创建TransactionState
+static void PushTransaction(void) {
+  TransactionState p = CurrentTransactionState;
+	TransactionState s;
+  		.......
+  // 分配子事务号
+  currentSubTransactionId += 1;
+ 
+  s->fullTransactionId = InvalidFullTransactionId;
+	s->subTransactionId = currentSubTransactionId;
+	s->parent = p;
+  s->nestingLevel = p->nestingLevel + 1;
+	s->gucNestLevel = NewGUCNestLevel();
+	s->savepointLevel = p->savepointLevel;
+	s->state = TRANS_DEFAULT;
+	s->blockState = TBLOCK_SUBBEGIN;
+	GetUserIdAndSecContext(&s->prevUser, &s->prevSecContext);
+	s->prevXactReadOnly = XactReadOnly;
+	s->parallelModeLevel = 0;
+	s->assigned = false;
+
+	CurrentTransactionState = s;
+}
+
+// 回到父事务
+static void PopTransaction(void) {
+  TransactionState s = CurrentTransactionState;
+  CurrentTransactionState = s->parent;
+  CurTransactionContext = s->parent->curTransactionContext;
+  CurTransactionResourceOwner = s->parent->curTransactionOwner;
+	CurrentResourceOwner = s->parent->curTransactionOwner;
+  			......
+}
+```
+
+
+
+```C++
+// 执行savepoint命令
+void DefineSavepoint(const char *name)
 ```
 
 

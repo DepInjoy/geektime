@@ -11,7 +11,7 @@ SI中不会出现在ANSI SQL-92标准中定义的三种异常，分别是脏读�
 
 在9.0及更低的版本中，可重复读被当作可串行化(它满足了ANSI SQL-92标准)，但9.1版本中SSI的实现可意见检查串行化异常，并解决串行化异常导致的冲突，实现了真正的SERIALIZABLE隔离等级。
 
-PostgreSQL对DML（SELECT、UPDATE、INSERT、DELETE等命令）使用SSI，对DDL （CREATE TABLE等命令）使用2PL。
+PostgreSQL对DML(SELECT、UPDATE、INSERT、DELETE等命令)使用SSI，对DDL(CREATE TABLE等命令)使用2PL。
 
 
 
