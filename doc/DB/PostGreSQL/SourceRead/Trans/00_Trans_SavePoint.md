@@ -101,6 +101,14 @@ typedef TransactionStateData *TransactionState;
 
 ```C++
 // 如果当前没有在执行事务, CurrentTransactionState指向TopTransactionStateData
+// 开启事务时，CurrentTransactionState指向TopTransactionStateData(参见StartTransaction)
+
+// 每创建一个子事务创建TransactionState,其父事务是CurrentTransactionState(相当于压栈)
+// 并将CurrentTransactionState设置为新创建的TransactionState
+// 参见PushTransaction
+
+// 提交子事务时,将CurrentTransactionState设置为CurrentTransactionState->parent(相当于出栈)
+// 参见PopTransaction()
 static TransactionStateData TopTransactionStateData = {
 	.state = TRANS_DEFAULT,
 	.blockState = TBLOCK_DEFAULT,
@@ -110,13 +118,6 @@ static TransactionState CurrentTransactionState = &TopTransactionStateData;
 
 // 当前子事务号,每创建一个子事务(PushTransaction)自增1
 static SubTransactionId currentSubTransactionId;
-
-static void StartTransaction(void) {
-  // 开始执行第一条SQL之前，假设state stack是空
-	s = &TopTransactionStateData;
-	CurrentTransactionState = s;
-  		......
-}
 ```
 
 

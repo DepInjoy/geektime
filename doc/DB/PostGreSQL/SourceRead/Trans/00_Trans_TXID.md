@@ -11,11 +11,10 @@ typedef uint32 TransactionId;
 
 // PG保留了三个特殊的事务ID
 // 0表示无效txid, 1表示初始启动txid, 2表示冻结txid
+// 因此第一个有效的txid是3，最大的txid是2^32-1
 #define InvalidTransactionId		((TransactionId) 0)
 #define BootstrapTransactionId		((TransactionId) 1)
 #define FrozenTransactionId			((TransactionId) 2)
-
-
 #define FirstNormalTransactionId	((TransactionId) 3)
 #define MaxTransactionId			((TransactionId) 0xFFFFFFFF)
 
@@ -42,20 +41,57 @@ typedef struct FullTransactionId {
 #define XidFromFullTransactionId(x)		((uint32) (x).value)
 ```
 
+# WAL
+```C++
+// src/backend/access/transam/xlog.c
 
+// Total shared-memory state for XLOG.
+typedef struct XLogCtlData {
 
+} XLogCtlData;
+
+static XLogCtlData *XLogCtl = NULL;
+```
 
 ```C++
-// 回到父事务
-static void PopTransaction(void) {
-  TransactionState s = CurrentTransactionState;
-  CurrentTransactionState = s->parent;
-  CurTransactionContext = s->parent->curTransactionContext;
-  CurTransactionResourceOwner = s->parent->curTransactionOwner;
-  CurrentResourceOwner = s->parent->curTransactionOwner;
-  			......
+/**
+ * 	CreateSharedMemoryAndSemaphores
+ * 		XLOGShmemInit
+ */
+void XLOGShmemInit(void) {
+			......
+	XLogCtl = (XLogCtlData *)
+		ShmemInitStruct("XLOG Ctl", XLOGShmemSize(), &foundXLog);
+			......
+
+	XLogCtl->XLogCacheBlck = XLOGbuffers - 1;
+	// crash recovery状态
+	XLogCtl->SharedRecoveryState = RECOVERY_STATE_CRASH;
+	XLogCtl->InstallXLogFileSegmentActive = false;
+	XLogCtl->WalWriterSleeping = false;
 }
 ```
+
+```C++
+void StartupXLOG(void) {
+
+}
+```
+
+```C++
+// src/backend/postmaster/startup.c
+StartupProcessMain {
+	StartupXLOG()
+}
+
+// src/backend/utils/init/postinit.c
+InitPostgres {
+	if (!IsUnderPostmaster) {
+		StartupXLOG()
+	}
+}
+```
+# 子事务
 
 
 
@@ -328,9 +364,11 @@ struct PGPROC {
 									 * group member */
 
 	/* Lock manager data, recording fast-path locks taken by this backend. */
+    // 修改fpLocalTransactionId的排他锁,参见VirtualXactLockTableInsert
 	LWLock		fpInfoLock;		/* protects per-backend fast-path state */
 	uint64		fpLockBits;		/* lock modes held for each fast-path slot */
 	Oid			fpRelId[FP_LOCK_SLOTS_PER_BACKEND]; /* slots for rel oids */
+    // 参见VirtualXactLockTableInsert
 	bool		fpVXIDLock;		/* are we holding a fast-path VXID lock? */
 	LocalTransactionId fpLocalTransactionId;	/* lxid for fast-path VXID
 												 * lock */

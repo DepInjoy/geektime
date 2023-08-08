@@ -9,9 +9,7 @@ SI中不会出现在ANSI SQL-92标准中定义的三种异常，分别是脏读�
 | 可重复读 |           不可能            |   不可能   | SQL标准允许，PG中不可能出现 | 可能       | 事务只会在执行第一条命令时获取一次快照 |
 | 可串行化 |           不可能            |   不可能   |           不可能            | 不可能     | 事务只会在执行第一条命令时获取一次快照 |
 
-在9.0及更低的版本中，可重复读被当作可串行化(它满足了ANSI SQL-92标准)，但9.1版本中SSI的实现可意见检查串行化异常，并解决串行化异常导致的冲突，实现了真正的SERIALIZABLE隔离等级。
-
-PostgreSQL对DML(SELECT、UPDATE、INSERT、DELETE等命令)使用SSI，对DDL(CREATE TABLE等命令)使用2PL。
+在9.0及更低的版本中，可重复读被当作可串行化(它满足了ANSI SQL-92标准)，但9.1版本中SSI的实现可意见检查串行化异常，并解决串行化异常导致的冲突，实现了真正的SERIALIZABLE隔离等级。PostgreSQL对DML(SELECT、UPDATE、INSERT、DELETE等命令)使用SSI，对DDL(CREATE TABLE等命令)使用2PL。
 
 
 
@@ -20,8 +18,10 @@ PostgreSQL除了基础的事务能力之外，还提供了子事务的能力，�
 ```sql
 -- 在当前事务内,定义一个savepoint
 SAVEPOINT savepoint_name;
--- 回滚所有在savepoint后执行的命令,实现回滚到指定保存点
+
+-- 回滚所有在savepoint后执行的命令,实现回滚到指定savepoint
 ROLLBACK [ WORK | TRANSACTION ] TO [ SAVEPOINT ] savepoint_name
+
 -- 销毁在当前事务内之前定义的savepoint，这不会导致中间的修改失效
 RELEASE [ SAVEPOINT ] savepoint_name;
 ```
@@ -36,7 +36,7 @@ BEGIN;
     ROLLBACK TO SAVEPOINT my_savepoint;
     INSERT INTO table1 VALUES (3);
 COMMIT;
--- 上面的事务将插入值 1 和 3，但不会插入 2。
+-- 插入1和3，但不会插入 2。
 
 -- 建立并且稍后销毁一个保存点：
 BEGIN;
@@ -45,8 +45,20 @@ BEGIN;
     INSERT INTO table1 VALUES (4);
     RELEASE SAVEPOINT my_savepoint;
 COMMIT;
--- 上面的事务将插入 3 和 4。
+-- 插入 3 和 4。
 ```
+
+
+
+PG的事务系统是一个三层的系统
+
+| 分层   |                                                              | 描述                                                         |
+| ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 顶层   | `BeginTransactionBlock`<br/>`EndTransactionBlock`<br/>`UserAbortTransactionBlock`<br/>`DefineSavepoint`<br/>`RollbackToSavepoint`<br/>`ReleaseSavepoint` | 用户通过`BEGIN,` `COMMIT,` `ROLLBACK`, `SAVEPOINT`, `ROLLBACK TO` ， `RELEASE`等SQL命令触发顶层操作。 |
+| 中间层 | `StartTransactionCommand`<br/>`CommitTransactionCommand`<br/>`AbortCurrentTransaction` | 每个指令执行都会由`postgres.c`在开始和结束发起调用           |
+| 最底层 | `StartTransaction`<br/>`CommitTransaction`<br/>`AbortTransaction`<br/>`CleanupTransaction`<br/>`StartSubTransaction`<br/>`CommitSubTransaction`<br/>`AbortSubTransaction`<br/>`CleanupSubTransaction` |                                                              |
+
+参考[PG源码:src/backend/access/transam/README](https://github.com/postgres/postgres/blob/REL_16_STABLE/src/backend/access/transam/README)
 
 
 
