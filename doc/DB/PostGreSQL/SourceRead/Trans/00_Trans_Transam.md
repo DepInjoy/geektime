@@ -44,7 +44,7 @@ PG处理过程中实际调用的接口
      \      CommitTransaction;
 ```
 
-
+# 中间层事务接口
 
 ```C++
 // 中间层
@@ -131,6 +131,8 @@ static void PopTransaction(void) {
 }
 ```
 
+# 顶层事务接口
+
 PG提供的事务操作的SQL也是命令的一种，下面的事务操作和PG的API的对应关系
 
 | 用户层事务指令 | 实现接口                                     |
@@ -139,7 +141,19 @@ PG提供的事务操作的SQL也是命令的一种，下面的事务操作和PG�
 | `COMMIT`       | `bool EndTransactionBlock(bool chain)`       |
 | `ROLL BACK`    | `void UserAbortTransactionBlock(bool chain)` |
 
-在具体的实现中，这些接口主要是设置事务状态(`TransactionState`)中`blockState`的值，来通知`CommitTransactionCommand`，实际的执行动作由`CommitTransactionCommand`完成。
+在具体的实现中，这些接口主要是设置事务状态(`TransactionState`)中`blockState`的值，来通知`CommitTransactionCommand`，实际的执行动作由`CommitTransactionCommand`执行中，会调用一些事务相关的底层接口。
+
+
+
+| 用户层子事务指令             | 实现接口                                     |
+| :--------------------------- | -------------------------------------------- |
+| `SAVEPOINT savepoint_name`   | `void DefineSavepoint(const char *name)`     |
+| `ROLLBACK TO savepoint_name` | `void RollbackToSavepoint(const char *name)` |
+| `RELEASE savepoit_name`      | `void ReleaseSavepoint(const char *name)`    |
+
+子事务执行完用户命令对应的接口也会给事务状态(`TransactionState`)中`blockState`设置相应的状态值，之也会调用`CommitTransactionCommand`执行一些子事务底层的接口。
+
+## 开启事务
 
 ```C++
 /**
@@ -166,6 +180,10 @@ void BeginTransactionBlock(void) {
 	// 其他,一些异常报错处理,忽略
 }
 ```
+
+
+
+## 提交事务
 
 ```C++
 /**
@@ -228,6 +246,8 @@ bool EndTransactionBlock(bool chain) {
 }
 ```
 
+## 回滚事务
+
 ```C++
 // 执行ROLL BACK指令
 void UserAbortTransactionBlock(bool chain) {
@@ -276,3 +296,6 @@ void UserAbortTransactionBlock(bool chain) {
 	s->chain = chain;
 }
 ```
+
+
+

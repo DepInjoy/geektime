@@ -121,10 +121,20 @@ static SubTransactionId currentSubTransactionId;
 ```
 
 
+
+| 用户层子事务指令             | 实现接口                                     |
+| :--------------------------- | -------------------------------------------- |
+| `SAVEPOINT savepoint_name`   | `void DefineSavepoint(const char *name)`     |
+| `ROLLBACK TO savepoint_name` | `void RollbackToSavepoint(const char *name)` |
+| `RELEASE savepoit_name`      | `void ReleaseSavepoint(const char *name)`    |
+
+
+
 ## 定义子事务
 
 ```C++
 // src/backend/access/transam/xact.c
+// 执行SAVEPOINT savepoint_name
 void DefineSavepoint(const char *name) {
     TransactionState s = CurrentTransactionState;
     if (IsInParallelMode())
@@ -134,7 +144,8 @@ void DefineSavepoint(const char *name) {
     switch (s->blockState) {
 		case TBLOCK_INPROGRESS:
 		case TBLOCK_SUBINPROGRESS:
-            // 开启子事务，主逻辑
+             // 开启子事务，主逻辑
+			// s->blockState = TBLOCK_SUBBEGIN;
 			PushTransaction();
 			s = CurrentTransactionState;
 			if (name)
@@ -204,7 +215,9 @@ void RollbackToSavepoint(const char *name) {
 		ereport(ERROR, (errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
             errmsg("savepoint \"%s\" does not exist within current savepoint level", name)));
 
-    // 2. 从当前TransactionState开始,逐级给blockState设置状态直到target
+    // 2. 从当前事务到target的子事务都回滚
+    //	  逐级给blockState设置状态直到target
+    //	  通知CommitTransactionCommand进行实际执行动作
 	xact = CurrentTransactionState;
 	for (;;) {
         // 回滚到target,退出循环
@@ -213,10 +226,9 @@ void RollbackToSavepoint(const char *name) {
 			xact->blockState = TBLOCK_SUBABORT_PENDING;
 		else if (xact->blockState == TBLOCK_SUBABORT)
 			xact->blockState = TBLOCK_SUBABORT_END;
-		else 
-			elog(FATAL, "RollbackToSavepoint: unexpected state %s",
-				 BlockStateAsString(xact->blockState));
-        // 回退到父事务
+		// 其他 error，忽略
+
+        // 出栈，回退父事务
 		xact = xact->parent;
 	}
 
@@ -225,15 +237,14 @@ void RollbackToSavepoint(const char *name) {
 		xact->blockState = TBLOCK_SUBRESTART;
 	else if (xact->blockState == TBLOCK_SUBABORT)
 		xact->blockState = TBLOCK_SUBABORT_RESTART;
-	else
-		elog(FATAL, "RollbackToSavepoint: unexpected state %s",
-			 BlockStateAsString(xact->blockState));
+	// 其他 error，忽略
 }
 ```
 
 ## 释放子事务
 
 ```C++
+// 执行RELEASE savepoit_name命令
 void ReleaseSavepoint(const char *name) {
 	TransactionState s = CurrentTransactionState;
 	TransactionState target, xact;
