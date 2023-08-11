@@ -1,3 +1,5 @@
+
+
 PG采用栈模式实现子事务，每个事务都有一个`TransactionStateData`，开启事务时，当前事务状态指向`TopTransactionStateData`(参见`StartTransaction`)。
 
 ```C++
@@ -44,7 +46,23 @@ PG处理过程中实际调用的接口
      \      CommitTransaction;
 ```
 
+# 事务相关SQL
+
+```sql
+-- 两阶段事务提交相关指令
+PREPARE TRANSACTION 'transaction_id';
+COMMIT PREPARED transaction_id;
+ROLLBACK PREPARED transaction_id;
+
+-- 事务相关接口
+
+```
+
+
+
 # 中间层事务接口
+
+## 开启事务
 
 ```C++
 // 中间层
@@ -53,6 +71,8 @@ void StartTransactionCommand(void) {
 	switch (s->blockState) {
          // idle,开启事务
 		case TBLOCK_DEFAULT:
+			// 1. 调用底层开启事务的接口
+			//	  之后blockState修改为TBLOCK_STARTED
 			StartTransaction();
 			s->blockState = TBLOCK_STARTED;
 			break;
@@ -73,6 +93,217 @@ void StartTransactionCommand(void) {
 ```
 
 
+
+## 提交事务
+
+```C++
+// 根据当前事务状态(TransactionState)中blockState执行用的操作
+void CommitTransactionCommand(void) {
+	TransactionState s = CurrentTransactionState;
+
+    // 如果是transaction chaining,保存事务的特征
+    //  (isolation level, read only, deferrable)
+    //  新创建的事务沿用之前事务的这些设置
+	if (s->chain) SaveTransactionCharacteristics();
+
+	switch (s->blockState) {
+		case TBLOCK_DEFAULT:
+		case TBLOCK_PARALLEL_INPROGRESS: 
+			// 异常处理，忽略
+			break;
+
+         // 1. 当前没在事务中,执行普通的事务提交
+         //	   回到idle状态(TBLOCK_DEFAULT)
+		case TBLOCK_STARTED:
+			CommitTransaction();
+			s->blockState = TBLOCK_DEFAULT;
+			break;
+
+         // 2. 用户刚执行完BEGIN命令
+         //	   状态切换到进行中(TBLOCK_INPROGRESS)
+		case TBLOCK_BEGIN:
+			s->blockState = TBLOCK_INPROGRESS;
+			break;
+
+         // 当用户在事务中执行命令(例如SELECT)
+         // command counter自增
+		case TBLOCK_INPROGRESS:
+		case TBLOCK_IMPLICIT_INPROGRESS:
+		case TBLOCK_SUBINPROGRESS:
+			CommandCounterIncrement();
+			break;
+
+         // 用户执行COMMIT命令,状态切换到idle(TBLOCK_DEFAULT)
+		case TBLOCK_END:
+			CommitTransaction();
+			s->blockState = TBLOCK_DEFAULT;
+			if (s->chain) { // transaction chaining模式
+				StartTransaction();
+				s->blockState = TBLOCK_INPROGRESS;
+				s->chain = false;
+                  // 将新建的当前事务特征设置为前一个事务的特征
+				RestoreTransactionCharacteristics();
+			}
+			break;
+
+         // do nothing,保持当前状态
+		case TBLOCK_ABORT:
+		case TBLOCK_SUBABORT:
+			break;
+
+         // 用户已经执行ROLLBACK指令
+         // 在顶层接口，对于failed事务(TBLOCK_ABORT->TBLOCK_ABORT_END)
+         // 清理已经终止的事务并回到idle状态(TBLOCK_DEFAULT)
+		case TBLOCK_ABORT_END:
+			CleanupTransaction();
+			s->blockState = TBLOCK_DEFAULT;
+			if (s->chain) {
+				StartTransaction();
+				s->blockState = TBLOCK_INPROGRESS;
+				s->chain = false;
+				RestoreTransactionCharacteristics();
+			}
+			break;
+
+
+         // 用户执行ROLLBACK指令
+         // 在顶层接口(TBLOCK_INPROGRESS -> TBLOCK_ABORT_PENDING)
+         // 调用底层接口abort事务并进行清理
+         // blockState切回到idle(TBLOCK_DEFAULT)
+		case TBLOCK_ABORT_PENDING:
+			AbortTransaction();
+			CleanupTransaction();
+			s->blockState = TBLOCK_DEFAULT;
+			if (s->chain) {
+				StartTransaction();
+				s->blockState = TBLOCK_INPROGRESS;
+				s->chain = false;
+				RestoreTransactionCharacteristics();
+			}
+			break;
+
+         // 用户执行了PREPARE TRANSACTION命令
+         // 调用底层的Prepare事务的接口
+         // blockState切回到idle(TBLOCK_DEFAULT)
+		case TBLOCK_PREPARE:
+			PrepareTransaction();
+			s->blockState = TBLOCK_DEFAULT;
+			break;
+
+         // 用户通过SAVEPOINT savepoint_name定义子事务
+         // DefineSavepoint将blockState修改为TBLOCK_SUBBEGIN
+         // 这里调用开启子事务的底层接口
+		case TBLOCK_SUBBEGIN:
+			StartSubTransaction();
+			s->blockState = TBLOCK_SUBINPROGRESS;
+			break;
+
+         // 用户执行了RELEASE savepoint_name
+         // 调用底层提交子事务接口,事务状态出栈回到父事务
+         // 也许父事务已经结束,循环直到找到一个INPROGRESS事务或子事务
+		case TBLOCK_SUBRELEASE:
+			do {
+                 // 这里调用PopTransaction进行出栈
+                 // 将CurrentTransactionState设置为父事务
+				CommitSubTransaction();
+				s = CurrentTransactionState;
+			} while (s->blockState == TBLOCK_SUBRELEASE);
+			break;
+
+         // 用户执行了COMMIT命令, 当前事务中定义的子事务
+         // (SUBINPROGRESS -> SUBCOMMIT)都会被提交
+		case TBLOCK_SUBCOMMIT:
+			do {
+				CommitSubTransaction();
+				s = CurrentTransactionState;	/* changed by pop */
+			} while (s->blockState == TBLOCK_SUBCOMMIT);
+			/* If we had a COMMIT command, finish off the main xact too */
+			if (s->blockState == TBLOCK_END) {
+				CommitTransaction();
+				s->blockState = TBLOCK_DEFAULT;
+				if (s->chain) {
+					StartTransaction();
+					s->blockState = TBLOCK_INPROGRESS;
+					s->chain = false;
+					RestoreTransactionCharacteristics();
+				}
+			} else if (s->blockState == TBLOCK_PREPARE) {
+				PrepareTransaction();
+				s->blockState = TBLOCK_DEFAULT;
+			}
+			else // 异常,报错
+			break;
+
+         // ROLLBACK或ROLLBACK TO savepoint_name(target)命令
+         // target子事务的父子事务成failed子事务
+         // (执行用户命令时已经进入SUBABORT切换为SUBABORT_END)
+         // 执行底层清理和提交事务的接口
+		case TBLOCK_SUBABORT_END:
+			CleanupSubTransaction();
+			CommitTransactionCommand();
+			break;
+
+		// ROLLBACK或ROLLBACK TO savepoint_name(target)命令
+         // target子事务的父子事务成failed子事务
+         // (当时子事务SUBINPROGRESS切换到SUBABORT_PENDING)
+         // 执行底层的终止子事务和清理
+		case TBLOCK_SUBABORT_PENDING:
+			AbortSubTransaction();
+			CleanupSubTransaction();
+			CommitTransactionCommand();
+			break;
+
+         // ROLLBACK TO savepoint_name(target)命令
+         // target子事务(SUBINPROGRESS->SUBRESTART)
+         // 终止,事务出栈,清理, 定义并开启新的子事务
+		case TBLOCK_SUBRESTART: {
+				char	   *name;
+				int			savepointLevel;
+				name = s->name;
+				s->name = NULL;
+				savepointLevel = s->savepointLevel;
+
+				AbortSubTransaction();
+				CleanupSubTransaction();
+
+				DefineSavepoint(NULL);
+				s = CurrentTransactionState;	/* changed by push */
+				s->name = name;
+				s->savepointLevel = savepointLevel;
+
+				StartSubTransaction();
+				s->blockState = TBLOCK_SUBINPROGRESS;
+			}
+			break;
+
+		 // ROLLBACK TO savepoint_name(target)命令
+         // target子事务(SUBABORT->SUBABORT_RESTART)
+         // 清理, 定义并开启新的子事务
+		case TBLOCK_SUBABORT_RESTART: {
+				char	   *name;
+				int			savepointLevel;
+				name = s->name;
+				s->name = NULL;
+				savepointLevel = s->savepointLevel;
+
+				CleanupSubTransaction();
+
+				DefineSavepoint(NULL);
+				s = CurrentTransactionState;	/* changed by push */
+				s->name = name;
+				s->savepointLevel = savepointLevel;
+
+				StartSubTransaction();
+				s->blockState = TBLOCK_SUBINPROGRESS;
+			}
+			break;
+	}
+}
+```
+
+
+
+# 底层事务接口
 
 ```C++
 static void StartTransaction(void) {
@@ -249,12 +480,12 @@ bool EndTransactionBlock(bool chain) {
 ## 回滚事务
 
 ```C++
-// 执行ROLL BACK指令
+// 执行ROLL BACK指令 
 void UserAbortTransactionBlock(bool chain) {
 	TransactionState s = CurrentTransactionState;
 	switch (s->blockState) {
 		// 事务进行中,设置TBLOCK_ABORT_PENDING
-		// 通知CommitTransactionCommand终止并退出事务
+		// 通知CommitTransactionCommand终止事务并清理
 		case TBLOCK_INPROGRESS:
 			s->blockState = TBLOCK_ABORT_PENDING;
 			break;
