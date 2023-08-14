@@ -126,3 +126,55 @@ string reverseWords(string s) {
     }
     return ans;
 }
+
+/**
+ *  88. 合并两个有序数组
+ *      https://leetcode.cn/problems/merge-sorted-array/description/
+ *      给你两个按非递减顺序 排列的整数数组nums1和nums2，另有两个整数m和n,
+ *      分别表示nums1和nums2中的元素数目.
+ *      请你合并nums2到nums1中，使合并后的数组同样按非递减顺序排列。
+*/
+// 双指针, 时间和空间复杂度均为O(m+n)
+void merge(vector<int>& nums1, int m, vector<int>& nums2, int n) {
+    std::vector<int> ans(m+n);
+    int i = 0, j = 0, k = 0;
+    while ((i < m) && (j < n)) {
+        if (nums1[i] <= nums2[j]) {
+            ans[k++] = nums1[i++];
+        } else {
+            ans[k++] = nums2[j++];
+        }
+    }
+
+    while (i < m) ans[k++] = nums1[i++];
+    while (j < n) ans[k++] = nums2[j++];
+    nums1 = ans;
+}
+
+/**
+ * 逆向双指针,空间复杂度为O(1), 时间复杂度为O(m+n)
+ * 
+ *  在遍历过程中
+ *      nums1有m-1-i个元素放入nums1的尾部
+ *      nums2有n-1-j个元素放入nums2的尾部
+ *      
+ *      在nums1的后面有m+n-1-i个空位
+ * 
+ *      m+n-1-i > (m-1-i) + (n-1-j)
+ * 
+ *      因此不会产生覆盖
+*/
+void merge(vector<int>& nums1, int m, vector<int>& nums2, int n) {
+    int i = m - 1, j = n- 1, k = m + n - 1;
+    while ((i >= 0) && (j >= 0)) {
+        if (nums1[i] >= nums2[j]) {
+            nums1[k--] = nums1[i--];
+        } else {
+            nums1[k--] = nums2[j--];
+        }
+    }
+
+    // 因为nums1本身已经有序
+    // while (i >= 0) nums1[k--] = nums1[i--];
+    while (j >= 0) nums1[k--] = nums2[j--];
+}
