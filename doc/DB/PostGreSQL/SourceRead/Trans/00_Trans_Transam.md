@@ -301,9 +301,21 @@ void CommitTransactionCommand(void) {
 }
 ```
 
+## 终止当前事务
+
+当`SELECT * FROM foo`执行时遇到异常，此时会调用`AbortCurrentTransaction`。
+
+```C++
+void AbortCurrentTransaction(void) {
+	TransactionState s = CurrentTransactionState;
+}
+```
+
 
 
 # 底层事务接口
+
+## 开启事务
 
 ```C++
 static void StartTransaction(void) {
@@ -361,6 +373,13 @@ static void PopTransaction(void) {
   			......
 }
 ```
+
+## 提交事务
+
+```C++
+```
+
+
 
 # 顶层事务接口
 
