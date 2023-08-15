@@ -206,3 +206,21 @@ vector<int> getRow(int rowIndex) {
 }
 
 // todo C(n, m)
+
+/**
+ * 392. 判断子序列(简单)
+ * https://leetcode.cn/problems/is-subsequence/description/
+*/
+// 双指针
+bool isSubsequence(string s, string t) {
+    const int m = s.size(), n = t.size();
+    int i = 0, j = 0;
+    while (i < m && j < n) {
+        if (s[i] == t[j++]) {
+            ++i;
+        }
+    }
+    return i == m;
+}
+
+// 动态规划
