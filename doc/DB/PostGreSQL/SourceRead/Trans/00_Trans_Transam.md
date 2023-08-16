@@ -326,7 +326,8 @@ static void StartTransaction(void) {
     // 当前事务状态取顶层事务状态
 	CurrentTransactionState = s;
 
-    // 事务状态设置为TRANS_START
+    // 1. Set the current transaction state
+    // 底层状态设置为TRANS_START
     s->state = TRANS_START;
 	s->fullTransactionId = InvalidFullTransactionId;
     
@@ -336,25 +337,61 @@ static void StartTransaction(void) {
 	s->nChildXids = 0;
 	s->maxChildXids = 0;
     
+   	if (RecoveryInProgress()) {
+		s->startedInRecovery = true;
+		XactReadOnly = true;
+	} else {
+		s->startedInRecovery = false;
+		XactReadOnly = DefaultXactReadOnly; // false
+	}
+	XactDeferrable = DefaultXactDeferrable; // false
+    // 默认隔离登记RC
+	XactIsoLevel = DefaultXactIsoLevel;
+    // 同步提交
+	forceSyncCommit = false;
+	MyXactFlags = 0;
     
-    	.......
+    // 重新初始化事务内的counter
+	s->subTransactionId = TopSubTransactionId;
+	currentSubTransactionId = TopSubTransactionId;
+	currentCommandId = FirstCommandId; // 0
+	currentCommandIdUsed = false;
 
+    // initialize reported xid accounting
+    nUnreportedXids = 0;
     s->didLogXid = false;
-    
+
     // 为TopTransactionContext申请内存
     // CurTransactionContext和s->curTransactionContext
     // 都指向TopTransactionContext
 	AtStart_Memory();
-    
-    // 创建TopTransaction Resource Owner且s->curTransactionOwner指向它
+    // 创建TopTransaction Resource Owner
+    // s->curTransactionOwner指向它
 	AtStart_ResourceOwner();
     
-    // 
+    // 分配新的LocalTransactionId
     vxid.backendId = MyBackendId;
 	vxid.localTransactionId = GetNextLocalTransactionId();
-	VirtualXactLockTableInsert(vxid);
     
-    // 事务状态设置为TRANS_INPROGRESS
+    // 将vxid保存在MyProc中,这里会上一把MyProc->fpInfoLock排它锁
+	VirtualXactLockTableInsert(vxid);
+    MyProc->lxid = vxid.localTransactionId;
+    
+    if (!IsParallelWorker()) {
+		if (!SPI_inside_nonatomic_context())
+			xactStartTimestamp = stmtStartTimestamp;
+		else xactStartTimestamp = GetCurrentTimestamp();
+	}
+	pgstat_report_xact_timestamp(xactStartTimestamp);
+    
+    xactStopTimestamp = 0;
+   
+	// initialize other subsystems for new transaction
+	AtStart_GUC();
+	AtStart_Cache();
+	AfterTriggerBeginXact();
+    
+    // 底层状态设置为TRANS_INPROGRESS
     s->state = TRANS_INPROGRESS;
 }
 ```
@@ -377,6 +414,23 @@ static void PopTransaction(void) {
 ## 提交事务
 
 ```C++
+static void CommitTransaction(void)
+```
+
+
+
+## 终止事务
+
+```C++
+static void AbortTransaction(void)
+```
+
+
+
+## 清理事务
+
+```C++
+static void CleanupTransaction(void)
 ```
 
 

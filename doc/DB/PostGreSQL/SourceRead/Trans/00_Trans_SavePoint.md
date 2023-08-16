@@ -53,7 +53,7 @@ COMMIT;
 
 PG的子事务是栈模式，每次新创建子事务就压栈进去。而如果当前事务中如果有多个子事务，则前一个子事务是它后面一个子事务的父事务（parent）；通过不断地压栈和出栈，修改事务块状态实现子事务的定义、回滚、提交。
 
-# 子事务源码解读
+# 事务状态
 ```C++
 // 子事务ID,用于设置检查点
 typedef uint32 SubTransactionId;
@@ -74,9 +74,11 @@ typedef struct TransactionStateData {
 	char	   *name;                       // savepoint名称
 	int			savepointLevel;             // 等于父事务的savepoint level
 
-	TransState	state;			/* low-level state */
-	TBlockState blockState;		/* high-level state */
-	int			nestingLevel;	            // 事务嵌套深度, 等于父事务的nestingLevel+1
+    // PG的事务系统设计为三层,顶层为用户操作,底层是触发实际的事务执行
+	TransState	state;					// 底层事务状态
+	TBlockState blockState;				 // 顶层状态,在中间层CommitTransactionCommand
+ 									   // 调用底层接口触发实际执行
+	int			nestingLevel;		   	// 事务嵌套深度, 等于父事务的nestingLevel+1
 	int			gucNestLevel;	/* GUC context nesting depth */
 
     MemoryContext curTransactionContext;	/* my xact-lifetime context */
@@ -129,6 +131,8 @@ static SubTransactionId currentSubTransactionId;
 | `RELEASE savepoit_name`      | `void ReleaseSavepoint(const char *name)`    |
 
 
+
+# 顶层子事务接口
 
 ## 定义子事务
 
@@ -269,6 +273,134 @@ void ReleaseSavepoint(const char *name) {
 	}
 }
 ```
+
+
+
+# 底层子事务接口
+
+PG提供了一个子事务的callback函数`SubXactCallbackItem *SubXact_callbacks`并提供了`RegisterSubXactCallback`和`UnregisterSubXactCallback`来Register和unregister子事务的callback函数之后在开启和结束子事务操作的时候通过`CallSubXactCallbacks`来触发函数调用。
+
+```C++
+// 单向链表
+typedef struct SubXactCallbackItem {
+	struct SubXactCallbackItem *next;
+	SubXactCallback callback;
+	void	   *arg;
+} SubXactCallbackItem;
+
+// 初始化为空
+static SubXactCallbackItem *SubXact_callbacks = NULL;
+```
+
+```C++
+// Register和unregister子事务的callback函数
+// 在开启和结束子事务通过CallSubXactCallbacks接口触发函数调用
+void RegisterSubXactCallback(SubXactCallback callback, void *arg) {
+	SubXactCallbackItem *item;
+	item = (SubXactCallbackItem *)
+		MemoryContextAlloc(TopMemoryContext, sizeof(SubXactCallbackItem));
+	item->callback = callback;
+	item->arg = arg;
+	item->next = SubXact_callbacks;
+	SubXact_callbacks = item;
+}
+
+void UnregisterSubXactCallback(SubXactCallback callback, void *arg) {
+	SubXactCallbackItem *item;
+	SubXactCallbackItem *prev;
+
+	prev = NULL;
+	for (item = SubXact_callbacks; item; prev = item, item = item->next) {
+		if (item->callback == callback && item->arg == arg) {
+			if (prev) prev->next = item->next;
+			else SubXact_callbacks = item->next;
+			pfree(item);
+			break;
+		}
+	}
+}
+```
+
+```C++
+// 封装调用子事务callback函数
+static void CallSubXactCallbacks(SubXactEvent event,
+		SubTransactionId mySubid, SubTransactionId parentSubid) {
+	SubXactCallbackItem *item;
+	for (item = SubXact_callbacks; item; item = item->next)
+		item->callback(event, mySubid, parentSubid, item->arg);
+}
+```
+
+在PG FWD(访问外部数据)有相关的注册和调用
+
+```C++
+// contrib/postgres_fdw/connection.c
+PGconn * GetConnection(UserMapping *user, bool will_prep_stmt,
+                       PgFdwConnState **state) {
+    if (ConnectionHash == NULL) {
+        ......
+        RegisterSubXactCallback(pgfdw_subxact_callback, NULL);
+    }
+}
+```
+
+
+
+## 开启子事务
+
+```C++
+static void StartSubTransaction(void) {
+	TransactionState s = CurrentTransactionState;
+	
+    s->state = TRANS_START;
+	// 1. Initialize subsystems for new subtransaction
+    // 	  initialize resource-management stuff first
+	AtSubStart_Memory(); // 创建CurTransactionContext
+    // 为当前子事务创建resource owner
+	AtSubStart_ResourceOwner();
+	AfterTriggerBeginSubXact();
+
+	// 2. 更新底层状态
+	s->state = TRANS_INPROGRESS;
+
+    // 3. Call start-of-subxact callbacks
+	CallSubXactCallbacks(SUBXACT_EVENT_START_SUB, s->subTransactionId,
+						 s->parent->subTransactionId);
+}
+```
+
+
+
+## 提交子事务
+
+```C++
+static void CommitSubTransaction(void) {
+	TransactionState s = CurrentTransactionState;
+
+    // 1. Pre-commit subxact callbakcs
+	CallSubXactCallbacks(SUBXACT_EVENT_PRE_COMMIT_SUB, s->subTransactionId,
+						 s->parent->subTransactionId);
+    	......
+}
+```
+
+
+
+## 终止子事务
+
+```C++
+static void AbortSubTransaction(void)
+```
+
+
+
+## 清理子事务
+
+```C++
+static void CleanupSubTransaction(void)
+```
+
+
 
 # 参考资料
 
