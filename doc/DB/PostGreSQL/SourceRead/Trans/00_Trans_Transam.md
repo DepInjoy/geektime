@@ -394,20 +394,10 @@ static void StartTransaction(void) {
     // 底层状态设置为TRANS_INPROGRESS
     s->state = TRANS_INPROGRESS;
 }
-```
 
-
-
-```C++
-// 回到父事务
-static void PopTransaction(void) {
-  TransactionState s = CurrentTransactionState;
-  CurrentTransactionState = s->parent;
-  // 设置当前事务memory context
-  CurTransactionContext = s->parent->curTransactionContext;
-  CurTransactionResourceOwner = s->parent->curTransactionOwner;
-  CurrentResourceOwner = s->parent->curTransactionOwner;
-  			......
+void AfterTriggerBeginXact(void) {
+	afterTriggers.firing_counter = (CommandId) 1;	/* mustn't be 0 */
+	afterTriggers.query_depth = -1;
 }
 ```
 

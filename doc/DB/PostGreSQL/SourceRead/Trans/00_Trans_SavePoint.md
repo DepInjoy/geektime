@@ -130,8 +130,6 @@ static SubTransactionId currentSubTransactionId;
 | `ROLLBACK TO savepoint_name` | `void RollbackToSavepoint(const char *name)` |
 | `RELEASE savepoit_name`      | `void ReleaseSavepoint(const char *name)`    |
 
-
-
 # 顶层子事务接口
 
 ## 定义子事务
@@ -384,6 +382,19 @@ static void CommitSubTransaction(void) {
 }
 ```
 
+```C++
+// 回退父事务
+static void PopTransaction(void) {
+  TransactionState s = CurrentTransactionState;
+  CurrentTransactionState = s->parent;
+  // 设置当前事务memory context
+  CurTransactionContext = s->parent->curTransactionContext;
+  CurTransactionResourceOwner = s->parent->curTransactionOwner;
+  CurrentResourceOwner = s->parent->curTransactionOwner;
+  			......
+}
+```
+
 
 
 ## 终止子事务
@@ -398,6 +409,91 @@ static void AbortSubTransaction(void)
 
 ```C++
 static void CleanupSubTransaction(void)
+```
+
+# 子事务ID分配
+- 事务ID都是在写发生之前申请，savepoint语句并不会产生事务ID。
+- 子事务ID和事务ID使用一套分配机制，区别是申请完了记录的位置不同：
+	- 普通事务ID只有一个记录在`PGPROC->xid`中。
+	- 子事务ID可能有多个（申请多个检查点），多个值记录在`PGPROC->subxids`数组中，同时每个PGPROC维护一个`subxidStates`，记录有多少个子事务、子事务数量是不是已经超了(最多存64个)
+
+```C++
+// 这里会确保父事务有XID,之后子事务分配XID
+static void AssignTransactionId(TransactionState s) 
+```
+
+
+
+# 子事务顶层事务查找
+
+如果快照中子事务信息溢出，那么需要遍历SLRU页面一层层遍历直到找到顶层事务id(参见`XidInMVCCSnapshot`相关调用)。
+
+```C++
+// 遍历SLRU页面寻找最顶层的事务id(存在性能问题)
+TransactionId SubTransGetTopmostTransaction(TransactionId xid) {
+	TransactionId parentXid = xid, previousXid = xid;
+	while (TransactionIdIsValid(parentXid)) {
+		previousXid = parentXid;
+		if (TransactionIdPrecedes(parentXid, TransactionXmin)) break;
+         // 遍历SLRU页面寻找父事务txid
+		parentXid = SubTransGetParent(parentXid);
+	}
+	return previousXid;
+}
+
+TransactionId SubTransGetParent(TransactionId xid) {
+	int			pageno = TransactionIdToPage(xid);
+	int			entryno = TransactionIdToEntry(xid);
+	int			slotno;
+	TransactionId *ptr, parent;
+
+	/* Bootstrap and frozen XIDs have no parent */
+	if (!TransactionIdIsNormal(xid)) return InvalidTransactionId;
+
+	// SimpleLruReadPage_ReadOnly
+    //	 > (shared->control LW_EXCLUSIVE)
+    //	 > SimpleLruReadPage
+    //      > SimpleLruWaitIO
+    //	    > (shared->buffer_locks[slotno].lock LW_EXCLUSIVE)
+	slotno = SimpleLruReadPage_ReadOnly(SubTransCtl, pageno, xid);
+	ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
+	ptr += entryno;
+	parent = *ptr;
+
+	LWLockRelease(SubtransSLRULock);
+	return parent;
+}
+```
+
+
+
+# 子事务两阶段提交
+
+子事务的事务提交时，需要把涉及到的所有子事务全部提交掉。按照`TransactionIdSetTreeStatus`函数的逻辑：
+
+- 如果子事务状态和顶层事务全部在一个CLOG页面，那么拿一个CLOG锁就可以了。
+- 如果子事务状态和父事务不在一个CLOG页面上，由于每次只拿一个页面的锁，操作变成了两阶段，第一阶段把所有子事务改成`TRANSACTION_STATUS_SUB_COMMITTED`。当所有子事务都为`TRANSACTION_STATUS_SUB_COMMITTED`后，在修改父事务状态为`TRANSACTION_STATUS_COMMITTED`，再把子事务状态配置为`TRANSACTION_STATUS_COMMITTED`。
+    
+
+```C++
+// src/backend/access/transam/clog.c
+/*
+ * Example:
+ *		TransactionId t commits and has subxids t1, t2, t3, t4
+ *		t is on page p1, t1 is also on p1, t2 and t3 are on p2, t4 is on p3
+ *		1. update pages2-3:
+ *					page2: set t2,t3 as sub-committed
+ *					page3: set t4 as sub-committed
+ *		2. update page1:
+ *					set t1 as sub-committed,
+ *					then set t as committed,
+ *					then set t1 as committed
+ *		3. update pages2-3:
+ *					page2: set t2,t3 as committed
+ *					page3: set t4 as committed
+ */
+void TransactionIdSetTreeStatus(TransactionId xid, int nsubxids,
+		TransactionId *subxids, XidStatus status, XLogRecPtr lsn)
 ```
 
 
