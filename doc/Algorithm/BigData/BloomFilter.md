@@ -84,7 +84,7 @@ $$
 集合大小n、哈希函数的个数k和位数组大小m和误判率之间的关系:
 $$
 \begin{array}{c}
-误判率pfp= (1−e^\frac{-kn}{m})^k
+误判率pfp & \approx & (1−e^\frac{-kn}{m})^k
 \end{array}
 $$
 
