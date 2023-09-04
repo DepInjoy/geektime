@@ -47,17 +47,17 @@ void CJobFactory::Release(CJob *pj)
 Job类图
 ```plantuml
 @startuml
-CJobGroup <|-- CJob
-CJobGroupExploration <|-- CJobGroup
-CJobGroupImplementation <|-- CJobGroup
-CJobGroupOptimization <|-- CJobGroup
+CJobGroup --|> CJob
+CJobGroupExploration --|> CJobGroup
+CJobGroupImplementation --|> CJobGroup
+CJobGroupOptimization --|> CJobGroup
 
-CJobTransformation <|- CJob
+CJobTransformation -right-|> CJob
 
-CJob --|> CJobGroupExpression
-CJobGroupExpression --|> CJobGroupExpressionExploration
-CJobGroupExpression --|> CJobGroupExpressionImplementation
-CJobGroupExpression --|> CJobGroupExpressionOptimization
+CJob <|-- CJobGroupExpression
+CJobGroupExpression <|-- CJobGroupExpressionExploration
+CJobGroupExpression <|-- CJobGroupExpressionImplementation
+CJobGroupExpression <|-- CJobGroupExpressionOptimization
 @enduml
 ```
 
