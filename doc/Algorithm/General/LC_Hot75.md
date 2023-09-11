@@ -87,3 +87,76 @@ int maxProfit(vector<int>& prices, int fee) {
     return profit;
 }
 ```
+
+[605. 种花问题](https://leetcode.cn/problems/can-place-flowers/description)
+
+```C++
+    bool canPlaceFlowers(vector<int>& flowerbed, int n) {
+        int pre = -1, cnt = 0;
+        const int m = flowerbed.size();
+        for (int j = 0; j < m; ++j) {
+            if (flowerbed[j]) {
+                if (pre == -1) {
+                    cnt += j >> 1;
+                } else {
+                    cnt +=  (j - pre - 2) >> 1;
+                }
+
+                if (cnt >= n) return true;
+                pre = j;
+            }
+        }
+
+        if (pre == -1) {
+            // 如果没有任何花朵,则有m个位置可以种花,最多可以种(m+1)/2朵花
+            cnt += (m + 1) >> 1;
+        } else {
+            cnt += (m - pre - 1) >> 1;
+        }
+        return cnt >= n;
+    }
+```
+
+[\334. 递增的三元子序列](https://leetcode.cn/problems/increasing-triplet-subsequence/description)
+
+```C++
+bool increasingTriplet(vector<int>& nums) {
+    int first = nums[0], second = INT_MAX;
+    for (int i = 1; i < nums.size(); ++i) {
+        if (nums[i] > second) {
+            return true;
+        } else if (nums[i] <= first) {
+            first = nums[i];
+        } else {
+            second = nums[i];
+        }
+    }
+    return false;
+}
+```
+
+[443. 压缩字符串](https://leetcode.cn/problems/string-compression/description)
+
+```C++
+int compress(vector<char>& chars) {
+    int i = 0, write = 0;
+    const int n = chars.size();
+    for (int j = 0; j < n; ++j) {
+        if (j == n -1 || chars[j] != chars[j+1]) {
+            chars[write++] = chars[j];
+            int cnt = (j - i + 1);
+            if (cnt > 1) {
+                int start = write;
+                while (cnt > 0) {
+                    chars[write++] = (cnt % 10) + '0';
+                    cnt /= 10;
+                }
+                std::reverse(chars.begin() + start, chars.begin() + write);
+            }
+            i = j + 1;
+        }
+    }
+    return write;
+}
+```
+
