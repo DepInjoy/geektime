@@ -88,6 +88,7 @@ int maxProfit(vector<int>& prices, int fee) {
 }
 ```
 
+<<<<<<< Updated upstream
 [605. 种花问题](https://leetcode.cn/problems/can-place-flowers/description)
 
 ```C++
@@ -160,3 +161,63 @@ int compress(vector<char>& chars) {
 }
 ```
 
+=======
+[124. 二叉树中的最大路径和](https://leetcode.cn/problems/binary-tree-maximum-path-sum/description/)
+```C++
+int maxPathSum(TreeNode* root, int& maxSum) {
+    if (!root) return 0;
+    int leftMax = std::max(0, maxPathSum(root->left, maxSum));
+    int rightMax = std::max(0, maxPathSum(root->right, maxSum));
+    maxSum = std::max(maxSum, root->val + leftMax + rightMax);
+    return root->val + std::max(leftMax, rightMax);
+}
+
+int maxPathSum(TreeNode* root) {
+    int maxSum = INT_MIN;
+    maxPathSum(root, maxSum);
+    return maxSum;
+}
+```
+[1493. 删掉一个元素以后全为 1 的最长子数组](https://leetcode.cn/problems/longest-subarray-of-1s-after-deleting-one-element/description)
+
+```C++
+// 递推
+int longestSubarray(vector<int>& nums) {
+    const int n = nums.size();
+    std::vector<int> pre(n), suf(n);
+    pre[0] = nums[0], suf[n-1] = nums[n-1];
+    for (int i = 1; i < n; ++i) {
+        pre[i] = (nums[i] == 1 ? pre[i-1] + 1 : 0);
+    }
+
+    for (int i = n - 2; i >= 0; --i) {
+        suf[i] = (nums[i] == 1 ? suf[i + 1] + 1 : 0);
+    }
+
+    int ans  = 0;
+    for (int i = 0; i < n; ++i) {
+        int preSum = (i == 0 ? 0 : pre[i-1]);
+        int sufSum = (i == n - 1 ? 0 : suf[i+1]);
+        ans = std::max(ans, preSum + sufSum);
+    }
+    return ans;
+}
+
+// 优化递推
+int longestSubarray(vector<int>& nums) {
+    int pre = 0, cur = 0, ans = 0;
+    for (auto num : nums) {
+        if (num == 1) {
+            ++pre, ++cur;
+        } else {
+            cur = pre;
+            pre = 0;
+        }
+        ans = std::max(ans, cur);
+    }
+
+    if (ans == nums.size()) --ans;
+    return ans;
+}
+```
+>>>>>>> Stashed changes
