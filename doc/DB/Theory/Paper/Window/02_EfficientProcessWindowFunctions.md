@@ -1,3 +1,11 @@
+现代 DBMS 大多支持并行执行。对于窗口函数，由于各个分区之间的计算完全不相关，我们可以很容易地将各个分区分派给不同的节点(线程)，从而达到**分区间并行**。但是，如果窗口函数只有一个全局分区(无 `PARTITION BY` 子句)，或者分区数量很少、不足以充分并行时，怎么办呢？
+
+[Efficient Processing of Window Functions in Analytical SQL Queries](http://www.vldb.org/pvldb/vol8/p1058-leis.pdf)提出使用线段树(Segment Tree)实现高效分区内并行。
+
+
+
+>  
+>
 >  Our algorithm is optimized for high-performance main memory database systems and has excellent performance on modern multi-core CPUs. We show how to fully parallelize all phases of the operator in order to effectively scale for arbitrary input distributions.
 
 本文提出的算法对高性能主存数据库系统进行了优化，在现代多核CP 上具有出色的性能。本文展示了如何完全并行化运算符的所有阶段，以便有效地扩展任意输入分布。
