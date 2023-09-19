@@ -1,3 +1,35 @@
+[104. 二叉树的最大深度](https://leetcode.cn/problems/maximum-depth-of-binary-tree/)
+
+```C++
+// 深度优先搜索
+int maxDepth(TreeNode* root) {
+    if (!root) return 0;
+    return std::max(maxDepth(root->left), maxDepth(root->right)) + 1;
+}
+
+// 广度优先搜索
+    int maxDepth(TreeNode* root) {
+        if (!root) return 0;
+        int ans = 0;
+        std::queue<TreeNode*> q;
+        q.push(root);
+        while (!q.empty()) {
+            int cnt = q.size();
+            while (cnt--) {
+                TreeNode* cur = q.front();
+                q.pop();
+                if (cur->left) q.push(cur->left);
+                if (cur->right) q.push(cur->right);
+            }
+            ++ans;
+        }
+        return ans;
+    }
+```
+
+
+
+
 
 [1768. 交替合并字符串](https://leetcode.cn/problems/merge-strings-alternately/)
 
