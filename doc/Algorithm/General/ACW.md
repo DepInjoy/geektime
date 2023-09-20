@@ -798,3 +798,345 @@ int main() {
     return 0;
 }
 ```
+
+
+
+# 搜索和图论
+
+## DFS
+[842. 排列数字](https://www.acwing.com/problem/content/844/)
+> 给定一个整数 n，将数字 1∼n 排成一排，将会有很多种排列方法。现在，请你按照字典序将所有的排列方法输出
+
+```C++
+#include <vector>
+#include <iostream>
+
+void dfs(int pos, const int n, std::vector<int> &path,
+        std::vector<int>& st) {
+    if (pos == n) {
+        for (int i = 0 ; i < n; ++i) {
+            std::cout << path[i] << " ";
+        }
+        std::cout << std::endl;
+        return;
+    }
+    
+    for (int i = 1; i <= n; ++i) {
+        if (!st[i]) {
+            path[pos] = i;
+            st[i] = true;
+            dfs(pos + 1, n, path, st);
+            st[i] = false;
+        }
+    }
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    std::vector<int> path(n), st(n+1);
+    dfs(0, n, path, st);
+    return 0;
+}
+```
+
+[843. n-皇后问题](https://www.acwing.com/problem/content/845/)
+
+[n-皇后问题(按行枚举或按每个元素枚举)](https://www.acwing.com/solution/content/2820/) 这个解析不错
+
+
+
+逐行尝试
+
+```C++
+#include <vector>
+#include <iostream>
+
+void dfs(const int x, const int n, std::vector<std::vector<char>>& q,
+        std::vector<bool>& col, std::vector<bool>& dg, std::vector<bool>& udg) {
+    // 已经搜索了n行,输出
+    if (x == n) {
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                std::cout << q[i][j];
+            }
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
+        return;
+    }
+    
+    for (int y = 0; y < n; ++y) {
+        // 剪枝(列, 对角线和反对角线都没有放皇后)放皇后尝试下一行
+        if (!col[y] && !dg[x + y] && !udg[n - x + y]) {
+            q[x][y] = 'Q';
+            col[y] = dg[x + y] = udg[n - x + y] = true;
+            dfs(x+1, n, q, col, dg, udg);
+            // 恢复现场
+            q[x][y] = '.';
+            col[y] = dg[x + y] = udg[n - x + y] = false;
+        }
+    }
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    std::vector<std::vector<char>> q(n, std::vector<char>(n, '.'));
+    // 对角线和反对角线是否放皇后
+    std::vector<bool> dg(2*n), udg(2*n);
+    // 列是否放皇后
+    std::vector<bool> col(n);
+    dfs(0, n, q, col, dg, udg);
+    return 0;
+}
+```
+逐个尝试法
+
+```C++
+#include <vector>
+#include <iostream>
+
+void dfs(int x, int y, int cnt, const int n, std::vector<std::vector<char>>& q,
+            std::vector<bool>& row, std::vector<bool>& col,
+            std::vector<bool>& dg, std::vector<bool>& udg) {
+    if (y == n) y = 0, ++x;
+    // 放了超过n个皇后
+    if (cnt > n) return;
+    // 最后一行且恰好放了n个皇后,才是有效结果
+    if (x == n) {
+        if (cnt == n) {
+            for (int i = 0; i < n; ++i) {
+                for (int j = 0; j < n; ++j) {
+                    std::cout << q[i][j];
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+        }
+        return;
+    }
+
+
+    // 分支1:[x][y]放皇后
+    if (!row[x] && !col[y] && !dg[x + y] && !udg[n - x + y]) {
+        q[x][y] = 'Q';
+        row[x] = col[y] = dg[x + y] = udg[n - x + y] = true;
+        dfs(x, y+1, cnt + 1, n, q, row, col, dg, udg);
+        q[x][y] = '.';
+        row[x] = col[y] = dg[x + y] = udg[n - x + y] = false;
+    }
+
+    // 分支2: [x][y]不放皇后
+    dfs(x, y+1, cnt, n, q, row, col, dg, udg);
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    std::vector<std::vector<char>> q(n, std::vector<char>(n, '.'));
+    // 反对角线和对角线上是否存在皇后
+    std::vector<bool> dg(2*n), udg(2*n);
+    // 行和列上是否存在皇后
+    std::vector<bool> col(n), row(n);
+    dfs(0, 0, 0, n, q, row, col, dg, udg);
+    return 0;
+}
+```
+
+## BFS
+[844. 走迷宫](acwing.com/problem/content/846/)
+
+# 基础
+
+## 位运算
+```C++
+// 求n的第k位数字
+n >> k & 1
+
+// 返回n的最后一位1
+lowbit(n) = n & -n
+```
+
+[801. 二进制中1的个数](https://www.acwing.com/problem/content/803/)
+> 给定一个长度为n的数列，请你求出数列中每个数的二进制表示中1的个数。
+
+```C++
+#include <iostream>
+
+int bits(int val) {
+    int cnt = 0;
+    while (val) {
+        ++cnt;
+        val -= (val & (~val + 1)); // val & -val
+    }
+    return cnt;
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    while (n--) {
+        int val;
+        scanf("%d", &val);
+        std::cout << bits(val) << " ";
+    }
+    return 0;
+}
+```
+
+##  离散化
+```C++
+vector<int> alls; // 存储所有待离散化的值
+sort(alls.begin(), alls.end()); // 将所有值排序
+alls.erase(unique(alls.begin(), alls.end()), alls.end());   // 去掉重复元素
+
+// 二分求出x对应的离散化的值
+// 找到第一个大于等于x的位置
+int find(int x) {
+    int l = 0, r = alls.size() - 1;
+    while (l < r) {
+        int mid = l + r >> 1;
+        if (alls[mid] >= x) r = mid;
+        else l = mid + 1;
+    }
+    return r + 1; // 映射到1, 2, ...n
+}
+```
+
+[802. 区间和](https://www.acwing.com/problem/content/804/)
+> 假定有一个无限长的数轴，数轴上每个坐标上的数都是 0。
+> 现在，我们首先进行 n 次操作，每次操作将某一位置 x 上的数加 c。
+> 接下来，进行 m 次询问，每个询问包含两个整数 l 和 r，你需要求出在区间 [l,r] 之间的所有数的和。
+
+```C++
+#include <iostream>
+#include <algorithm>
+#include <vector>
+
+using PII = std::pair<int, int>;
+
+
+const int N = 300010;
+int a[N], s[N]; // 分别存储插入后的数据和前缀和
+std::vector<PII> add, query; // 分别存储插入和查询请求
+
+int find(int pos, std::vector<int>& alls) {
+    int l = 0, r = alls.size() - 1;
+    while (l < r) {
+        int mid = l + ((r - l) >> 1);
+        if (alls[mid] >= pos) {
+            r = mid;
+        } else {
+            l = mid + 1;
+        }
+    }
+    return r + 1;
+}
+
+int main() {
+    int n, m;
+    scanf("%d%d", &n, &m);
+    query.reserve(m);
+
+    // 存储所有待离散化的值
+    std::vector<int> alls;
+    alls.reserve(n + 2 * m);
+    for (int i = 0;i < n; ++i) {
+        int x, c;
+        scanf("%d%d", &x, &c);
+        add.push_back({x,c});
+        alls.push_back(x);
+    }
+    
+    for (int i = 0; i < m; ++i) {
+        int l, r;
+        scanf("%d%d", &l, &r);
+        query.push_back({l, r});
+        alls.push_back(l), alls.push_back(r);
+    }
+    
+    // 排序去重
+    std::sort(alls.begin(), alls.end());
+    alls.erase(std::unique(alls.begin(), alls.end()), alls.end());
+    
+    // 将数据映射到一个稠密空间，建立插入后数据a
+    for (auto item : add) {
+        int index = find(item.first, alls);
+        a[index] += item.second;
+    }
+    
+    // 构造前缀和
+    for (int i = 1; i <= alls.size(); ++i) {
+        s[i] = s[i-1] + a[i];
+    }
+    
+    // 处理查询
+    for (auto item : query) {
+        int l = find(item.first, alls), r = find(item.second, alls);
+        std::cout << s[r] - s[l-1] << std::endl;
+    }
+    return 0;
+}
+```
+
+## 区间合并
+[803. 区间合并](https://www.acwing.com/problem/content/805/)
+> 给定 n个区间 [li,ri]，要求合并所有有交集的区间。注意如果在端点处相交，也算有交集。输出合并完成后的区间个数。例如：[1,3]和[2,6]可以合并为一个区间 [1,6]。
+
+```C++
+#include <vector>
+#include <climits>
+#include <algorithm>
+#include <iostream>
+
+typedef std::pair<int, int> PII;
+
+void merge(std::vector<PII>& segs) {
+    std::vector<PII> ans;
+    std::sort(segs.begin(), segs.end());
+    int start = INT_MIN, end = INT_MIN;
+    for (auto& seg : segs) {
+        if (end < seg.first) {
+            if (start != INT_MIN) ans.push_back({start, end});
+            start = seg.first, end = seg.second;
+        } else {
+            end = std::max(end, seg.second);
+        }
+    }
+    
+    if (start != INT_MIN) ans.push_back({start, end});
+    segs = ans;
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    std::vector<PII> segs(n);
+    for (int i = 0; i < n; ++i) {
+        int l, r;
+        scanf("%d%d", &l, &r);
+        segs[i] = {l, r};
+    }
+    
+    merge(segs);
+    std::cout << segs.size() << std::endl;
+    return 0;
+}
+```
+
+# 数据结构
+
+## 堆
+
+[838. 堆排序](https://www.acwing.com/problem/content/840/0)
+
+
+
+[模拟堆](https://www.acwing.com/problem/content/841/)
+
+s
