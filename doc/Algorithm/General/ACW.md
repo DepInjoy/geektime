@@ -1,3 +1,4 @@
+[ACW算法基础课](https://www.acwing.com/activity/content/introduction/11/)
 # 动态规划
 
 ## 背包问题
@@ -1132,9 +1133,74 @@ int main() {
 # 数据结构
 
 ## 堆
+代码模板
+```C++
+// h[N]存储堆中的值, h[1]是堆顶，x的左儿子是2x, 右儿子是2x + 1
+// ph[k]存储第k个插入的点在堆中的位置
+// hp[k]存储堆中下标是k的点是第几个插入的
+int h[N], ph[N], hp[N], size;
+
+// 交换两个点，及其映射关系
+void heap_swap(int a, int b) {
+    swap(ph[hp[a]],ph[hp[b]]);
+    swap(hp[a], hp[b]);
+    swap(h[a], h[b]);
+}
+
+void down(int u) {
+    int t = u;
+    if (u * 2 <= size && h[u * 2] < h[t]) t = u * 2;
+    if (u * 2 + 1 <= size && h[u * 2 + 1] < h[t]) t = u * 2 + 1;
+    if (u != t) {
+        heap_swap(u, t);
+        down(t);
+    }
+}
+
+void up(int u) {
+    while (u / 2 && h[u] < h[u / 2]) {
+        heap_swap(u, u / 2);
+        u >>= 1;
+    }
+}
+
+// O(n)建堆
+for (int i = n / 2; i; i -- ) down(i);
+```
 
 [838. 堆排序](https://www.acwing.com/problem/content/840/0)
+```C++
+#include <iostream>
+#include <vector>
 
+void down(std::vector<int>& heap, int pos, int size) {
+    int npos = pos;
+    if (2*pos <= size && heap[2*pos] < heap[npos]) npos = 2 * pos;
+    if (2*pos+1 <= size && heap[2*pos+1] < heap[npos]) npos = 2 * pos + 1;
+    if (npos != pos) {
+        std::swap(heap[pos], heap[npos]);
+        down(heap, npos, size);
+    }
+}
+
+int main() {
+    int n, m;
+    scanf("%d%d", &n, &m);
+    
+    int size = n;
+    std::vector<int> h(n+1);
+    for (int i = 1; i <= n; ++i) scanf("%d", &h[i]);
+    
+    for (int i = n/2; i > 0; --i) down(h, i, size);
+    
+    while (m--) {
+        std::cout << h[1] << " ";
+        h[1] = h[size--];
+        down(h, 1, size);
+    }
+    return 0;
+}
+```
 
 
 [模拟堆](https://www.acwing.com/problem/content/841/)
