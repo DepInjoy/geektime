@@ -1,7 +1,8 @@
 查询处理器必须采取三大步骤
-1. 对使用诸如SQL的某种语言书写的查询进行语法分析，亦即将查询语句转换成安某种有用方式表示查询语句结构的语法树
-2. 将语法分析树转换成关系代数表达式树(或某种类似标记)，称之为逻辑查询计划
-3. 逻辑查询计划必须转换成物理查询计划，物理查询计划不仅指明了要执行的操作，而且找出了这些操作执行的顺序、执行每步所用算法、获得所储存数据的方式以及数据从一个操作符传递给另外一个操作的方式
+1. 对使用诸如SQL的某种语言书写的查询进行语法分析，亦即<b><font color=FF7D33>将查询语句转换成安某种有用方式表示查询语句结构的语法树。</font></b>
+2. 将语法分析树转换成关系代数表达式树(或某种类似标记)，称之为逻辑查询计划。<b><font color=FF7D33>语法分析树如何转换成初始逻辑计划？关系代数中的代数定律？代数定律如何应用到改进初始的逻辑计划？</font></b>
+3. 逻辑查询计划必须转换成物理查询计划，物理查询计划不仅指明了要执行的操作，而且找出了这些操作执行的顺序、执行每步所用算法、获得所储存数据的方式以及数据从一个操作符传递给另外一个操作的方式。<b><font color=FF7D33>每个逻辑计划产生物理计划必须估计每个可选计划的预估代价。如何使用代价评估一个计划？多个关系连接顺序引出的特殊问题？荀泽物理查询计划的各种问题和策略：算法选择以及采用流水线处理还是物化方法？</font></b>
+
 ```plantuml
 @startuml
 :查询;
@@ -17,18 +18,28 @@
 ## 语法分析与语法分析树
 语法分析器的工作是接手类似SQL的语言编写的文本并将它转化成语法分析树，该树的节点对应于一下两者之一：
 1. 原子：它们是词法成分，如关键字(SELECT)、关系或属性名字、常数、括号、运算符(如+或<)以及其他模式成分
-2. 语法类：在一个查询中起类似作用的查询子成分所形成的族的名称。用尖括号将描述性名称括起来表示语法类，如<Query>用于表示常用的select-from-where形式查询。
+2. 语法类：在一个查询中起类似作用的查询子成分所形成的族的名称。用尖括号将描述性名称括起来表示语法类，如`<Query>`用于表示常用的select-from-where形式查询，`<Condition>`用于表示属于条件的任何表达式，例如跟在SQL语句WHERE之后的表达式，`<Pattern>`可以用任何一个用引号括起来的字符串替换，该字符串是一个合肥的SQL匹配模式。
+```sql
+WHERE birthdate LIKE '%1960'
+
+            <Condition>
+         /        |        \
+   <Attribute>   LIKE     <Pattern>
+         |                    |
+      birthdate            '%1960'
+```
+
+<b><font color=FF7D33>如果结点是原子，则该结点没有子结点，若该节点是一个语法类，则其子结点通过该语言的语法规则之一进行描述。如何设计一个语言语法以及如何进行语法分析属于编译课程内容</font></b>
 
 ## 预处理
 预处理有多个重要功能：
-1.查询语句中用到的关系实际上是虚视图，则在from列表中用到该关系的地方必须用描述该视图的语法树来替换，该语法树由视图定义得到，本质上就是一个查询语句。
+1. 查询语句中用到的关系实际上是虚视图，则在from列表中用到该关系的地方必须用描述该视图的语法树来替换，该语法树由视图定义得到，本质上就是一个查询语句。如果查询中运算对象是虚视图，预处理器需要将这个运算对象替换成表示这个视图是怎样由基本表构造出来的语法树。
+
 2. 负责语义检查。即使查询语句语法有效，实际上它可能在名称使用上违反一条或多条语义检查，例如，预处理器必须：
    1. 检查关系的使用。FROM子句中出现的关系必须是当前模式中的关系或视图。
    2. 检查与解析属性的使用。SELECT子句或WHERE子句中提到的每个属性必须是当前范围某个关系的属性。
-   3. 检查类型。所有属性的类型必须与其使用相适应。
+   3. <b>检查类型</b>。所有属性的类型必须与其使用相适应。
 
-## 预处理涉及视图的查询
-如果查询中运算对象是虚视图，预处理器需要将这个运算对象替换成表示这个视图是怎样由基本表构造出来的语法树。
 
 # 用于改进查询计划的代数定律
 
@@ -51,12 +62,16 @@ $$
 包与集合的定律可能不同，下面是适合于集合，但不适合于包的定律：
 $$
 \begin{array}{l}
-A \cap_s(B \cup_s C) = (A \cap_s B) \cup_s (A \cap_s C) -- 交对并的分配律\\
-(R \cap S) - T = R \cap (S - T) \\
-R \cap (S \cup T) = (R \cap S) \cup (R \cap T) \\
-\sigma_{C \ or \ D}(R) = \sigma_C(R) \cup \sigma_D(R),C和D是任意有关R的元组条件
+A \cap_s(B \cup_s C) &=& (A \cap_s B) \cup_s (A \cap_s C) -- 交对并的分配律\\
+\\ 
+(R \cap S) - T &=& R \cap (S - T) \\
+R \cap (S \cup T) &=& (R \cap S) \cup (R \cap T) \\
+\sigma_{C \ or \ D}(R) &=& \sigma_C(R) \cup \sigma_D(R),C和D是任意有关R的元组条件
 \end{array}
 $$
+
+例如，包A,B,C均为{x}, $A \cap_s(B \cup_s C) = \{x\},(A \cap_s B) \cup_s (A \cap_s C) = \{x,x\} $
+
 
 
 下面这些定律对包和集合运算都有效
@@ -64,14 +79,14 @@ $$
 并对于交的分配律:
 $$
 \begin{array}{l}
- R \cup (S \cap T) = (R \cup S) \cap (R \cup T) \\
+ R \cup (S \cap T) &=& (R \cup S) \cap (R \cup T) \\
 \end{array}
 $$
 此外还有
 $$
 \begin{array}{l}
-\pi_L(R \cup S) = \pi_L(R) \cup \pi_L(S)，L是任意属性列表 \\
-\sigma_{C \ AND \ D}(R) = \sigma_C(R) \cap \sigma_D(R), C和D是任意有关R的元组条件
+\pi_L(R \cup S) &=& \pi_L(R) \cup \pi_L(S)，L是任意属性列表 \\
+\sigma_{C \ AND \ D}(R) &=& \sigma_C(R) \cap \sigma_D(R), C和D是任意有关R的元组条件
 \end{array}
 $$
 
@@ -82,58 +97,60 @@ $$
 $\sigma$运算符的分解定律：
 $$
 \begin{array}{l}
-\sigma_{C_1 AND C_2}(R) = \sigma_{C_1}(\sigma_{C_2}(R)) \\
-\sigma_{C_1 OR C_2}(R) = (\sigma_{C_1}(R)) \cup_S (\sigma_{C_2}(R)),其中R是集合才成立\\
+\sigma_{C_1 \ AND \  C_2}(R) &=& \sigma_{C_1}(\sigma_{C_2}(R)) \\
+\sigma_{C_1 \ OR \ C_2}(R) &=& (\sigma_{C_1}(R)) \cup_S (\sigma_{C_2}(R)),其中R是集合才成立\\
 \end{array}
 $$
 
 更一般地，我们可以任意交换$\sigma$运算符的顺序
 $$
 \begin{array}{l}
-\sigma_{C_1}(\sigma_{C_2}(R)) = \sigma_{C_2}(\sigma_{C_1}(R))
+\sigma_{C_1}(\sigma_{C_2}(R)) &=& \sigma_{C_2}(\sigma_{C_1}(R))
 \end{array}
 $$
 
 $$
 \begin{array}{l}
-\sigma_C(R \cup S) = \sigma_C(R) \cup \sigma_C(S)\\
-\sigma_C(R - S) = \sigma_C(R) - S \\
-\sigma_C(R - S) = \sigma_C(R) - \sigma_C(S) \\
+\sigma_C(R \cup S) &=& \sigma_C(R) \cup \sigma_C(S)\\
+\sigma_C(R - S) &=& \sigma_C(R) - S \\
+\sigma_C(R - S) &=& \sigma_C(R) - \sigma_C(S) \\
 \end{array}
 $$
 
 假设关系R具有C中提及的全部属性，可以有如下的定律：
 $$
 \begin{array}{l}
-\sigma_C(R \times S) = \sigma_C(R) \times S \\
-\sigma_C(R \Join S) = \sigma_C(R) \Join S \\
-\sigma_C(R \Join_D S) = \sigma_C(R) \Join_D  S \\
-\sigma_C(R \cap S) = \sigma_C(R) \cap S \\
+\sigma_C(R \times S) &=& \sigma_C(R) \times S \\
+\sigma_C(R \Join S) &=& \sigma_C(R) \Join S \\
+\sigma_C(R \Join_D S) &=& \sigma_C(R) \Join_D  S \\
+\sigma_C(R \cap S) &=& \sigma_C(R) \cap S \\
 \end{array}
 $$
 如果C只涉及S的属性，则可以有：
 $$
-\sigma_C(R \times S) = R \times \sigma_C(S) \\
+\begin{array}{l}
+\sigma_C(R \times S) &=& R \times \sigma_C(S) \\
+\end{array}
 $$
 如果关系R和S恰好都包含了C属性，则有如下的定律：
 $$
 \begin{array}{l}
-\sigma_C(R \Join S) = \sigma_C(R) \Join \sigma_C(S) \\
-\sigma_C(R \Join_D S) = \sigma_C(R) \Join_D  \sigma_C(S) \\
-\sigma_C(R \cap S) = \sigma_C(R) \cap \sigma_C(S) \\
+\sigma_C(R \Join S) &=& \sigma_C(R) \Join \sigma_C(S) \\
+\sigma_C(R \Join_D S) &=& \sigma_C(R) \Join_D  \sigma_C(S) \\
+\sigma_C(R \cap S) &=& \sigma_C(R) \cap \sigma_C(S) \\
 \end{array}
 $$
 
-## 下推选择
-## 涉及投影的定律
-投影也可以像选择一样细腿给多个其他的运算符中。与下推投影与下推选择不同，当下推投影时，投影留在原处很平常。换句话说，下推投影确实涉及在一个已经存在的投影之下的某个地方引入一个新的投影。
 
-下推投影有用，但一般情况下不如下推选择那么有用，原因是选择通常以较大的因子减少关系的大小，儿投影不改变元组数，只减少元组长度。
+
+## 涉及投影的定律
+投影也可以像选择一样下推给多个其他的运算符中。与下推投影与下推选择不同，当下推投影时，投影留在原处很平常。换句话说，下推投影确实涉及在一个已经存在的投影之下的某个地方引入一个新的投影。下推投影有用，但一般情况下不如下推选择那么有用，原因是选择通常以较大的因子减少关系的大小，而投影不改变元组数，只减少元组长度。
 
 为描述使用扩展投影的转换，引入一些术语。考虑投影列表中的项$E \longrightarrow x$,其中$E$是一个属性或含有属性与常量的一个表达式。我们称$E$中提到的全部属性是投影的输入属性，$x$是一个输出属性。若一个项是单个属性的，则它即是输入属性又是输出属性。如果一个投影列表的属性构成不包含更名或不是单个属性的表达式，则我们称该投影是简单的。
+
 例：投影$\pi_{a, b, c}(R)是简单的，$a, b, c$既是输入属性又是输出属性，但$$\pi_{a+b \longrightarrow x, c}(R)$不是简单的，其输入属性是$a, b, c$，而输出属性是$x和c$。
 
-例1. 投影$\pi_{a, b, c}(R)$是简单的，$a, b, c$既是输入属性又是输出属性，但$\pi_{a+b \longrightarrow x, c}(R)$不是简单的，其输入属性是$a, b, c$，输出属性是$x和c$
+
 
 **投影定律背后隐藏的原理是：我们可以在表达式树上的任何地方引入投影，只要它所消除的属性是其上的运算符从来不会用到的，并且也不在整个表达式的结果之中。**
 
@@ -157,7 +174,7 @@ $$
 \pi_L(R \cup_B S) = \pi_L(R) \cup_B \pi_L(S)
 \end{array}
 $$
-与此相反，投影不能被下推到集合并或集合、包的交或差之下。例如：
+与此相反，**投影不能被下推到集合并或集合、包的交或差之下。**例如：
 令$R(a, b)$由一个元组${(1, 2)}$组成，$S(a, b)$由一个元组${(1, 3)}$组成，则$\pi_a(R \cap S) = \pi(\oslash)= \oslash $，然而，$\pi_a(R) \cap \pi_a(S) = {(1)} \cap {(1)} = {(1)}$
 
 例3. 令关系$R(a, b, c)$与$S(c, d, e)$是关系，考虑连接与投影$\pi_{a+b \longrightarrow x, d+e \longrightarrow y}(R \Join S)$。可以将$a+b$更名为x直接转移到关系R上，类似将$d+e$转移到S上，得到等价表达式$\pi_{x, y}(\pi_{a+b \longrightarrow x, c}(R) \Join \pi_{d+e \longrightarrow y, c}(S)) $
@@ -168,32 +185,96 @@ $\pi_{L}(\sigma_{c}(R)) = \pi_L(\sigma_{c}(\pi_{M}(R)))$,其中M是L的输入数
 ## 有关连接与积的定律
 $$
 \begin{array}{l}
-R \Join_c S = \sigma_{c}(R \times S) \\
-R \Join S = \pi_L(\sigma_c(R \times S)),其中条件C是R和S中具有相同名字的属性对进行等值比较，L是包含R与S中每一个等值对中一个属性以及其他所有属性的列表。
+R \Join_c S &=& \sigma_{c}(R \times S) \\
+\\
+R \Join S &=& \pi_L(\sigma_c(R \times S))
+\\其中, 条件C是R和S中具有相同名字的属性对进行等值比较
+\\L是包含R与S中每一个等值对中一个属性以及其他所有属性的列表。
 \end{array}
 $$
 
+
+
 ## 有关消除重复的定律
+
 运算符$\delta$用于从包中消除重复。一般而言，将$\delta$移到树的下边减少了种间关系的大小从而可能是有益的，此外，有时会把$\delta$移到一个可以完全消除的位置，因为它作用于一个不含重复元组的关系上。
 - 若$R$没有重复，则$\delta(R)=R$,这样的关系$R$的几个重要的情形有：
    - 声明了主键的一个存储关系
    - 属于$\gamma$运算结果的一个关系，因为分组创建一个没有重复的关系
    - 集合的一个并、交、差运算结果
-- $\delta(R \times S) = \delta(R) \times \delta(S)$
-- $\delta(R \Join S) = \delta(R) \Join \delta(S)$
-- $\delta(R \Join_c S) = \delta(R) \Join_c \delta(S)$
-- $\delta(\sigma_c(R)) = \sigma_c(\delta(R))$
-- $\delta(R \cap_B S) = \delta(R) \cap_B S = R \cap_B \delta(S) = \delta(R) \cap_B \delta(S)$可以将$\delta$移到交运算的其中一个或两个参数上
+
+其他运算符中下推$\delta$的定律
+$$
+\begin{array}{l}
+\delta(R \times S) &=& \delta(R) \times \delta(S) \\
+\delta(R \Join S) &=& \delta(R) \Join \delta(S) \\
+\delta(R \Join_c S) &=& \delta(R) \Join_c \delta(S) \\
+\delta(\sigma_c(R)) &=& \sigma_c(\delta(R)) \\
+\\
+\delta(R \cap_B S) &=& \delta(R) \cap_B S  &=& R \cap_B \delta(S)  &=&\delta(R) \cap_B \delta(S) 
+\end{array}
+$$
+
 
 ## 涉及分组与聚集的定律
-考虑到$\gamma$时，很多变换应用取决于所用聚集运算符的细节，因此，一般不能像运用其他运算符定律那样描述它的通用定律。而下面的定律是通用的
+
+考虑到$\gamma$分组运算时，很多变换应用取决于所用聚集运算符的细节，因此，一般不能像运用其他运算符定律那样描述它的通用定律。而下面的定律是通用的
 - $\gamma$吸收$\delta$,即$\delta(\gamma_L(R)) = \gamma_L(R)$
 - 在运用$\gamma$运算符前，只要需要，可以用投影在参数中去除无用的属性。即$\gamma_L(R) = \gamma_L(\pi_M(R))$，其中$M$是至少包含$L$中所提到的所有R属性的列表。
 
-其他变换依赖于$\gamma$运算符之中的聚集，某些聚集例如$MIN$和$MAX$不受重复值是否存在的影响，而另外一些聚集如$SUM, COUNT, AVG$等受是否存在重复值的影响，如果在计算聚集之前消除重复一般会得到不同的值。
-
-因此，我们称运算符$\gamma_L$是不受重复影响的。如果$L$中仅有的聚集是$MIN与/或MAX$，于是有：
+其他变换依赖于$\gamma$运算符之中的聚集，某些聚集例如`MIN`和`MAX`不受重复值是否存在的影响，而另外一些聚集如`SUM, COUNT, AVG`等受是否存在重复值的影响，如果在计算聚集之前消除重复一般会得到不同的值。因此，我们称运算符$\gamma_L$是不受重复影响的。如果$L$中仅有的聚集是`MIN`与/或`MAX​`，于是有：
 $\gamma_L(R) = \gamma_L(\delta(R))$,其中$\gamma_L$是不受重复值影响的。
+
+```sql
+SELECT movieYear, MAX(birthdate)
+	FROM MoviewStar, StarsIn
+	WHERE name = starName
+	Group BY movieYear;
+```
+
+
+
+```
+γ_{movieYear, MAX(birthdate)}					
+			|
+	σ_{name = starName}			
+			|
+			x
+		 /      \
+   MoviewStar 	  StarsIn
+```
+
+初步逻辑计划，之后将选择和笛卡尔积组合成一个等值连接，在$\gamma$中引入$\delta$，$\gamma$不受重复影响，得到下面的查询计划
+
+````
+γ_{movieYear, MAX(birthdate)}
+			|
+	π_{name = starName}
+			|
+			δ
+			|
+	innerJoin_on_{name = starName}
+		 /      \
+   MoviewStar 	  StarsIn
+````
+
+将$\delta$下推到等值连接之下并引入$\pi$
+
+```
+	γ_{movieYear, MAX(birthdate)}
+				|
+		π_{name = starName}
+				|
+	innerJoin_on_{name = starName}
+		 /		 		 \
+         δ				  δ
+		|		   		  |
+π_{birthdate,name}	π_{movieYear, starname}
+		|				  |						
+     MoviewStar   		StarsIn
+```
+
+
 
 # 从语法分析树到逻辑查询计划
 构造完成查询语句的语法分析树接下来需要把语法分析树转换成逻辑查询计划，这需要分两步：
@@ -218,11 +299,21 @@ SELECT movietitle
    <img src="./img/ParserTree-LogicalPlan.png">
    <div><b>语法分析树转换成代数表达式树，在代数表达式树应用代数定律重写实现对逻辑查询计划的改进和丰富</b></div>
 </center>
-
 ## 2. 从条件中去除子查询
+
+对于`<Condition>`中包含子查询的语法树，引入运算符中间形式，它介于语法分析树的语法类和作用到关系上的关系代数运算符之间，该运算符通常被称为两参数选择。一般不允许选择运算符$\sigma_C$中C包含子查询，大部分情形下，即便是相关子查询也无需对相关子查询也无需对每个元组重新计算。
+
+
 
 ## 3. 逻辑查询计划改进
 当我们将查询语句转换为关系代数时，便获得了一个可能的逻辑查询计划，下一步是用代数定律重写计划。
+
+优化器中经常用到的改进逻辑计划的策略：
+
+1. 选择尽可能深地推入到表达式树中。如果一个选择条件是多个条件的AND，则可以把该条件分解并分别将每个条件下推。
+2. 投影可被下推到树中，或新的投影可被加入
+3. 重复消除有时可以小区或移到树中更方便的位置
+4. 某些选择可以与其下面的积结合以便把运算对转换成等值连接，一般而言计算等值连接比分别计算两个运算有效得多。
 
 # 运算代价的估算
 

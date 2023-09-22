@@ -551,16 +551,17 @@ $\forall (t\in r)(F(t))$表示$t \in r$对r中的每个t进行F(t)检验
 <b><font color="orange">元组演算等价性变换 </font></b>
 
  $\neg$、$\wedge$，$\vee$运算间的等价性
+
 $$
 \begin{array}{l}
 P1 \wedge P2 \Longleftrightarrow \neg(\neg P1 \vee P2 ) \\
 n个否定的或操作的再否定，便是n个肯定的与操作 \\
-
 \\
 P1 \vee P2 \Longleftrightarrow \neg(\neg P1 \wedge \neg P2) \\
 n个否定的与操作的再否定，便是n个肯定的或操作\\
 \end{array}
 $$
+
 $\exists$、$\forall$, $\neg$运算间的等价
 $$
 \forall(t \in R)(P(t)) \Longleftrightarrow \neg(\exists(t \in R)(\neg P(t))) \\
@@ -610,7 +611,7 @@ $$
 
 关系运算的安全性：不产生无限关系和无穷验证的运算被称为是安全的。
 
-- **关系代数是一种集合运算，是安全的。**集合本身是有限的，有限元素集合的有限次运算仍旧是有限的。
+- **关系代数是一种集合运算，是安全的。** 集合本身是有限的，有限元素集合的有限次运算仍旧是有限的。
 - **关系演算不一定是安全的**。例如$\{ t | \neg(R(t)) \}, \{ t | R(t) \vee t[2]>3 \}$可能表示无限关系。$R(t)$是有限的，但不在$R(t)$中的元素就可能是无限的，后例中的$t[2]>3$是无限的。再例如：$(\exists u(\omega(u)),(\forall u)(\omega(u))$可能导致无穷验证，前者被称为“假验证”，即验证所有元素是否都使得$\omega(u)$为false；后者被称为“真验证”，即验证所有元素是否都使得$\omega(u)$为true。检验所有元素就可能造成无穷。
 
 - 需要对关系演算施加约束条件，即任何公式都在一个集合范围内操作，而不是无限范围内操作，才能保证其安全性。
