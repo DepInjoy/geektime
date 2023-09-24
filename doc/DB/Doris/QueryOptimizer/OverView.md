@@ -61,7 +61,9 @@ SELECT * FROM A, B WHERE A.colocate column = B.colocate column;
 
 Doris是基于MPP架构实现的，在使用COUNT DISTINCT做精准去重时，可以保留明细数据，灵活性较高；但是，在查询过程中需要进行多次数据重分布，会导致性能随着数据量增大而直线下降。
 
-Doris中的BITMAP技术采用Roaring Bitmap（高效压缩位图，简称为RBM，是普通Bitmap的进化）实现。对于稀疏的BITMAP，存储空间显著降低。BITMAP去重涉及的计算包括对给定下标的bit置位，统计BITMAP的bit置位0和1的个数，分别为O(1)操作和O(n)操作，并且后者可使用clzL、ctz等指令高效计算。此外，BITMAP去重在MPP执行引擎中还可以并行处理，每个计算节点各自计算本地子BITMAP，使用bitor操作（位或操作，即比特位的或计算）将这些子BITMAP合并成最终的BITMAP。bitor操作比基于Sort和基于Hash的去重效率要高，无条件依赖和数据依赖，可向量化执行。需要注意，BITMAP INDEX和BITMAP去重都是利用的BITMAP技术，但引入动机和解决的问题完全不同，前者用于低基数的枚举型列的等值条件过滤，后者用于计算一组数据行的指标列的不重复元素的个数。
+Doris中的BITMAP技术采用Roaring Bitmap（高效压缩位图，简称为RBM，是普通Bitmap的进化）实现。对于稀疏的BITMAP，存储空间显著降低。BITMAP去重涉及的计算包括对给定下标的bit置位，统计BITMAP的bit置位0和1的个数，分别为O(1)操作和O(n)操作，并且后者可使用clzL、ctz等指令高效计算。此外，BITMAP去重在MPP执行引擎中还可以并行处理，每个计算节点各自计算本地子BITMAP，使用bitor操作（位或操作，即比特位的或计算）将这些子BITMAP合并成最终的BITMAP。bitor操作比基于Sort和基于Hash的去重效率要高，无条件依赖和数据依赖，可向量化执行。
+
+<b>需要注意，BITMAP INDEX和BITMAP去重都是利用的BITMAP技术，但引入动机和解决的问题完全不同，前者用于低基数的枚举型列的等值条件过滤，后者用于计算一组数据行的指标列的不重复元素的个数。</b>
 
 BITMAP列只能存在于聚合表中。创建表时，用户可指定指标列的数据类型为BITMAP，指定聚合函数为BITMAP_UNION。当在BITMAP类型列上使用COUNT DISTINCT时，Doris会自动转化为BITMAP_UNION_COUNT计算。
 
@@ -73,6 +75,33 @@ BITMAP列只能存在于聚合表中。创建表时，用户可指定指标列�
 
 
 # HLL近似去重
+
+在现实场景中，随着数据量的增大，对数据进行去重分析的压力会越来越大。当数据规模大到一定程度时，精准去重的成本会比较高。HyperLogLog（简称HLL）是一种近似去重算法，它的特点是具有非常优异的空间复杂度$O(mloglogn)$，时间复杂度为$O(n)$，计算结果误差可控制在1%～10%内，且误差与数据集大小以及所采用的哈希函数有关，它能够使用极少的存储空间计算一个数据集的不重复元素的个数。
+
+```sql
+CREATE TABLE test_hll(
+	dt 	DATE,
+    id	INT,
+    uv	HLL	HLL_UNION
+) AGGREGATE KEY(dt, id)
+DISTRIBUTED BY HASH(ID) BUCKETS 1
+PROPERTIES(
+	"replication_num" = "1",
+    "storage_format" = "DEFAULT"
+);
+
+-- 数据量很大时,最好为高频率HLL查询建立对应的ROLLUP表
+ALTER TABLE test_hll ADD ROLLUP hll_pv(dt, id);
+-- 之后导图数据，就可以开始查询
+```
+
+```sql
+-- 求总uv
+SELECT HILL_UNION_AGG(uv) FROM test_hll;
+
+-- 等价于
+SELECT COUNT(DISTINCT uv) FROM test_hll;
+```
 
 
 
