@@ -1,3 +1,87 @@
+# 信号量
+
+信号量代表一定的资源数量，可以根据当前资源的数量按需唤醒指定数量的资源消费者线程，资源消费者线程一旦获取信号量，就会让资源减少指定的数量，如果资源数量减少为0，则消费者线程将全部处于挂起状态；当有新的资源到来时，消费者线程将继续被唤醒。
+
+## C++11借助
+初始化和销毁的API
+
+```C++
+#include <semaphore.h>
+
+/**
+ * 用于初始化信号量
+ *      @pshared: 表示信号量是否可以被共享
+ *          0: 只能在同一个进程的多个线程间共享
+ *          非0: 可以在多个进程之间共享
+ *      @value:   设置信号量的初始值
+ * @return  成功返回0，失败返回-1，一般可以不关注该返回值
+*/
+int sem_init(sem_t* sem, int pshared, unsigned int value);
+// 销毁信号量
+int sem_destroy(sem_t*sem);
+```
+
+```C++
+// 阻塞线程调用,直到信号量对象的资源计数大于0时被唤醒,唤醒后将资源计数递减1,然后立即返回
+int sem_wait(sem_t* sem);
+// sem_wait的非阻塞版，如果资源计数大于0，成功返回0
+// 如果当前信号量对象的资源计数等于0，则sem_trywait函数会立即返回
+// 不阻塞调用线程，返回值是-1，错误码errno被设置成EAGAIN
+int sem_trywait(sem_t*sem);
+// sem_wait等待一段时间，abs_timeout是等待时间，如果资源计数大于0，成功返回0
+// 如果超时返回，返回值为-1，错误码errno是ETIMEDOUT
+int sem_timedwait(sem_t* sem, const struct timespec* abs_timeout);
+```
+
+```C++
+// 将信号量的资源计数递增1，并解锁该信号量对象
+// 使得唤醒因sem_wait函数被阻塞的其他线程
+int sem_post(sem_t* sem);
+```
+
+[C++11信号量实现生产者消费者模型](./ThreadSync/semaphore_11.cpp)
+
+## C++20信号量
+
+C++20提供了`std::counting_semaphore`和`std::binary_semaphore`支持信号量。
+
+> 信号量亦常用于发信/提醒而非互斥，通过初始化该信号量为 0 从而阻塞尝试 acquire() 的接收者，直至提醒者通过调用 release(n) 通知，在这一点可把信号量当作 `std::condition_variable` 的替用品，通常它有更好的性能。
+>
+> 1. `counting_semaphore` 是一个轻量同步元件，能控制对共享资源的访问。不同于`std::mutex`、 `counting_semaphore` 允许同一资源有多于一个同时访问，至少允许 `LeastMaxValue` 个同时的访问者若`LeastMaxValue` 为负则程序为谬构。
+>
+>
+> 2. `binary_semaphore` 是`std::counting_semaphore`的特化的别名，其`LeastMaxValue` 为 1 。实现可能将 `binary_semaphore` 实现得比`std::counting_semaphore`的默认实现更高效。
+>
+>     ​						-- 来自[counting_semaphore](https://zh.cppreference.com/w/cpp/thread/counting_semaphore)
+
+```C++
+// desired初始化counting_semaphore的计数器的值
+constexpr explicit counting_semaphore(std::ptrdiff_t desired);
+
+// 原子地将内部计数器的值增加update
+void release(std::ptrdiff_t update = 1);
+
+// 若内部计数器大于0则尝试将它减少1;否则阻塞直至它大于0且能成功减少内部计数器
+void acquire()
+// 若内部计数器大于0则尝试原子地将它减少1;不阻塞
+// 若减少内部计数器则为true, 否则为false
+bool try_acquire() noexcept;
+
+// 若内部计数器大于0则尝试原子地将它减少1;否则阻塞直至它大于0且能成功地减少内部计数器
+// 或等待已经超出rel_time,可能会抛出std::system_error异常
+template<class Rep, class Period>
+bool try_acquire_for(const std::chrono::duration<Rep, Period>& rel_time);
+
+// 若内部计数器大于0则尝试原子地将它减少1;否则阻塞直至它大于0且能成功地减少内部计数器
+// 或已经经过 abs_time 时间点, 可能会抛出std::system_error异常
+template<class Clock, class Duration>
+bool try_acquire_until( const std::chrono::time_point<Clock, Duration>& abs_time );
+```
+
+
+
+[C++11信号量实现生产者消费者模型](./ThreadSync/semaphore_20.cpp)
+
 # 条件变量
 
 条件变量采用通知-唤醒模型。
@@ -61,6 +145,8 @@ int WaitForTrue() {
 ```
 ```plantuml
 @startuml
+:加锁进入临界区;
+
 
 @enduml
 ```
