@@ -1,8 +1,33 @@
+# 互斥量
+C++11提供了`std::mutex`同步原语，可用于保护共享数据不被多个线程同时访问，并对外提供了这些接口
+```C++
+void lock();
+bool try_lock();
+
+// unlock mutex,
+void unlock();
+```
+>mutex offers exclusive, non-recursive ownership semantics:
+> 
+> - A calling thread owns a mutex from the time that it successfully calls either lock or try_lock until it calls unlock.
+> - When a thread owns a mutex, all other threads will block (for calls to lock) or receive a false return value (for try_lock) if they attempt to claim ownership of the mutex.
+> - A calling thread must not own the mutex prior to calling lock or try_lock.
+>     
+> 来自[cppreference:mutex](https://en.cppreference.com/w/cpp/thread/mutex)
+
+上面是说，互斥量提供了排他的、非递归的所有权语义:
+- 成功调用`lock`或`try_lock`开始的线程将拥有该互斥量，直到调用`unlock`为止。
+- 当一个线程拥有互斥量时，其他所有线程调用`lock`将阻塞或者对于`try_lock`返回false。
+- 在调用`lock`或`try_lock`时，调用线程不能拥有互斥量。
+
+
+[利用互斥实现线程安全的栈容器](./ThreadSync/mutex_threadsafe_stack.cpp)
+
 # 信号量
 
 信号量代表一定的资源数量，可以根据当前资源的数量按需唤醒指定数量的资源消费者线程，资源消费者线程一旦获取信号量，就会让资源减少指定的数量，如果资源数量减少为0，则消费者线程将全部处于挂起状态；当有新的资源到来时，消费者线程将继续被唤醒。
 
-## C++11借助
+## C++11借助无名信号量
 初始化和销毁的API
 
 ```C++
