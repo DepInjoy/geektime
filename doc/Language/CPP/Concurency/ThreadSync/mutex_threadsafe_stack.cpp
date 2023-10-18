@@ -1,3 +1,12 @@
+/**
+ *  实现线程安全的栈，对外提供了两个pop接口，
+ *      1. 接受引用参数，该引用指向外部变量地址，存储弹出的值
+ *      2. 返回std::shared_ptr<>智能指针，储存弹出的值
+ *
+ *  编译指令:
+ *   g++ -pthread -std=c++11 -o mutex_threadsafe_stack mutex_threadsafe_stack.cpp
+ * 
+*/
 #include <memory>
 #include <stack>
 #include <mutex>
@@ -8,8 +17,12 @@
 class StackEmpty : std::exception {
 public:
     StackEmpty(const std::string& errorMsg = "oh no, stack is empty!") :
-        errorMsg_(errorMsg) {}
-    StackEmpty
+        errorMsg_(errorMsg) { }
+    
+    StackEmpty(const StackEmpty& other) {
+        errorMsg_ = other.errorMsg_;
+    }
+
     const char* what() const throw() {
         return errorMsg_.c_str();
     }
@@ -67,7 +80,7 @@ ThreadSafeStack<int> gstack;
 
 void ProduceTask() {
     int value = 0;
-    while (value <= 100) {
+    while (value <= 10) {
         gstack.push(++value);
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -76,9 +89,11 @@ void ProduceTask() {
 void ConsumeTask() {
     while(true) {
         try {
-            if (!gstack.empty()) {
+            // 在step 1时判断了栈不空
+            // 在step 2时可能中间调用了pop接口，导致此时栈为空而抛出异常
+            if (!gstack.empty()) {  // step 1
                 int curVal = -1;
-                gstack.pop(curVal);
+                gstack.pop(curVal); // step 2
                 std::cout << "Consume thread " << std::this_thread::get_id()
                     << " get( " << curVal << " )" << std::endl;
             }
@@ -89,7 +104,6 @@ void ConsumeTask() {
 }
 
 int main(int argc, char* argv[]) {
-    // 生成5个
     const uint8_t  consumeTaskCnt = 5;
     std::thread* threads[consumeTaskCnt];
     for (int i = 0; i < consumeTaskCnt; ++i) {

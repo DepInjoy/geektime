@@ -4,22 +4,110 @@ C++11提供了`std::mutex`同步原语，可用于保护共享数据不被多个
 void lock();
 bool try_lock();
 
-// unlock mutex,
+// unlock mutex,如果采用次接口需要保证每次都调用unlock,特别是异常处理
+// 考虑到异常处理，推荐采用RAII的方式处理C++标准库提供了类模板std::lock_guard<>
+// 针对互斥类融合实现了RAII手法：在构造时给互斥加锁，在析构时解锁，从而保证互斥总被正确解锁
 void unlock();
 ```
 >mutex offers exclusive, non-recursive ownership semantics:
-> 
-> - A calling thread owns a mutex from the time that it successfully calls either lock or try_lock until it calls unlock.
-> - When a thread owns a mutex, all other threads will block (for calls to lock) or receive a false return value (for try_lock) if they attempt to claim ownership of the mutex.
-> - A calling thread must not own the mutex prior to calling lock or try_lock.
->     
-> 来自[cppreference:mutex](https://en.cppreference.com/w/cpp/thread/mutex)
+>
+>- A calling thread owns a mutex from the time that it successfully calls either lock or try_lock until it calls unlock.
+>- When a thread owns a mutex, all other threads will block (for calls to lock) or receive a false return value (for try_lock) if they attempt to claim ownership of the mutex.
+>- A calling thread must not own the mutex prior to calling lock or try_lock.
+>  
+>
+>来自[cppreference:mutex](https://en.cppreference.com/w/cpp/thread/mutex)
 
 上面是说，互斥量提供了排他的、非递归的所有权语义:
 - 成功调用`lock`或`try_lock`开始的线程将拥有该互斥量，直到调用`unlock`为止。
 - 当一个线程拥有互斥量时，其他所有线程调用`lock`将阻塞或者对于`try_lock`返回false。
 - 在调用`lock`或`try_lock`时，调用线程不能拥有互斥量。
 
+
+
+## 组织代码实现保护共享数据
+
+如果成员函数返回指针或引用，指向受保护的共享数据，那么即便成员函数全都按良好、有序的方式锁定互斥，仍然无济于事，只要存在任何能访问该指针和引用的代码，它就可以无须锁定互斥，就访问或修改受保护的共享数据，这样会打破保护，从而导致代码出现漏洞。因此，<b><font color=FF9033>若利用互斥保护共享数据，则需谨慎设计程序接口，从而确保互斥已先行锁定，再对受保护的共享数据进行访问，并保证不留后门。</font></b>
+
+```C++
+class some_data {
+public:
+    void do_something();
+private:
+    int a;
+    std::string b;
+};
+
+class data_wrapper {
+public:
+    template<typename Function>
+    void process_data(Function func) {
+        std::lock_guard<std::mutex> l(m);
+        func(data); // 向使用者提供的函数传递受保护共享数据
+    }
+private:
+    some_data data;
+    std::mutex m;
+};
+
+some_data* unprotected;
+data_wrapper x;
+
+void malicious_function(some_data& protected_data) {
+    unprotected=&protected_data;
+}
+
+void foo() {
+    // 传入恶意函数
+    x.process_data(malicious_function);
+    // 以无保护方式访问本应受保护的共享数据
+    unprotected->do_something();
+}
+```
+
+上述实现出现问题的原因是我们无法将所有访问共享数据的代码都标记成互斥(`unprotected->do_something()`)。
+
+<b><font color=FF9033>从乐观的角度看，只要遵循下列指引即可应对上述情形：不得向锁所在的作用域之外传递指针和引用，指向受保护的共享数据，无论是通过函数返回值将它们保存到对外可见的内存，还是将它们作为参数传递给使用者提供的函数。</font></b>实际上，使用互斥保护共享数据的常见错误，但错误远远不止这一个，例如下面接口中会存在条件竞争
+
+```C++
+template<typename T,typename Container=std::deque<T>>
+class stack {
+public:
+    explicit stack(const Container&);
+			// ......
+    bool empty() const;
+    size_t size() const;
+    T& top();
+    T const& top() const;
+    void push(T const&);
+    void push(T&&);
+    void pop();
+    void swap(stack&&);
+};
+```
+
+假设两个线程操作同一个栈
+
+|        线程1         |        线程2         |
+| :------------------: | :------------------: |
+|   `if(!s.empty())`   |                      |
+|                      |   `if(!s.empty())`   |
+| `int val = s.top();` |                      |
+|                      | `int val = s.top();` |
+|      `s.pop()`       |                      |
+|                      |                      |
+|                      |      `s.pop()`       |
+
+上述时序会导致栈顶元素被访问两次。
+
+
+
+避免分割操作可以消除条件竞争，还存在其他不完美的方式来消除条件竞争
+
+1. 传入引用，借一个外部变量接收栈容器弹出的元素，将指涉它的引用通过参数传入pop()调用。
+2. 提供不抛出异常的拷贝构造函数，或不抛出异常的移动构造函数
+3. 返回指针，指向弹出的元素
+4. 结合方法1和方法2，或结合方法1和方法3
 
 [利用互斥实现线程安全的栈容器](./ThreadSync/mutex_threadsafe_stack.cpp)
 
