@@ -214,16 +214,32 @@ SELECT语句的AST用`SelectStmt`来表示
 
 ```plantuml
 @startuml
-class SelectStmt
-SelectList -up-* SelectStmt
-SelectListItem -up-* SelectList
-Expr -up-* SelectListItem
+class SelectStmt {
+    # SelectList selectList
+    # FromClause fromClause
+    # GroupByClause groupByClause
+    - Expr havingClause
+    # Expr whereClause
+    - AggregateInfo aggInfo
+    - AnalyticInfo analyticInfo
+}
+note top : SELECT语句抽象语法树(AST)
+
+class ParseNode {
+    + void analyze(Analyzer analyzer) throws UserException;
+}
+QueryStmt -down-|> StatementBase
+StatementBase -down-|> ParseNode
+SelectStmt -down.|> QueryStmt
+SelectList -left-* SelectStmt
+SelectListItem -left-* SelectList
+Expr -left-* SelectListItem
 @enduml
 ```
 
 ```java
 // SELECT语句的AST树
-public class SelectStmt extends QueryStmt{
+public class SelectStmt extends QueryStmt {
     protected SelectList selectList;
     private final ArrayList<String> colLabels; // lower case column labels
     protected FromClause fromClause;
@@ -262,7 +278,6 @@ public interface ParseNode {
 
 ```java
 public class SelectList {
-    private static final String SET_VAR_KEY = "set_var";
     private boolean isDistinct;
     private boolean isExcept;
     private Map<String, String> optHints;
@@ -285,15 +300,22 @@ public class SlotRef extends Expr {
     private TableIf table = null;
     private TupleId tupleId = null;
     private String col;
-    private String label; // Used in 
+    private String label; 
     // results of analysis
     protected SlotDescriptor desc;
 }
 ```
 
+```java
+public abstract class Expr extends TreeNode<Expr>
+    	implements ParseNode, Cloneable, Writable, ExprStats {
+
+}
+```
 
 
 ```java
+// DDL语句中使用，如CreateTable
 public class ColumnRefExpr extends Expr {
     private String columnName;
     private int columnId;
@@ -302,15 +324,7 @@ public class ColumnRefExpr extends Expr {
 ```
 
 ```java
-public abstract class Expr extends TreeNode<Expr>
-    	implements ParseNode, Cloneable, Writable, ExprStats {
-   	
-}
-```
-
-
-
-```java
 FunctionCallExpr
 ```
 
+# Analyze
