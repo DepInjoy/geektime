@@ -26,6 +26,10 @@ SET dump_nereids_memo=true;
 SET nth_optimized_plan=XX;
 ```
 
+SQL进入Doris会进行SQL解析，Doris采用Java CUP Parser，语法规则定义在 `sql_parser.cup`，SQL语句会被解析为抽象语法树(AST)，例如常见的SELECT语句被解析为`SelectStmt`。
+
+
+
 # 主流程
 
 `ConnectProcessor`的`handleQuery`接口负责实现对Query查询的处理，这开始对Nereids全新查询优化器的调用，删除一些非重点和异常处理代码了解Nereids查询优化器的主调用流程
@@ -43,6 +47,7 @@ private void handleQuery(MysqlCommand mysqlCommand) {
     if (mysqlCommand == MysqlCommand.COM_QUERY &&
         ctx.getSessionVariable().isEnableNereidsPlanner()) {
         // 2.1 Nereids parser解析
+        // 	采用的是Java CUP Parser, 语法规则定义在sql_parser.cup
         stmts = new NereidsParser().parseSQL(originStmt);
     }
     
@@ -176,12 +181,136 @@ public Plan plan(LogicalPlan plan, PhysicalProperties requireProperties, Explain
 
 ```
 
+# Parser
+
+Doris采用Java CUP Parser，语法规则定义在 `fe/fe-core/src/main/cup/sql_parser.cup`，SQL语句会被解析为抽象语法树(AST)，Token定义在`fe/fe-core/src/main/jflex/sql_scanner.flex`。
+
+以SELECT语句来了解AST的表达
+```
+select_stmt ::=
+  select_clause:selectList
+    limit_clause:limitClause
+  {: RESULT = new SelectStmt(selectList, null, null, null, null, null, limitClause); :}
+  | select_clause:selectList
+    from_clause:fromClause
+    where_clause:wherePredicate
+    group_by_clause:groupByClause
+    having_clause:havingPredicate
+    order_by_clause:orderByClause
+    limit_clause:limitClause
+  {:
+    RESULT = new SelectStmt(selectList, fromClause, wherePredicate,
+                            groupByClause, havingPredicate, orderByClause,
+                            limitClause);
+  :}
+  | value_clause:valueClause order_by_clause:orderByClause limit_clause:limitClause
+  {:
+      RESULT = new SelectStmt(valueClause, orderByClause, limitClause);
+  :}
+  ;
+```
+
+SELECT语句的AST用`SelectStmt`来表示
+
+```plantuml
+@startuml
+class SelectStmt
+SelectList -up-* SelectStmt
+SelectListItem -up-* SelectList
+Expr -up-* SelectListItem
+@enduml
+```
+
+```java
+// SELECT语句的AST树
+public class SelectStmt extends QueryStmt{
+    protected SelectList selectList;
+    private final ArrayList<String> colLabels; // lower case column labels
+    protected FromClause fromClause;
+    protected GroupByClause groupByClause;
+    private List<Expr> originalExpr;
+
+    private Expr havingClause;  // original having clause
+    protected Expr whereClause;
+    // havingClause with aliases and agg output resolved
+    private Expr havingPred;
+    private Expr originalWhereClause;
+
+    // set if we have any kind of aggregation operation, include SELECT DISTINCT
+    private AggregateInfo aggInfo;
+    // set if we have analytic function
+    private AnalyticInfo analyticInfo;
+}
+
+public abstract class QueryStmt extends StatementBase implements Queriable;
+// Glue interface for QueryStmt and LogicalPlanAdaptor
+public interface Queriable {
+    boolean hasOutFileClause();
+    OutFileClause getOutFileClause();
+    boolean isExplain();
+    ExplainOptions getExplainOptions();
+    List<Expr> getResultExprs();
+    ArrayList<String> getColLabels();
+    String toDigest();
+}
+public abstract class StatementBase implements ParseNode;
+public interface ParseNode {
+    void analyze(Analyzer analyzer) throws UserException;
+    String toSql();
+}
+```
+
+```java
+public class SelectList {
+    private static final String SET_VAR_KEY = "set_var";
+    private boolean isDistinct;
+    private boolean isExcept;
+    private Map<String, String> optHints;
+    private List<OrderByElement> orderByElements;
+    private final List<SelectListItem> items;
+}
+
+public class SelectListItem {
+    private Expr expr;
+    private final TableName tblName;
+    private final boolean isStar;
+    private String alias;
+}
+```
+
+```java
+// 列表达数据结构
+public class SlotRef extends Expr {
+    private TableName tblName;
+    private TableIf table = null;
+    private TupleId tupleId = null;
+    private String col;
+    private String label; // Used in 
+    // results of analysis
+    protected SlotDescriptor desc;
+}
+```
+
 
 
 ```java
-public abstract class StatementBase implements ParseNode;
-public class SelectStmt extends QueryStmt;
-// Abstract base class for any statement that returns results
-public abstract class QueryStmt extends StatementBase implements Queriable;
+public class ColumnRefExpr extends Expr {
+    private String columnName;
+    private int columnId;
+    private boolean isNullable;
+}
+```
+
+```java
+public abstract class Expr extends TreeNode<Expr>
+    	implements ParseNode, Cloneable, Writable, ExprStats {
+   	
+}
+```
+
+
+
+```java
+FunctionCallExpr
 ```
 
