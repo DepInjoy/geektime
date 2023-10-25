@@ -210,6 +210,8 @@ select_stmt ::=
   ;
 ```
 
+## SELECT AST
+
 SELECT语句的AST用`SelectStmt`来表示
 
 ```plantuml
@@ -225,15 +227,30 @@ class SelectStmt {
 }
 note top : SELECT语句抽象语法树(AST)
 
+class QueryStmt {
+    # WithClause withClause;
+    # ArrayList<OrderByElement> orderByElements;
+}
+note left : 任何通过一组表达式计算返回结果的语句的基类\n 例如: SelectStmt, UnionStmt
+
 class ParseNode {
     + void analyze(Analyzer analyzer) throws UserException;
 }
+
+class FromClause {
+    - ArrayList<TableRef> tablerefs
+}
 QueryStmt -down-|> StatementBase
-StatementBase -down-|> ParseNode
+StatementBase -right-|> ParseNode
+
+FromClause -left-*SelectStmt
+FromClause -|> ParseNode
+TableRef -left-* FromClause
+
 SelectStmt -down.|> QueryStmt
-SelectList -left-* SelectStmt
-SelectListItem -left-* SelectList
-Expr -left-* SelectListItem
+SelectList -right-* SelectStmt
+SelectListItem -right-* SelectList
+Expr -* SelectListItem
 @enduml
 ```
 
@@ -258,7 +275,32 @@ public class SelectStmt extends QueryStmt {
     private AnalyticInfo analyticInfo;
 }
 
-public abstract class QueryStmt extends StatementBase implements Queriable;
+/**
+ * Abstract base class for any statement that returns results
+ *  via a list of result expressions. eg SelectStmt or UnionStmt.
+ *  
+ *  它实现了analyze接口实现对Orderby和Limit的analyze
+ * */
+public abstract class QueryStmt extends StatementBase implements Queriable {
+    protected WithClause withClause;
+    protected ArrayList<OrderByElement> orderByElements;
+
+    @Override
+    public void analyze(Analyzer analyzer) throws AnalysisException, UserException {
+        if (isAnalyzed()) {
+            return;
+        }
+        super.analyze(analyzer);
+        analyzeLimit(analyzer);
+        if (hasWithClause()) {
+            withClause.analyze(analyzer);
+        }
+    }
+
+    private void analyzeLimit(Analyzer analyzer) throws AnalysisException {
+        limitElement.analyze(analyzer);
+    }
+}
 // Glue interface for QueryStmt and LogicalPlanAdaptor
 public interface Queriable {
     boolean hasOutFileClause();
@@ -269,7 +311,11 @@ public interface Queriable {
     ArrayList<String> getColLabels();
     String toDigest();
 }
-public abstract class StatementBase implements ParseNode;
+
+public abstract class StatementBase implements ParseNode {
+
+}
+
 public interface ParseNode {
     void analyze(Analyzer analyzer) throws UserException;
     String toSql();
@@ -293,6 +339,53 @@ public class SelectListItem {
 }
 ```
 
+### From子句
+在SELECT的AST中，From子句采用`FromClause`表示，其内部持有一系列`TableRef`
+```plantuml
+@startuml
+FromClause -down-|> ParseNode
+FromClause *- TableRef
+TableRef -|> ParseNode
+@enduml
+```
+```java
+public class FromClause implements ParseNode, Iterable<TableRef> {
+    private final ArrayList<TableRef> tablerefs;
+    private boolean analyzed = false;
+    private boolean needToSql = false;
+    // join reorder会改变表顺序，调用reset导致初始的表顺序丢失
+    // 下次执行analyze,可能会导致'unable to find column xxx'的报错
+    // 这里保存,并在reset时恢复原始的表顺序
+    private final ArrayList<TableRef> originalTableRefOrders = new ArrayList<TableRef>();
+}
+
+public class TableRef implements ParseNode, Writable {
+    protected TableName name;
+    protected String[] aliases;
+    protected List<Long> sampleTabletIds;
+    private PartitionNames partitionNames = null;
+    // 用户添加的Hint
+    private ArrayList<String> commonHints;
+    protected TableSample tableSample;
+    private TableSnapshot tableSnapshot;
+}
+```
+
+### 表达式Expr
+```java
+public abstract class Expr extends TreeNode<Expr>
+    	implements ParseNode, Cloneable, Writable, ExprStats {
+
+}
+```
+
+```java
+public class FunctionCallExpr extends Expr {
+
+}
+```
+
+### 列
 ```java
 // 列表达数据结构
 public class SlotRef extends Expr {
@@ -306,13 +399,92 @@ public class SlotRef extends Expr {
 }
 ```
 
+### GroupBy子句
 ```java
-public abstract class Expr extends TreeNode<Expr>
-    	implements ParseNode, Cloneable, Writable, ExprStats {
+/**
+ * support normal GROUP BY clause and extended GROUP BY clause like
+ * ROLLUP, GROUPING SETS, CUBE syntax like
+ *   SELECT a, b, SUM( c ) FROM tab1 GROUP BY GROUPING SETS ( (a, b), (a), (b), ( ) );
+ *   SELECT a, b,c, SUM( d ) FROM tab1 GROUP BY ROLLUP(a,b,c)
+ *   SELECT a, b,c, SUM( d ) FROM tab1 GROUP BY CUBE(a,b,c)
+ *   GROUP BY `GROUPING SETS` ｜ `CUBE` ｜ `ROLLUP` is an extension to  GROUP BY clause.
+ */
+public class GroupByClause implements ParseNode {
+    // max num of distinct sets in grouping sets clause
+    private static final int MAX_GROUPING_SETS_NUM = 64;
+    // max num of distinct expressions
+    private boolean analyzed = false;
+    private boolean exprGenerated = false;
+    private GroupingType groupingType;
+    private ArrayList<Expr> groupingExprs;
+    private ArrayList<Expr> oriGroupingExprs;
+    // reserve this info for toSQL
+    private List<ArrayList<Expr>> groupingSetList;
+}
+```
+### 窗口
+在parser中可以看到,下面的定义
+```
+analytic_expr ::=
+  function_call_expr:e KW_OVER LPAREN opt_partition_by_clause:p order_by_clause:o opt_window_clause:w RPAREN
+  {:
+    FunctionCallExpr f = (FunctionCallExpr)e;
+    f.setIsAnalyticFnCall(true);
+    RESULT = new AnalyticExpr(f, p, o, w);
+  :}
+  %prec KW_OVER
+  ;
+```
+可见窗口的函数中的函数是`FunctionCallExpr`,它和分区，orderby和frame一起组成可`AnalyticExpr`。
 
+```java
+public class AnalyticExpr extends Expr {
+    // 函数，例如SUM，COUNT等
+    private FunctionCallExpr fnCall;
+    // 分区条件
+    private final List<Expr> partitionExprs;
+    // Order by条件
+    private List<OrderByElement> orderByElements = Lists.newArrayList();
+    // Frame
+    private AnalyticWindow window;
+};
+
+public class AnalyticWindow {
+    // 表示ROWS或RANGE
+    private final Type type;
+    private final Boundary leftBoundary;
+    private Boundary rightBoundary;
 }
 ```
 
+### OrderBy子句
+```java
+public class OrderByElement {
+    private Expr expr;
+    private final boolean isAsc;
+    // 表示NULL的排序，true表示NULLS FIRST, false表示NULLS LAST
+    private final Boolean nullsFirstParam;
+}
+```
+### Limit子句
+```java
+public class LimitElement {
+    public static LimitElement NO_LIMIT = new LimitElement();
+    private long limit;
+    private long offset;
+}
+```
+### 子查询
+
+子查询也当作表达式
+```java
+public class Subquery extends Expr {
+    // The QueryStmt of the subquery.
+    protected QueryStmt stmt;
+    // A subquery has its own analysis context
+    protected Analyzer analyzer;
+}
+```
 
 ```java
 // DDL语句中使用，如CreateTable
@@ -323,8 +495,6 @@ public class ColumnRefExpr extends Expr {
 }
 ```
 
-```java
-FunctionCallExpr
-```
+
 
 # Analyze
