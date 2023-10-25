@@ -185,6 +185,30 @@ public Plan plan(LogicalPlan plan, PhysicalProperties requireProperties, Explain
 
 Doris采用Java CUP Parser，语法规则定义在 `fe/fe-core/src/main/cup/sql_parser.cup`，SQL语句会被解析为抽象语法树(AST)，Token定义在`fe/fe-core/src/main/jflex/sql_scanner.flex`。
 
+```java
+    private <T> T parse(String sql, Function<DorisParser, ParserRuleContext> parseFunction) {
+        // ParserRuleContext含List<ParseTree>类型的children成员表示抽象语法树
+        ParserRuleContext tree = toAst(sql, parseFunction);
+        // visitRegularQuerySpecification将SELECT语句转化成LogicalPlan
+        // 参见fe/fe-core/src/main/antlr4/org/apache/doris/nereids/DorisParser.g4
+        // querySpecification，并不了解这个语法？？？？
+        LogicalPlanBuilder logicalPlanBuilder = new LogicalPlanBuilder();
+        return (T) logicalPlanBuilder.visit(tree);
+    }
+```
+
+将SELECT转换成逻辑计划和`DorisParser.g4`下面这段相关，通过`LogicalPlanBuilder`的`visitRegularQuerySpecification`来实现，目前不了解相关实现机制
+```
+querySpecification
+    : selectClause
+      fromClause?
+      whereClause?
+      aggClause?
+      havingClause?
+      {doris_legacy_SQL_syntax}? queryOrganization                         #regularQuerySpecification
+    ;
+```
+
 以SELECT语句来了解AST的表达
 ```
 select_stmt ::=
@@ -317,6 +341,10 @@ public abstract class StatementBase implements ParseNode {
 }
 
 public interface ParseNode {
+    /**
+     * Perform semantic analysis of node and all of its children.
+     * Throws exception if any errors found.
+     */
     void analyze(Analyzer analyzer) throws UserException;
     String toSql();
 }
@@ -487,7 +515,6 @@ public class Subquery extends Expr {
 ```
 
 ```java
-// DDL语句中使用，如CreateTable
 public class ColumnRefExpr extends Expr {
     private String columnName;
     private int columnId;
@@ -495,6 +522,51 @@ public class ColumnRefExpr extends Expr {
 }
 ```
 
+## DDL AST
+```java
+public class CreateTableStmt extends DdlStmt {
 
+}
+
+public abstract class DdlStmt extends StatementBase {}
+
+public abstract class StatementBase implements ParseNode {}
+
+```
+
+
+# 转换成逻辑计划
+通过`LogicalPlanBuilder`的`visitRegularQuerySpecification`来实现将SELECT语句转换成逻辑计划`LogicalPlan`。
+
+
+```java
+public interface LogicalPlan extends Plan {
+
+}
+```
+
+```java
+/**
+ * A relation that contains only one row consist of some constant expressions.
+ * e.g. select 100, 'value'
+ */
+public class UnboundOneRowRelation extends LogicalRelation implements Unbound, OneRowRelation {
+    
+}
+```
+```java
+/**
+ * Abstract class for all logical plan that have no child.
+ */
+public abstract class LogicalLeaf extends AbstractLogicalPlan
+        implements LeafPlan, OutputSavePoint {
+    public abstract List<Slot> computeOutput();
+}
+```
+
+```java
+public class LogicalLimit<CHILD_TYPE extends Plan>
+        extends LogicalUnary<CHILD_TYPE> implements Limit {}
+```
 
 # Analyze
