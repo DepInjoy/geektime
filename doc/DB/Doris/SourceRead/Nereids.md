@@ -552,7 +552,7 @@ public abstract class StatementBase implements ParseNode {}
 
 
 # 转换成逻辑计划
-通过`LogicalPlanBuilder`的`visitRegularQuerySpecification`来实现将SELECT语句转换成逻辑计划`LogicalPlan`。
+通过`LogicalPlanBuilder`的`visitRegularQuerySpecification`来实现将SELECT语句转换成逻辑计划`LogicalPlan`,结合`fe/fe-core/src/main/antlr4/org/apache/doris/nereids/DorisParser.g4`一起看。
 
 
 ```java
@@ -570,6 +570,7 @@ public class UnboundOneRowRelation extends LogicalRelation implements Unbound, O
 
 }
 ```
+
 ```java
 /**
  * Abstract class for all logical plan that have no child.
