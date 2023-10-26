@@ -186,6 +186,20 @@ public Plan plan(LogicalPlan plan, PhysicalProperties requireProperties, Explain
 Doris采用Java CUP Parser，语法规则定义在 `fe/fe-core/src/main/cup/sql_parser.cup`，SQL语句会被解析为抽象语法树(AST)，Token定义在`fe/fe-core/src/main/jflex/sql_scanner.flex`。
 
 ```java
+public class NereidsParser {
+    public List<StatementBase> parseSQL(String originStr) {
+        List<Pair<LogicalPlan, StatementContext>> logicalPlans = parseMultiple(originStr);
+        List<StatementBase> statementBases = Lists.newArrayList();
+        for (Pair<LogicalPlan, StatementContext> parsedPlanToContext : logicalPlans) {
+            statementBases.add(new LogicalPlanAdapter(parsedPlanToContext.first, parsedPlanToContext.second));
+        }
+        return statementBases;
+    }
+
+    public List<Pair<LogicalPlan, StatementContext>> parseMultiple(String sql) {
+        return parse(sql, DorisParser::multiStatements);
+    }
+
     private <T> T parse(String sql, Function<DorisParser, ParserRuleContext> parseFunction) {
         // ParserRuleContext含List<ParseTree>类型的children成员表示抽象语法树
         ParserRuleContext tree = toAst(sql, parseFunction);
@@ -195,6 +209,8 @@ Doris采用Java CUP Parser，语法规则定义在 `fe/fe-core/src/main/cup/sql_
         LogicalPlanBuilder logicalPlanBuilder = new LogicalPlanBuilder();
         return (T) logicalPlanBuilder.visit(tree);
     }
+
+}
 ```
 
 将SELECT转换成逻辑计划和`DorisParser.g4`下面这段相关，通过`LogicalPlanBuilder`的`visitRegularQuerySpecification`来实现，目前不了解相关实现机制
@@ -551,7 +567,7 @@ public interface LogicalPlan extends Plan {
  * e.g. select 100, 'value'
  */
 public class UnboundOneRowRelation extends LogicalRelation implements Unbound, OneRowRelation {
-    
+
 }
 ```
 ```java
@@ -567,6 +583,69 @@ public abstract class LogicalLeaf extends AbstractLogicalPlan
 ```java
 public class LogicalLimit<CHILD_TYPE extends Plan>
         extends LogicalUnary<CHILD_TYPE> implements Limit {}
+```
+
+```java
+public class LogicalSubQueryAlias<CHILD_TYPE extends Plan>
+    extends LogicalUnary<CHILD_TYPE> {
+    private final List<String> qualifier;
+    private final Optional<List<String>> columnAliases;
+}
+```
+对于[row to clumn](https://doris.apache.org/docs/1.2/advanced/lateral-view/)通过`LATERAL VIEW`语法实现，在生成逻辑算子时，会生成一个`LogicalGenerate`算子，相关实现参见`withGenerate`.
+```java
+// plan for table generator, the statement like:
+// SELECT * FROM tbl LATERAL VIEW EXPLODE(c1) g as (gc1);
+public class LogicalGenerate<CHILD_TYPE extends Plan>
+    extends LogicalUnary<CHILD_TYPE> implements Generate {
+        
+    }
+```
+
+`visitTableValuedFunction`生成
+```java
+public class UnboundTVFRelation extends LogicalRelation
+        implements TVFRelation, Unbound {
+
+}
+```
+
+```java
+// The node of logical plan for sub query and alias
+public class LogicalSubQueryAlias<CHILD_TYPE extends Plan>
+        extends LogicalUnary<CHILD_TYPE> {
+    
+}
+```
+
+`withCte`
+```java
+// Logical Node for CTE
+public class LogicalCTE<CHILD_TYPE extends Plan>
+        extends LogicalUnary<CHILD_TYPE> {
+
+}
+```
+
+```java
+public class LogicalJoin<LEFT_CHILD_TYPE extends Plan, RIGHT_CHILD_TYPE extends Plan>
+        extends LogicalBinary<LEFT_CHILD_TYPE, RIGHT_CHILD_TYPE> implements Join {
+    private final JoinType joinType;
+    private final List<Expression> otherJoinConjuncts;
+    private final List<Expression> hashJoinConjuncts;
+    private final JoinHint hint;
+
+    // When the predicate condition contains subqueries and disjunctions, the join will be marked as MarkJoin.
+    private final Optional<MarkJoinSlotReference> markJoinSlotReference;
+
+    // Use for top-to-down join reorder
+    private final JoinReorderContext joinReorderContext = new JoinReorderContext();
+}
+```
+
+```java
+public class LogicalWindow<CHILD_TYPE extends Plan>
+        extends LogicalUnary<CHILD_TYPE> implements Window {}
 ```
 
 # Analyze
