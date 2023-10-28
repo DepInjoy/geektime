@@ -60,8 +60,8 @@ private void handleQuery(MysqlCommand mysqlCommand) {
         StatementBase parsedStmt = stmts.get(i);
         parsedStmt.setOrigStmt(new OriginStatement(originStmt, i));
         parsedStmt.setUserInfo(ctx.getCurrentUserIdentity());
-        // parsedStmt表示StmtExecutor中的LogicalPlanAdapter
-        // 参见StmtExecutor构造
+        // parsedStmt保存在StmtExecutor的parsedStmt私有变量中
+        // 参见StmtExecutor构造,之后传递给NereidsPlanner的plan接口来优化
         executor = new StmtExecutor(ctx, parsedStmt);
         ctx.setExecutor(executor);
 
@@ -84,7 +84,8 @@ private void handleQuery(MysqlCommand mysqlCommand) {
 ```java
 public void execute() throws Exception {
     UUID uuid = UUID.randomUUID();
-    TUniqueId queryId = new TUniqueId(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+    TUniqueId queryId = new TUniqueId(uuid.getMostSignificantBits(),
+                                      uuid.getLeastSignificantBits());
     execute(queryId);
 }
 
@@ -99,7 +100,11 @@ private void executeByNereids(TUniqueId queryId) throws Exception {
     parseByNereids();
     LogicalPlan logicalPlan = ((LogicalPlanAdapter) parsedStmt).getLogicalPlan();
     if (logicalPlan instanceof Command) {
-        // 
+        	.....
+        // 例如,将query查询结果插入到table中表示为
+        // InsertIntoTableCommand(Query())
+        // 下面run接口通过Nereids优化器对query进行优化
+        ((Command) logicalPlan).run(context, this);
     } else {
         // 创建NereidsPlanner并调用plan进行analyze和optimize
         planner = new NereidsPlanner(statementContext);
@@ -155,15 +160,16 @@ public void plan(StatementBase queryStmt, org.apache.doris.thrift.TQueryOptions 
 
 ```java
 public Plan plan(LogicalPlan plan, PhysicalProperties requireProperties, ExplainLevel explainLevel) {
-    // pre-process logical plan out of memo, e.g. process SET_VAR hint
+    // 1. pre-process logical plan out of memo, e.g. process SET_VAR hint
     plan = preprocess(plan);
 
+    // 
     initCascadesContext(plan, requireProperties);
     try (Lock lock = new Lock(plan, cascadesContext)) {
-        // 1. analyze this query
+        // 2. analyze this query
         analyze();
 
-        // 2. rule-based optimize
+        // 3. rule-based optimize
         rewrite();
 
         // 3. optimize
@@ -191,7 +197,8 @@ public class NereidsParser {
         List<Pair<LogicalPlan, StatementContext>> logicalPlans = parseMultiple(originStr);
         List<StatementBase> statementBases = Lists.newArrayList();
         for (Pair<LogicalPlan, StatementContext> parsedPlanToContext : logicalPlans) {
-            statementBases.add(new LogicalPlanAdapter(parsedPlanToContext.first, parsedPlanToContext.second));
+            statementBases.add(new LogicalPlanAdapter(parsedPlanToContext.first,
+                                                      parsedPlanToContext.second));
         }
         return statementBases;
     }
@@ -554,12 +561,42 @@ public abstract class StatementBase implements ParseNode {}
 # 转换成逻辑计划
 通过`LogicalPlanBuilder`的`visitRegularQuerySpecification`来实现将SELECT语句转换成逻辑计划`LogicalPlan`,结合`fe/fe-core/src/main/antlr4/org/apache/doris/nereids/DorisParser.g4`一起看。
 
+`fe/fe-core/src/main/antlr4/org/apache/doris/parser/DorisSqlSeparator.g4`
 
 ```java
-public interface LogicalPlan extends Plan {
-
+public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
 }
 ```
+
+
+
+
+```java
+// All DDL and DML commands' super class.
+public abstract class Command extends AbstractPlan implements LogicalPlan {}
+
+// Abstract class for all concrete plan node.
+public abstract class AbstractPlan extends AbstractTreeNode<Plan> implements Plan {
+    protected final Statistics statistics;
+    protected final PlanType type;
+    protected final Optional<GroupExpression> groupExpression;
+    protected final Supplier<LogicalProperties> logicalPropertiesSupplier;
+};
+
+// Abstract class for all logical plan in Nereids.
+public interface LogicalPlan extends Plan {}
+
+// Abstract class for all plan node.
+public interface Plan extends TreeNode<Plan> {}
+```
+
+```java
+public class InsertIntoTableCommand extends Command
+    	implements ForwardWithSync, Explainable {
+}
+```
+
+
 
 ```java
 /**
@@ -572,9 +609,7 @@ public class UnboundOneRowRelation extends LogicalRelation implements Unbound, O
 ```
 
 ```java
-/**
- * Abstract class for all logical plan that have no child.
- */
+// Abstract class for all logical plan that have no child.
 public abstract class LogicalLeaf extends AbstractLogicalPlan
         implements LeafPlan, OutputSavePoint {
     public abstract List<Slot> computeOutput();
@@ -600,7 +635,7 @@ public class LogicalSubQueryAlias<CHILD_TYPE extends Plan>
 public class LogicalGenerate<CHILD_TYPE extends Plan>
     extends LogicalUnary<CHILD_TYPE> implements Generate {
         
-    }
+}
 ```
 
 `visitTableValuedFunction`生成
@@ -636,7 +671,8 @@ public class LogicalJoin<LEFT_CHILD_TYPE extends Plan, RIGHT_CHILD_TYPE extends 
     private final List<Expression> hashJoinConjuncts;
     private final JoinHint hint;
 
-    // When the predicate condition contains subqueries and disjunctions, the join will be marked as MarkJoin.
+    // When the predicate condition contains subqueries and disjunctions
+    // the join will be marked as MarkJoin.
     private final Optional<MarkJoinSlotReference> markJoinSlotReference;
 
     // Use for top-to-down join reorder
@@ -649,4 +685,212 @@ public class LogicalWindow<CHILD_TYPE extends Plan>
         extends LogicalUnary<CHILD_TYPE> implements Window {}
 ```
 
-# Analyze
+
+
+# NereidsPlanner
+
+## Preprocess
+
+```java
+/**
+ * PlanPreprocessors: before copy the plan into the memo,
+ * we use this rewriter to rewrite plan by visitor.
+ */
+public class PlanPreprocessors {
+    private final StatementContext statementContext;
+
+    public PlanPreprocessors(StatementContext statementContext) {
+        this.statementContext = Objects.requireNonNull(
+            statementContext, "statementContext can not be null");
+    }
+
+    public LogicalPlan process(LogicalPlan logicalPlan) {
+        LogicalPlan resultPlan = logicalPlan;
+        for (PlanPreprocessor processor : getProcessors()) {
+            resultPlan = (LogicalPlan) resultPlan.accept(processor, statementContext);
+        }
+        return resultPlan;
+    }
+
+    public List<PlanPreprocessor> getProcessors() {
+        // add processor if we need
+        return ImmutableList.of(
+                new EliminateLogicalSelectHint(),
+                new TurnOffPipelineForDml()
+        );
+    }
+}
+```
+
+
+
+```java
+// PlanPreprocessor: a PlanVisitor to rewrite LogicalPlan to new LogicalPlan.
+public abstract class PlanPreprocessor extends DefaultPlanRewriter<StatementContext> {
+
+}
+
+/**
+ * Default implementation for plan rewriting, delegating to child plans and rewrite current root
+ * when any one of its children changed.
+ */
+public abstract class DefaultPlanRewriter<C> extends PlanVisitor<Plan, C> {
+    @Override
+    public Plan visit(Plan plan, C context) {
+        return visitChildren(this, plan, context);
+    }
+}
+
+// Base class for the processing of logical and physical plan
+// 这里定义了一系列的visitXXX的接口
+public abstract class PlanVisitor<R, C> implements CommandVisitor<R, C>,
+		RelationVisitor<R, C>, SinkVisitor<R, C> {
+   public abstract R visit(Plan plan, C context);
+
+   // 例如, EliminateLogicalSelectHint类中的visitLogicalSelectHint
+   public R visitLogicalSelectHint(LogicalSelectHint<? extends Plan> hint, C context) {
+        return visit(hint, context);
+    }
+}
+```
+
+
+
+```java
+public interface CustomRewriter {
+    // entrance method
+    Plan rewriteRoot(Plan plan, JobContext jobContext);
+}
+```
+
+
+
+```java
+public class EliminateLogicalSelectHint extends PlanPreprocessor implements CustomRewriter {
+    
+}
+```
+
+## analyze
+
+根据元数据进行语义检查。
+
+```java
+public class NereidsPlanner extends Planner {
+	private void analyze() {
+        // Nereids将操作统一表示为Job(基类AbstractBatchJobExecutor)
+        // 对外提供execute接口对上层的job分别执行
+        cascadesContext.newAnalyzer().analyze();
+    }
+}
+
+public class CascadesContext implements ScheduleContext {
+    public Analyzer newAnalyzer() {
+        return new Analyzer(this);
+    }
+}
+```
+
+可见`org.apache.doris.nereids.jobs.executor.Analyzer`负责实现`analyze`
+
+```java
+public interface RewriteJob {
+    void execute(JobContext jobContext);
+    boolean isOnce();
+}
+```
+
+
+
+```java
+/**
+ * Bind symbols according to metadata in the catalog, perform semantic analysis, etc.
+ */
+public class Analyzer extends AbstractBatchJobExecutor {
+    public static final List<RewriteJob> DEFAULT_ANALYZE_JOBS =
+        	buildAnalyzeJobs(Optional.empty());
+    private final List<RewriteJob> jobs;
+        private static List<RewriteJob> buildAnalyzeJobs(
+            	Optional<CustomTableResolver> customTableResolver) {
+        return jobs(
+            topDown(new AnalyzeCTE()),
+            .....
+        );
+}
+
+/**
+ * Base class for executing all jobs.
+ * Each batch of rules will be uniformly executed.
+ */
+public abstract class AbstractBatchJobExecutor {
+    protected CascadesContext cascadesContext;
+    // 获取需要执行的一系列Job
+    public abstract List<RewriteJob> getJobs();
+    
+    // 将待处理规则(表示为RewriteJob)并对外提供execute接口来执行任务
+    public void execute() {
+        for (int i = 0; i < getJobs().size(); i++) {
+            JobContext jobContext = cascadesContext.getCurrentJobContext();
+            RewriteJob currentJob = getJobs().get(i);
+            if (currentJob instanceof CostBasedRewriteJob) {
+                List<RewriteJob> remainJobs = getJobs().subList(i + 1, getJobs().size()).stream()
+                        .filter(j -> !(j instanceof CostBasedRewriteJob))
+                        .collect(Collectors.toList());
+                jobContext.setRemainJobs(remainJobs);
+            }
+            do {
+                jobContext.setRewritten(false);
+                currentJob.execute(jobContext);
+            } while (!currentJob.isOnce() && jobContext.isRewritten());
+        }
+    }
+}
+```
+
+
+
+```java
+public class AnalyzeCTE extends OneAnalysisRuleFactory {}
+
+// abstract class for all rule factories build one rule used in analysis stage.
+public abstract class OneAnalysisRuleFactory
+        extends OnePlanRuleFactory implements AnalysisRuleFactory {
+}
+
+// abstract class for all rule factories build one plan rule.
+public abstract class OnePlanRuleFactory extends OneRuleFactory
+    	implements PlanRuleFactory {
+}
+
+/**
+ * interface for all rule factories used in analysis stage.
+ */
+public interface AnalysisRuleFactory extends PlanRuleFactory, GeneratedPlanPatterns {
+    @Override
+    default RulePromise defaultPromise() {
+        return RulePromise.ANALYSIS;
+    }
+}
+
+// interface for all plan rule factories.
+public interface PlanRuleFactory extends RuleFactory {
+}
+
+// interface for all rule factories for build some rules.
+public interface RuleFactory extends Patterns {
+    List<Rule> buildRules();
+
+    @Override
+    RulePromise defaultPromise();
+}
+```
+
+
+
+### AnalyseCTE
+
+```java
+// 这里会生成LogicalCTEProducer和LogicalCTEAnchor
+public class AnalyzeCTE extends OneAnalysisRuleFactory {}
+```
+
