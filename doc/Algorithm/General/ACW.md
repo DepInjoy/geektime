@@ -1,4 +1,130 @@
 [ACW算法基础课](https://www.acwing.com/activity/content/introduction/11/)
+# 基础算法
+## 快速排序
+```C++
+void quick_sort(int q[], int l, int r) {
+    if (l >= r) return;
+
+    int i = l - 1, j = r + 1, x = q[l + r >> 1];
+    while (i < j) {
+        do i ++ ; while (q[i] < x);
+        do j -- ; while (q[j] > x);
+        if (i < j) swap(q[i], q[j]);
+    }
+    quick_sort(q, l, j), quick_sort(q, j + 1, r);
+}
+```
+[785.快速排序](https://www.acwing.com/problem/content/description/787/)
+```C++
+// 快排
+#include <iostream>
+
+const int N = 100010 + 10;
+int data[N];
+
+void quick_sort(int data[], int l, int r) {
+    if (l >= r) return;
+    
+    int x = data[l+r >> 1], i = l - 1, j = r + 1;
+    while(i < j) {
+        while(data[++i] < x);
+        while(data[--j] > x);
+        if (i < j) std::swap(data[i], data[j]);
+    }
+    quick_sort(data, l, j), quick_sort(data, j+1, r);
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
+    
+    quick_sort(data, 0, n-1);
+    for (int i = 0; i < n; ++i) printf("%d ", data[i]);
+    return 0;
+}
+```
+
+[786.第k个数](https://www.acwing.com/problem/content/788/)
+
+```C++
+#include <iostream>
+
+const int N = 100010;
+int data[N];
+
+int quick_select(int data[], int l, int r, int k) {
+    if (l == r) return data[l];
+    
+    int x = data[l + r >> 1], i = l -1, j = r + 1;
+    while (i < j) {
+        while(data[++i] < x);
+        while(data[--j] > x);
+        if (i < j) std::swap(data[i], data[j]);
+    }
+    
+    if (j - l + 1 >= k) return quick_select(data, l, j, k);
+    return quick_select(data, j + 1, r, k - (j - l + 1));
+}
+
+int main() {
+    int n, k;
+    scanf("%d%d", &n, &k);
+    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
+    
+    std::cout << quick_select(data, 0, n - 1, k);
+}
+```
+
+## 归并排序
+
+## 二分
+
+## 高精度
+
+## 前缀和与差分
+
+## 双指针算法
+
+
+## 位运算
+```C++
+// 求n的第k位数字
+n >> k & 1
+
+// 返回n的最后一位1
+lowbit(n) = n & -n
+```
+
+[801. 二进制中1的个数](https://www.acwing.com/problem/content/803/)
+```C++
+#include <iostream>
+
+int lowbit(int n) {
+   return n & (~n + 1); 
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    while (n--) {
+        int val;
+        scanf("%d", &val);
+        
+        int ans = 0;
+        while (val) val -= lowbit(val), ++ans;
+        printf("%d ", ans);
+    }
+    return 0;
+}
+```
+
+## 离散化
+
+## 区间合并
+
+
 # 动态规划
 
 ## 背包问题
