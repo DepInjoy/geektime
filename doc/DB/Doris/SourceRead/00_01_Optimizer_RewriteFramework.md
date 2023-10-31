@@ -16,6 +16,9 @@ interface RewriteJob {
     + boolean isOnce();
 }
 
+class CascadesContext {}
+note bottom of CascadesContext : 上层的接口是其子类Rewriter或Analyzer\n通过它们放入构造函数将memo context传递给下来
+
 Rewriter -down-|> AbstractBatchJobExecutor
 Analyzer -down-|> AbstractBatchJobExecutor
 
@@ -34,9 +37,7 @@ public interface RewriteJob {
     boolean isOnce();
 }
 
-public class TopicRewriteJob implements RewriteJob {
-
-}
+public class TopicRewriteJob implements RewriteJob {}
 
 public class CostBasedRewriteJob implements RewriteJob {}
 

@@ -53,12 +53,24 @@ class CascadesContext {
 
     + void pushJob(Job job) // jobPool.push(job);
     + JobPool getJobPool()  // jobPool;
+    + CascadesContext topDownRewrite(RuleFactory... rules)
+    + CascadesContext bottomUpRewrite(RuleFactory... rules)
 }
 note top : Context used in memo. \n\nthis.jobPool = new JobStack()\nthis.jobScheduler = new SimpleJobScheduler();
 
 interface ScheduleContext {
     + JobPool getJobPool();
     + void pushJob(Job job);
+}
+
+interface JobScheduler {
+    + void executeJobPool(ScheduleContext)
+}
+
+interface JobPool {
+    + void push(Job job);
+    + Job pop();
+    + boolean isEmpty();
 }
 
 class JobContext {
@@ -70,15 +82,20 @@ class JobContext {
     # List<RewriteJob> remainJobs
 }
 
-CascadesContext -|> ScheduleContext
+CascadesContext -right-|> ScheduleContext
 JobPool -up-* CascadesContext
 JobScheduler -up-* CascadesContext
 JobContext -up-* CascadesContext
 
 Memo -right-* CascadesContext
+RuntimeFilterContext -down-* CascadesContext
 @enduml
 ```
+## Job
+```java
 
+```
+## JobPool
 ```java
 public interface JobPool {
     void push(Job job);
@@ -108,6 +125,7 @@ JobStack -|> JobPool
 @enduml
 ```
 
+## JobScheduler
 ```java
 // Single thread, serial scheduler
 public class SimpleJobScheduler implements JobScheduler {
@@ -136,6 +154,6 @@ class SimpleJobScheduler {
 
 SimpleJobScheduler -down.|> JobScheduler
 
-Job(JobType type, JobContext context)
+
 @enduml
 ```
