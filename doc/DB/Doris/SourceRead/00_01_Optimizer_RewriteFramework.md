@@ -4,11 +4,13 @@ class AbstractBatchJobExecutor {
     # CascadesContext cascadesContext
     + abstract List<RewriteJob> getJobs();
     + void execute()
+
+    + static RewriteJob bottomUp(List<RuleFactory> ruleFactories)
+    + static RewriteJob topDown(List<RuleFactory> ruleFactories)
+
     + static TopicRewriteJob topic(String topicName, RewriteJob... jobs)
     + static RewriteJob custom(RuleType ruleType, Supplier<CustomRewriter> planRewriter)
     + static RewriteJob costBased(RewriteJob... jobs)
-    + static RewriteJob bottomUp(List<RuleFactory> ruleFactories)
-    + static RewriteJob topDown(List<RuleFactory> ruleFactories)
 }
 
 interface RewriteJob {
@@ -28,6 +30,7 @@ RewriteJob -up-* AbstractBatchJobExecutor
 TopicRewriteJob -up-|> RewriteJob
 CostBasedRewriteJob -up-|> RewriteJob
 CustomRewriteJob -up-|> RewriteJob
+RootPlanTreeRewriteJob -up-|> RewriteJob
 @enduml
 ```
 
@@ -45,6 +48,8 @@ public class CustomRewriteJob implements RewriteJob {
     private final RuleType ruleType;
     private final Supplier<CustomRewriter> customRewriter;
 }
+
+public class RootPlanTreeRewriteJob implements RewriteJob {}
 ```
 
 ```java
@@ -77,7 +82,7 @@ public abstract class AbstractBatchJobExecutor {
 }
 ```
 
-## BottomUp
+借助`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`实现对外提供`topDown`和`bottomUp`两个接口
 ```plantuml
 @startuml
 class Job {
@@ -89,10 +94,22 @@ class Job {
     + abstract void execute()
 }
 
+class PlanTreeRewriteJob {
+    # RewriteResult rewrite(Plan plan, List<Rule> rules,\n\tRewriteJobContext rewriteJobContext)
+}
+
+class PlanTreeRewriteTopDownJob {}
+note top: 自上而下改写
+class PlanTreeRewriteBottomUpJob {}
+note top: 自下而上改写
+
+PlanTreeRewriteTopDownJob -down-|> PlanTreeRewriteJob
 PlanTreeRewriteBottomUpJob -down-|> PlanTreeRewriteJob
 PlanTreeRewriteJob -down-|> Job
 @enduml
 ```
+
+## BottomUp
 ```java
 public interface TracerSupplier {
     EventProducer getEventTracer();
@@ -103,11 +120,23 @@ public abstract class Job implements TracerSupplier {
     protected JobContext context;
     protected boolean once;
     protected final Set<String> disableRules;
+    List<Rule> getValidRules(...) {}
 }
 
 public abstract class PlanTreeRewriteJob extends Job {
     private final RewriteJobContext rewriteJobContext;
     private final List<Rule> rules;
+    protected RewriteResult rewrite(Plan plan, List<Rule> rules, RewriteJobContext rewriteJobContext) {
+                        .......
+        List<Rule> validRules = getValidRules(rules);
+        for (Rule rule : validRules) {
+            Pattern<Plan> pattern = (Pattern<Plan>) rule.getPattern();
+            if (pattern.matchPlanTree(plan)) {
+                List<Plan> newPlans = rule.transform(plan, cascadesContext);
+            }
+            ......
+        }
+    }
 }
 
 public class PlanTreeRewriteBottomUpJob extends PlanTreeRewriteJob {
