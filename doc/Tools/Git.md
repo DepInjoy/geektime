@@ -53,3 +53,27 @@ git submodule update --init --recursive
 
 ## 参考资料
 1. [Git工具 - 子模块](https://git-scm.com/book/zh/v2/Git-%E5%B7%A5%E5%85%B7-%E5%AD%90%E6%A8%A1%E5%9D%97)
+
+# Git报错处理
+
+## RPC failed; curl 56 GnuTLS recv error (-54)
+git clone 代码执行多次都提示下面的错误信息
+```
+remote: Enumerating objects: 278590, done.
+remote: Counting objects: 100% (1723/1723), done.
+remote: Compressing objects: 100% (1002/1002), done.
+error: RPC failed; curl 56 GnuTLS recv error (-54): Error in the pull function.
+fatal: The remote end hung up unexpectedly
+fatal: early EOF
+fatal: index-pack failed
+```
+
+在StackOverflow[1]中找到如下的解决方法：
+```shell
+git clone http://github.com/large-repository --depth 1
+cd large-repository
+git fetch --unshallow
+```
+
+## 参考资料
+1. [StackOverflow:RPC failed; curl transfer closed with outstanding read data remaining](https://stackoverflow.com/questions/38618885/error-rpc-failed-curl-transfer-closed-with-outstanding-read-data-remaining)
