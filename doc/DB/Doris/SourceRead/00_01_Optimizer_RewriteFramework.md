@@ -82,7 +82,20 @@ public abstract class AbstractBatchJobExecutor {
 }
 ```
 
-借助`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`实现对外提供`topDown`和`bottomUp`两个接口
+借助`RootPlanTreeRewriteJob`
+
+```plantuml
+@startuml
+class RootPlanTreeRewriteJob {
+    - final List<Rule> rules;
+    - final RewriteJobBuilder rewriteJobBuilder;
+    - final boolean once;
+}
+RootPlanTreeRewriteJob -down.|> RewriteJob
+@enduml
+```
+
+`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`实现对外提供`topDown`和`bottomUp`两个接口
 ```plantuml
 @startuml
 class Job {
@@ -103,18 +116,14 @@ note top: 自上而下改写
 class PlanTreeRewriteBottomUpJob {}
 note top: 自下而上改写
 
-PlanTreeRewriteTopDownJob -down-|> PlanTreeRewriteJob
-PlanTreeRewriteBottomUpJob -down-|> PlanTreeRewriteJob
-PlanTreeRewriteJob -down-|> Job
+PlanTreeRewriteTopDownJob -down.|> PlanTreeRewriteJob
+PlanTreeRewriteBottomUpJob -down.|> PlanTreeRewriteJob
+PlanTreeRewriteJob -down.|> Job
 @enduml
 ```
 
-## BottomUp
+`PlanTreeRewriteJob`实现了`rewrite`接口,通过`Job`获取可用的规则，调用`transform`进行变换。
 ```java
-public interface TracerSupplier {
-    EventProducer getEventTracer();
-}
-
 public abstract class Job implements TracerSupplier {
     protected JobType type;
     protected JobContext context;
@@ -138,11 +147,22 @@ public abstract class PlanTreeRewriteJob extends Job {
         }
     }
 }
+```
 
+## BottomUp
+```java
+public class RootPlanTreeRewriteJob implements RewriteJob {
+    private final List<Rule> rules;
+    private final RewriteJobBuilder rewriteJobBuilder;
+    private final boolean once;
+}
+```
+```java
 public class PlanTreeRewriteBottomUpJob extends PlanTreeRewriteJob {
 
 }
 ```
+
 ## TopDown
 ```java
 public class PlanTreeRewriteTopDownJob extends PlanTreeRewriteJob {
