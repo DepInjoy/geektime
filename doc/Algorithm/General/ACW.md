@@ -1164,41 +1164,6 @@ int main() {
 
 # 基础
 
-## 位运算
-```C++
-// 求n的第k位数字
-n >> k & 1
-
-// 返回n的最后一位1
-lowbit(n) = n & -n
-```
-
-[801. 二进制中1的个数](https://www.acwing.com/problem/content/803/)
-> 给定一个长度为n的数列，请你求出数列中每个数的二进制表示中1的个数。
-
-```C++
-#include <iostream>
-
-int bits(int val) {
-    int cnt = 0;
-    while (val) {
-        ++cnt;
-        val -= (val & (~val + 1)); // val & -val
-    }
-    return cnt;
-}
-
-int main() {
-    int n;
-    scanf("%d", &n);
-    while (n--) {
-        int val;
-        scanf("%d", &val);
-        std::cout << bits(val) << " ";
-    }
-    return 0;
-}
-```
 
 ##  离散化
 ```C++
@@ -1415,5 +1380,3 @@ int main() {
 
 
 [模拟堆](https://www.acwing.com/problem/content/841/)
-
-s

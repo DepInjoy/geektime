@@ -92,12 +92,11 @@ class RootPlanTreeRewriteJob {
     - final boolean once;
 }
 
-public interface RewriteJob {
-
-    void execute(JobContext jobContext);
-
-    boolean isOnce();
+interface RewriteJob {
+    + void execute(JobContext jobContext);
+    + boolean isOnce();
 }
+
 class RootRewriteJobContext {
     - final JobContext jobContext;
 }
