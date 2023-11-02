@@ -79,6 +79,91 @@ int main() {
 ## 归并排序
 
 ## 二分
+二分实现模板:
+```C++
+bool check(int x) {/* ... */} // 检查x是否满足某种性质
+
+// 区间[l, r]被划分成[l, mid]和[mid + 1, r]时使用：
+int bsearch_1(int l, int r) {
+    while (l < r) {
+        int mid = l + r >> 1;
+        if (check(mid)) r = mid;    // check()判断mid是否满足性质
+        else l = mid + 1;
+    }
+    return l;
+}
+
+// 区间[l, r]被划分成[l, mid - 1]和[mid, r]时使用：
+int bsearch_2(int l, int r) {
+    while (l < r) {
+        int mid = l + r + 1 >> 1;
+        if (check(mid)) l = mid;
+        else r = mid - 1;
+    }
+    return l;
+}
+```
+
+[789.数的范围](https://www.acwing.com/problem/content/791/)
+```C++
+#include <iostream>
+
+const int N = 100010;
+int data[N];
+
+int main() {
+    int n, q;
+    scanf("%d%d", &n, &q);
+    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
+    
+    while (q--) {
+        int x;
+        scanf("%d", &x);
+
+        int l = 0, r = n - 1;
+        while (l < r) {
+            int mid = l + r >> 1;
+            if (data[mid] >= x) r = mid;
+            else l = mid + 1;
+        }
+
+        if (data[l] != x) {
+            std::cout << "-1 -1" << std::endl;
+            continue;
+        }
+        
+        std::cout << l << " ";
+        l = 0, r = n -1;
+        while (l < r) {
+            int mid = l + r + 1 >> 1;
+            if (data[mid] <= x) l = mid;
+            else r = mid - 1;
+        }
+        std::cout << l << std::endl;
+    }
+    return 0;
+}
+```
+
+[790. 数的三次方根](https://www.acwing.com/problem/content/792/)
+```C++
+#include <iostream>
+
+int main() {
+    double x;
+    std::cin >> x;
+    
+    double l = -10000, r = 10000;
+    while (r - l > 1e-8) {
+        double mid = (l + r)/2;
+        if (mid * mid * mid >= x) r = mid;
+        else l = mid;
+    }
+    printf("%lf", l);
+    return 0;
+}
+```
+
 
 ## 高精度
 
