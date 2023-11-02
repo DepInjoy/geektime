@@ -91,7 +91,29 @@ class RootPlanTreeRewriteJob {
     - final RewriteJobBuilder rewriteJobBuilder;
     - final boolean once;
 }
+
+public interface RewriteJob {
+
+    void execute(JobContext jobContext);
+
+    boolean isOnce();
+}
+class RootRewriteJobContext {
+    - final JobContext jobContext;
+}
+
+class RewriteJobContext {
+    final boolean childrenVisited;
+    final RewriteJobContext parentContext;
+    final int childIndexInParentContext;
+    final Plan plan;
+    final RewriteJobContext[] childrenContext;
+    Plan result;
+}
+
+RootRewriteJobContext -down-|>RewriteJobContext
 RootPlanTreeRewriteJob -down.|> RewriteJob
+RootPlanTreeRewriteJob -right..> RootRewriteJobContext
 @enduml
 ```
 
