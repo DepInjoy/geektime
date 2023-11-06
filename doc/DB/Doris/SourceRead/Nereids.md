@@ -1,7 +1,16 @@
-开启新的查询优化器
+Doris新优化器(Nereids)将每个RBO和CBO的优化点以规则的形式呈现。对于每一个规则，新优化器都提供了一组用于描述查询计划形状的模式(Pattern)，可以精确的匹配可优化的查询计划。基于此，新优化器可以更好的支持诸如多层子查询嵌套等更为复杂的查询语句。且新优化器CBO基于先进的 Cascades 框架，使用了更为丰富的数据统计信息，并应用了维度更科学的代价模型, 使得新优化器在面对多表 Join 的查询时，更加得心应手。
+
+[Doris官网](https://doris.apache.org/zh-CN/docs/dev/query-acceleration/nereids)提供的数据: TPC-H SF100 查询速度比较。环境为 3BE，新优化器使用原始 SQL ，执行 SQL 前收集了统计信息。旧优化器使用手工调优 SQL。可以看到，新优化器在无需手工优化查询的情况下，总体查询时间与旧优化器手工优化后的查询时间相近。
+<center>
+    <img src="https://cdnd.selectdb.com/zh-CN/assets/images/nereids-tpch-d31958316d7c0404806812d5b41f0286.png">
+</center>
+
+首先了解其使用方法,Doris 2.0的版本默认开启新优化器
 
 ```shell
+# 开启新的查询优化器
 SET enable_nereids_planner=true;
+
 # 自动回退到旧版查询优化
 SET enable_fallback_to_original_planner=true;
 ```
@@ -44,13 +53,21 @@ private void handleQuery(MysqlCommand mysqlCommand) {
     String originStmt = new String(bytes, 1, ending, StandardCharsets.UTF_8);
     
 	// 2. Nereids处理Query Command, do not support prepare and execute now
+    List<StatementBase> stmts = null;
     if (mysqlCommand == MysqlCommand.COM_QUERY &&
         ctx.getSessionVariable().isEnableNereidsPlanner()) {
-        // 2.1 Nereids parser解析
-        // 	采用的是Java CUP Parser, 语法规则定义在sql_parser.cup
+        // 2.1 Nereids parser解析,采用Java CUP Parser, 语法规则定义在sql_parser.cup
+        //     这里借助LogicalPlanBuilder得到了逻辑计划
+        //     将<LogicalPlan, StatementContext>报错在LogicalPlanAdapter
         stmts = new NereidsParser().parseSQL(originStmt);
     }
     
+
+    // stmts == null when Nereids cannot planner this query or Nereids is disabled.
+    if (stmts == null) {
+        stmts = parse(originStmt);
+    }
+
     List<String> origSingleStmtList = null;
     if (stmts.size() > 1) { // split originStmt to multi singleStmts
         origSingleStmtList = SqlUtils.splitMultiStmts(originStmt);
@@ -79,7 +96,7 @@ private void handleQuery(MysqlCommand mysqlCommand) {
 }
 ```
 
-`StmtExecutor.java`
+可见`StmtExecutor`的`execute`是新查询优化器的主要实现在这里。
 
 ```java
 public void execute() throws Exception {
@@ -128,7 +145,7 @@ public void plan(StatementBase queryStmt, org.apache.doris.thrift.TQueryOptions 
     // 1. 初始化Require属性为PhysicalProperties.GATHER
     PhysicalProperties requireProperties = buildInitRequireProperties();
 
-    // 2. Do analyze and optimize for query plan,实现流程参见下面
+    // 2. Do analyze and optimize for query plan实现流程参见下面
     Plan resultPlan = plan(parsedPlan, requireProperties, explainLevel);
     statementContext.getStopwatch().stop();
     setOptimizedPlan(resultPlan);
@@ -157,22 +174,23 @@ public void plan(StatementBase queryStmt, org.apache.doris.thrift.TQueryOptions 
     logicalPlanAdapter.setViewDdlSqls(statementContext.getViewDdlSqls());
 }
 ```
-
+## 查询优化主实现
+查询优化RBO和CBO主要实现在
 ```java
 public Plan plan(LogicalPlan plan, PhysicalProperties requireProperties, ExplainLevel explainLevel) {
-    // 1. pre-process logical plan out of memo, e.g. process SET_VAR hint
+    // 1. 在将逻辑计划拷贝到Memo前进行预处理(pre-process)
+    //    e.g. process SET_VAR hint
     plan = preprocess(plan);
 
-    // 
     initCascadesContext(plan, requireProperties);
     try (Lock lock = new Lock(plan, cascadesContext)) {
         // 2. analyze this query
         analyze();
 
-        // 3. rule-based optimize
+        // 3. rule-based optimize(RBO)
         rewrite();
 
-        // 3. optimize
+        // 3. optimize(CBO)
         optimize();
 
         // 4. choose Nth Plan
@@ -563,6 +581,14 @@ public abstract class StatementBase implements ParseNode {}
 
 `fe/fe-core/src/main/antlr4/org/apache/doris/parser/DorisSqlSeparator.g4`
 
+```java
+// NereidsParser的parse接口
+private <T> T parse(String sql, Function<DorisParser, ParserRuleContext> parseFunction) {
+    ParserRuleContext tree = toAst(sql, parseFunction);
+    LogicalPlanBuilder logicalPlanBuilder = new LogicalPlanBuilder();
+    return (T) logicalPlanBuilder.visit(tree);
+}
+```
 ```java
 public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
 }
