@@ -11,6 +11,7 @@ interface RuleFactory {
 class Rule {
     + List<Plan> transform(Plan node, CascadesContext context)
 }
+
 RewriteRuleFactory -down.|> PlanRuleFactory
 PlanRuleFactory -down.|> RuleFactory
 RuleFactory -right.|> Patterns

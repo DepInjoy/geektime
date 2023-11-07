@@ -83,6 +83,26 @@ public abstract class AbstractBatchJobExecutor {
 ```
 
 借助`RootPlanTreeRewriteJob`
+```java
+public class RootPlanTreeRewriteJob implements RewriteJob {
+    private final List<Rule> rules;
+    private final RewriteJobBuilder rewriteJobBuilder;
+    private final boolean once;
+
+    public RootPlanTreeRewriteJob(List<Rule> rules,
+                RewriteJobBuilder rewriteJobBuilder, boolean once) {
+        this.rules = Objects.requireNonNull(rules, "rules cannot be null");
+        this.rewriteJobBuilder = Objects.requireNonNull(
+                rewriteJobBuilder, "rewriteJobBuilder cannot be null");
+        this.once = once;
+    }
+
+    // 函数式编程接口
+    public interface RewriteJobBuilder {
+        Job build(RewriteJobContext rewriteJobContext, JobContext jobContext, List<Rule> rules);
+    }
+}
+```
 
 ```plantuml
 @startuml
@@ -191,3 +211,29 @@ public class PlanTreeRewriteTopDownJob extends PlanTreeRewriteJob {
     private final List<Rule> rules;
 }
 ```
+
+## Optimize
+### Derive Stat
+```java
+public class DeriveStatsJob extends Job {
+
+}
+```
+
+### DPHyp
+
+```java
+public class JoinOrderJob extends Job {
+    private final Group group;
+    private final Set<NamedExpression> otherProject = new HashSet<>();
+}
+```
+
+### OptimizeGroupJob
+```java
+public class OptimizeGroupJob extends Job {
+    private final Group group;
+}
+```
+
+
