@@ -920,3 +920,30 @@ public interface RuleFactory extends Patterns {
 public class AnalyzeCTE extends OneAnalysisRuleFactory {}
 ```
 
+
+
+## rewrite
+
+```java
+public class NereidsPlanner extends Planner {
+	private void rewrite() {
+        Rewriter.getWholeTreeRewriter(cascadesContext).execute();
+        NereidsTracer.logImportantTime("EndRewritePlan");
+    }
+}
+```
+
+```java
+// Apply rules to rewrite logical plan.
+public class Rewriter extends AbstractBatchJobExecutor {
+    private static final List<RewriteJob> CTE_CHILDREN_REWRITE_JOBS = jobs(
+        .......
+    );
+       
+    public static Rewriter getWholeTreeRewriterWithoutCostBasedJobs(
+        	CascadesContext cascadesContext) {
+        return new Rewriter(cascadesContext, WHOLE_TREE_REWRITE_JOBS_WITHOUT_COST_BASED);
+    }
+}
+```
+

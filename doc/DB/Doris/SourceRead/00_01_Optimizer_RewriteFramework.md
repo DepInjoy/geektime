@@ -8,8 +8,8 @@ class AbstractBatchJobExecutor {
     + static RewriteJob bottomUp(List<RuleFactory> ruleFactories)
     + static RewriteJob topDown(List<RuleFactory> ruleFactories)
 
-    + static TopicRewriteJob topic(String topicName, RewriteJob... jobs)
-    + static RewriteJob custom(RuleType ruleType, Supplier<CustomRewriter> planRewriter)
+    + static TopicRewriteJob topic(String topicName,\n\t RewriteJob... jobs)
+    + static RewriteJob custom(RuleType ruleType,\n \tSupplier<CustomRewriter> planRewriter)
     + static RewriteJob costBased(RewriteJob... jobs)
 }
 
@@ -18,14 +18,26 @@ interface RewriteJob {
     + boolean isOnce();
 }
 
-class CascadesContext {}
-note bottom of CascadesContext : 上层的接口是其子类Rewriter或Analyzer\n通过它们放入构造函数将memo context传递给下来
+class CascadesContext {
+    - final RuleSet ruleSet;
+    - final JobPool jobPool;
+    - final JobScheduler jobScheduler;
+    - JobContext currentJobContext;
+    + public void pushJob(Job job)
+}
+note top of CascadesContext : 上层的接口是其子类Rewriter或Analyzer\n通过它们放入构造函数将memo context传递给下来
+
+interface ScheduleContext {
+    + JobPool getJobPool();
+    + void pushJob(Job job);
+}
 
 Rewriter -down-|> AbstractBatchJobExecutor
 Analyzer -down-|> AbstractBatchJobExecutor
 
 CascadesContext -left-o AbstractBatchJobExecutor
 
+CascadesContext -down.|> ScheduleContext
 RewriteJob -up-* AbstractBatchJobExecutor
 TopicRewriteJob -up-|> RewriteJob
 CostBasedRewriteJob -up-|> RewriteJob
@@ -209,30 +221,6 @@ public class PlanTreeRewriteBottomUpJob extends PlanTreeRewriteJob {
 public class PlanTreeRewriteTopDownJob extends PlanTreeRewriteJob {
     private final RewriteJobContext rewriteJobContext;
     private final List<Rule> rules;
-}
-```
-
-## Optimize
-### Derive Stat
-```java
-public class DeriveStatsJob extends Job {
-
-}
-```
-
-### DPHyp
-
-```java
-public class JoinOrderJob extends Job {
-    private final Group group;
-    private final Set<NamedExpression> otherProject = new HashSet<>();
-}
-```
-
-### OptimizeGroupJob
-```java
-public class OptimizeGroupJob extends Job {
-    private final Group group;
 }
 ```
 
