@@ -51,7 +51,7 @@ class CustomRewriteJob {
     - RuleType ruleType;
     - final Supplier<CustomRewriter>\n\tcustomRewriter;
 }
-note bottom:自定义重写,需要提供CustomRewriter函数接口实现
+note bottom:自定义重写,需提供CustomRewriter实现
 
 class CostBasedRewriteJob{}
 note bottom: Cost based rewrite job
@@ -65,11 +65,11 @@ CascadesContext -left-o AbstractBatchJobExecutor
 
 CascadesContext -down.|> ScheduleContext
 RewriteJob -up-* AbstractBatchJobExecutor
-TopicRewriteJob -up-|> RewriteJob
-CustomRewriteJob -up-|> RewriteJob
+TopicRewriteJob -up..|> RewriteJob
+CustomRewriteJob -up..|> RewriteJob
 
-CostBasedRewriteJob -up-|> RewriteJob
-RootPlanTreeRewriteJob -up-|> RewriteJob
+CostBasedRewriteJob -up..|> RewriteJob
+RootPlanTreeRewriteJob -up..|> RewriteJob
 @enduml
 ```
 
@@ -104,21 +104,12 @@ public abstract class AbstractBatchJobExecutor {
 }
 ```
 
-# Job抽象
-Nereids中含Analyze，Rewrite和CBO阶段的优化都被统一抽象为了Job类，并提供了一些公共的接口，如`pushJob`,`getRuleSet`以及`getValidRules`等，对外提供了纯虚`void execute()`，由子类负责实现完成相应职责。
+# Rewrite Job
 ```plantuml
-abstract class Job {
-    # JobType type;
-    # JobContext context;
-    # boolean once;
-    # final Set<String> disableRules;
-
-    + abstract void execute()
-    
-    + void pushJob(Job job)
-    + RuleSet getRuleSet()
-    + boolean isOnce()
-    + List<Rule> getValidRules(GroupExpression groupExpression, List<Rule> candidateRules)
+@startuml
+interface RewriteJob {
+    void execute(JobContext jobContext);
+    boolean isOnce();
 }
 
 class JobContext {
@@ -128,49 +119,18 @@ class JobContext {
 }
 note bottom: scheduleContext也就是CascadesContext, 在NereidsPlanner\n将CascadesContext传递给Rewriter以及Optimizer
 
-JobContext -up-*Job
-```
-
-```java
-// Abstract class for all job using for analyze and optimize query plan
-public abstract class Job implements TracerSupplier {
-    protected JobType type;
-    protected JobContext context;
-    protected boolean once;
-    // Doris支持disable_nereids_rules会话级参数
-    // 可以,分割输入多个rule实现disable一系列Rule
-    protected final Set<String> disableRules;
-
-    // 执行Job
-    public abstract void execute();
-
-    
-    public void pushJob(Job job) {
-        context.getScheduleContext().pushJob(job);
-    }
-    public RuleSet getRuleSet() {
-        return context.getCascadesContext().getRuleSet();
-    }
-    public boolean isOnce() { return once; }
-    // 从候选Rules中找出valid的Rule
-    public List<Rule> getValidRules(GroupExpression groupExpression,
-            List<Rule> candidateRules);
+class Rule {
+    + List<Plan> transform(Plan node, CascadesContext context)
 }
 
-public class JobContext {
-    // use for optimizer
-    protected final ScheduleContext scheduleContext;
-    protected final PhysicalProperties requiredProperties;
-    protected double costUpperBound;
+JobContext -left--o RewriteJob
+TopicRewriteJob -down..|> RewriteJob
+CustomRewriteJob -down..|> RewriteJob
+CostBasedRewriteJob -down..|> RewriteJob
 
-    // use for rewriter
-    protected boolean rewritten = false;
-    protected List<RewriteJob> remainJobs = Collections.emptyList();
-}
+RewriteJob -down..> Rule
+@enduml
 ```
-
-# Rewrite Job
-
 ```java
 public interface RewriteJob {
     void execute(JobContext jobContext);
@@ -249,35 +209,14 @@ public interface CustomRewriter {
 ```
 
 
-
+## CostBasedRewrite
 ```java
-public class CostBasedRewriteJob implements RewriteJob {}
+public class CostBasedRewriteJob implements RewriteJob {
 
-
-
-public class RootPlanTreeRewriteJob implements RewriteJob {}
-```
-借助`RootPlanTreeRewriteJob`
-```java
-public class RootPlanTreeRewriteJob implements RewriteJob {
-    private final List<Rule> rules;
-    private final RewriteJobBuilder rewriteJobBuilder;
-    private final boolean once;
-
-    public RootPlanTreeRewriteJob(List<Rule> rules,
-                RewriteJobBuilder rewriteJobBuilder, boolean once) {
-        this.rules = Objects.requireNonNull(rules, "rules cannot be null");
-        this.rewriteJobBuilder = Objects.requireNonNull(
-                rewriteJobBuilder, "rewriteJobBuilder cannot be null");
-        this.once = once;
-    }
-
-    // 函数式编程接口
-    public interface RewriteJobBuilder {
-        Job build(RewriteJobContext rewriteJobContext, JobContext jobContext, List<Rule> rules);
-    }
 }
 ```
+## RootPlanTreeRewrite
+`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`实现对外提供`topDown`和`bottomUp`两个接口。
 
 ```plantuml
 @startuml
@@ -311,7 +250,40 @@ RootPlanTreeRewriteJob -right..> RootRewriteJobContext
 @enduml
 ```
 
-`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`实现对外提供`topDown`和`bottomUp`两个接口
+借助`RootPlanTreeRewriteJob`
+```java
+public class RootPlanTreeRewriteJob implements RewriteJob {
+    private final List<Rule> rules;
+    private final RewriteJobBuilder rewriteJobBuilder;
+    private final boolean once;
+
+    public RootPlanTreeRewriteJob(List<Rule> rules,
+                RewriteJobBuilder rewriteJobBuilder, boolean once) {
+        this.rules = Objects.requireNonNull(rules, "rules cannot be null");
+        this.rewriteJobBuilder = Objects.requireNonNull(
+                rewriteJobBuilder, "rewriteJobBuilder cannot be null");
+        this.once = once;
+    }
+
+    protected RewriteResult rewrite(Plan plan, List<Rule> rules, RewriteJobContext rewriteJobContext) {
+                        .......
+        List<Rule> validRules = getValidRules(rules);
+        for (Rule rule : validRules) {
+            Pattern<Plan> pattern = (Pattern<Plan>) rule.getPattern();
+            if (pattern.matchPlanTree(plan)) {
+                List<Plan> newPlans = rule.transform(plan, cascadesContext);
+            }
+            ......
+        }
+    }
+
+    // 函数式编程接口
+    public interface RewriteJobBuilder {
+        Job build(RewriteJobContext rewriteJobContext, JobContext jobContext, List<Rule> rules);
+    }
+}
+```
+
 ```plantuml
 @startuml
 class Job {
@@ -351,17 +323,7 @@ public abstract class Job implements TracerSupplier {
 public abstract class PlanTreeRewriteJob extends Job {
     private final RewriteJobContext rewriteJobContext;
     private final List<Rule> rules;
-    protected RewriteResult rewrite(Plan plan, List<Rule> rules, RewriteJobContext rewriteJobContext) {
-                        .......
-        List<Rule> validRules = getValidRules(rules);
-        for (Rule rule : validRules) {
-            Pattern<Plan> pattern = (Pattern<Plan>) rule.getPattern();
-            if (pattern.matchPlanTree(plan)) {
-                List<Plan> newPlans = rule.transform(plan, cascadesContext);
-            }
-            ......
-        }
-    }
+
 }
 ```
 

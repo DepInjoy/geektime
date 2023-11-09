@@ -1,3 +1,68 @@
+# Job抽象
+Nereids中含Analyze，Rewrite和CBO阶段的优化都被统一抽象为了Job类，并提供了一些公共的接口，如`pushJob`,`getRuleSet`以及`getValidRules`等，对外提供了纯虚`void execute()`，由子类负责实现完成相应职责。
+```plantuml
+abstract class Job {
+    # JobType type;
+    # JobContext context;
+    # boolean once;
+    # final Set<String> disableRules;
+
+    + abstract void execute()
+    
+    + void pushJob(Job job)
+    + RuleSet getRuleSet()
+    + boolean isOnce()
+    + List<Rule> getValidRules(GroupExpression groupExpression, List<Rule> candidateRules)
+}
+
+class JobContext {
+    # final PhysicalProperties requiredProperties
+    # final ScheduleContext scheduleContext
+    # List<RewriteJob> remainJobs
+}
+note bottom: scheduleContext也就是CascadesContext, 在NereidsPlanner\n将CascadesContext传递给Rewriter以及Optimizer
+
+JobContext -up-*Job
+```
+
+```java
+// Abstract class for all job using for analyze and optimize query plan
+public abstract class Job implements TracerSupplier {
+    protected JobType type;
+    protected JobContext context;
+    protected boolean once;
+    // Doris支持disable_nereids_rules会话级参数
+    // 可以,分割输入多个rule实现disable一系列Rule
+    protected final Set<String> disableRules;
+
+    // 执行Job
+    public abstract void execute();
+
+    
+    public void pushJob(Job job) {
+        context.getScheduleContext().pushJob(job);
+    }
+    public RuleSet getRuleSet() {
+        return context.getCascadesContext().getRuleSet();
+    }
+    public boolean isOnce() { return once; }
+    // 从候选Rules中找出valid的Rule
+    public List<Rule> getValidRules(GroupExpression groupExpression,
+            List<Rule> candidateRules);
+}
+
+public class JobContext {
+    // use for optimizer
+    protected final ScheduleContext scheduleContext;
+    protected final PhysicalProperties requiredProperties;
+    protected double costUpperBound;
+
+    // use for rewriter
+    protected boolean rewritten = false;
+    protected List<RewriteJob> remainJobs = Collections.emptyList();
+}
+```
+
 # Optimize
 
 ## Derive Stat

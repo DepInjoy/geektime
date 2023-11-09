@@ -206,9 +206,11 @@ class SimpleJobScheduler {
     + void executeJobPool(ScheduleContext scheduleContext);
 }
 
-interface JobScheduler {
-    + void executeJobPool(ScheduleContext scheduleContext);
+interface ScheduleContext {
+    + JobPool getJobPool();
+    + void pushJob(Job job);
 }
+
 SimpleJobScheduler -down.|> JobScheduler
 JobScheduler -right..> ScheduleContext
 
