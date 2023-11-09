@@ -118,6 +118,8 @@ public abstract class Job implements TracerSupplier {
     protected JobType type;
     protected JobContext context;
     protected boolean once;
+    // Doris支持disable_nereids_rules会话级参数
+    // 可以,分割输入多个rule实现disable一系列Rule
     protected final Set<String> disableRules;
 
     // 执行Job

@@ -1,18 +1,27 @@
 ```plantuml
 @startuml
-class AbstractBatchJobExecutor {
+abstract class AbstractBatchJobExecutor {
     # CascadesContext cascadesContext
     + abstract List<RewriteJob> getJobs();
+
     + void execute()
 
     + static RewriteJob bottomUp(List<RuleFactory> ruleFactories)
     + static RewriteJob topDown(List<RuleFactory> ruleFactories)
 
-    + static TopicRewriteJob topic(String topicName,\n\t RewriteJob... jobs)
-    + static RewriteJob custom(RuleType ruleType,\n \tSupplier<CustomRewriter> planRewriter)
+    + static TopicRewriteJob topic(String topicName,\n\tRewriteJob... jobs)
+    + static RewriteJob custom(RuleType ruleType,\n\tSupplier<CustomRewriter> planRewriter)
     + static RewriteJob costBased(RewriteJob... jobs)
 }
 
+class Rewriter {
+    + List<RewriteJob> getJobs()
+}
+
+class Analyzer {
+    + List<RewriteJob> getJobs()
+    + void analyze()
+}
 interface RewriteJob {
     + void execute(JobContext jobContext);
     + boolean isOnce();
@@ -23,7 +32,7 @@ class CascadesContext {
     - final JobPool jobPool;
     - final JobScheduler jobScheduler;
     - JobContext currentJobContext;
-    + public void pushJob(Job job)
+    + void pushJob(Job job)
 }
 note top of CascadesContext : 上层的接口是其子类Rewriter或Analyzer\n通过它们放入构造函数将memo context传递给下来
 
@@ -32,6 +41,23 @@ interface ScheduleContext {
     + void pushJob(Job job);
 }
 
+class TopicRewriteJob {
+    + final String topicName;
+    + final List<RewriteJob> jobs;
+}
+note bottom : 不可直接执行，一系列的RewriteJob组成\n在构造时将它们收集到jobs列表
+
+class CustomRewriteJob {
+    - RuleType ruleType;
+    - final Supplier<CustomRewriter>\n\tcustomRewriter;
+}
+note bottom:自定义重写,需要提供CustomRewriter函数接口实现
+
+class CostBasedRewriteJob{}
+note bottom: Cost based rewrite job
+
+class RootPlanTreeRewriteJob {}
+note bottom: 需要提供RewriteJobBuilder函数式编程接口\n封装实现bottomUp，topDown
 Rewriter -down-|> AbstractBatchJobExecutor
 Analyzer -down-|> AbstractBatchJobExecutor
 
@@ -40,38 +66,21 @@ CascadesContext -left-o AbstractBatchJobExecutor
 CascadesContext -down.|> ScheduleContext
 RewriteJob -up-* AbstractBatchJobExecutor
 TopicRewriteJob -up-|> RewriteJob
-CostBasedRewriteJob -up-|> RewriteJob
 CustomRewriteJob -up-|> RewriteJob
+
+CostBasedRewriteJob -up-|> RewriteJob
 RootPlanTreeRewriteJob -up-|> RewriteJob
 @enduml
 ```
 
 ```java
-public interface RewriteJob {
-    void execute(JobContext jobContext);
-    boolean isOnce();
-}
-
-public class TopicRewriteJob implements RewriteJob {}
-
-public class CostBasedRewriteJob implements RewriteJob {}
-
-public class CustomRewriteJob implements RewriteJob {
-    private final RuleType ruleType;
-    private final Supplier<CustomRewriter> customRewriter;
-}
-
-public class RootPlanTreeRewriteJob implements RewriteJob {}
-```
-
-```java
-/**
- * Base class for executing all jobs.
- * Each batch of rules will be uniformly executed.
- */
+// Base class for executing all jobs.
+// Each batch of rules will be uniformly executed.
 public abstract class AbstractBatchJobExecutor {
+    // 也就是CascadesContext, 在NereidsPlanner
+    // 将CascadesContext传递给Rewriter以及Optimizer
     protected CascadesContext cascadesContext;
-    // 获取需要执行的一系列Job
+    // 获取需要执行的一系列Job，子类负责完成实现
     public abstract List<RewriteJob> getJobs();
     
     // 将待处理规则(表示为RewriteJob)并对外提供execute接口来执行任务
@@ -80,7 +89,8 @@ public abstract class AbstractBatchJobExecutor {
             JobContext jobContext = cascadesContext.getCurrentJobContext();
             RewriteJob currentJob = getJobs().get(i);
             if (currentJob instanceof CostBasedRewriteJob) {
-                List<RewriteJob> remainJobs = getJobs().subList(i + 1, getJobs().size()).stream()
+                List<RewriteJob> remainJobs = getJobs()
+                        .subList(i + 1, getJobs().size()).stream()
                         .filter(j -> !(j instanceof CostBasedRewriteJob))
                         .collect(Collectors.toList());
                 jobContext.setRemainJobs(remainJobs);
@@ -94,6 +104,159 @@ public abstract class AbstractBatchJobExecutor {
 }
 ```
 
+# Job抽象
+Nereids中含Analyze，Rewrite和CBO阶段的优化都被统一抽象为了Job类，并提供了一些公共的接口，如`pushJob`,`getRuleSet`以及`getValidRules`等，对外提供了纯虚`void execute()`，由子类负责实现完成相应职责。
+```plantuml
+abstract class Job {
+    # JobType type;
+    # JobContext context;
+    # boolean once;
+    # final Set<String> disableRules;
+
+    + abstract void execute()
+    
+    + void pushJob(Job job)
+    + RuleSet getRuleSet()
+    + boolean isOnce()
+    + List<Rule> getValidRules(GroupExpression groupExpression, List<Rule> candidateRules)
+}
+
+class JobContext {
+    # final PhysicalProperties requiredProperties
+    # final ScheduleContext scheduleContext
+    # List<RewriteJob> remainJobs
+}
+note bottom: scheduleContext也就是CascadesContext, 在NereidsPlanner\n将CascadesContext传递给Rewriter以及Optimizer
+
+JobContext -up-*Job
+```
+
+```java
+// Abstract class for all job using for analyze and optimize query plan
+public abstract class Job implements TracerSupplier {
+    protected JobType type;
+    protected JobContext context;
+    protected boolean once;
+    // Doris支持disable_nereids_rules会话级参数
+    // 可以,分割输入多个rule实现disable一系列Rule
+    protected final Set<String> disableRules;
+
+    // 执行Job
+    public abstract void execute();
+
+    
+    public void pushJob(Job job) {
+        context.getScheduleContext().pushJob(job);
+    }
+    public RuleSet getRuleSet() {
+        return context.getCascadesContext().getRuleSet();
+    }
+    public boolean isOnce() { return once; }
+    // 从候选Rules中找出valid的Rule
+    public List<Rule> getValidRules(GroupExpression groupExpression,
+            List<Rule> candidateRules);
+}
+
+public class JobContext {
+    // use for optimizer
+    protected final ScheduleContext scheduleContext;
+    protected final PhysicalProperties requiredProperties;
+    protected double costUpperBound;
+
+    // use for rewriter
+    protected boolean rewritten = false;
+    protected List<RewriteJob> remainJobs = Collections.emptyList();
+}
+```
+
+# Rewrite Job
+
+```java
+public interface RewriteJob {
+    void execute(JobContext jobContext);
+    boolean isOnce();
+}
+```
+
+## TopicRewriteJob
+```java
+// 不可直接执行，一系列的RewriteJob组成
+// 在构造时将它们收集到jobs列表
+public class TopicRewriteJob implements RewriteJob {
+    public final String topicName;
+    public final List<RewriteJob> jobs;
+
+                ....
+    @Override
+    public void execute(JobContext jobContext) {
+        throw new AnalysisException("should not execute topic rewrite job "
+            + topicName + " directly.");
+    }
+}
+```
+
+## Custom Rewrite
+
+Custom实际上就是调用指定的函数接口。
+```plantuml
+
+class CustomRewriteJob {
+    void execute(JobContext context)
+}
+
+interface CustomRewriter {
+    + Plan rewriteRoot(Plan plan, JobContext jobContext);
+}
+
+interface RewriteJob {
+    + void execute(JobContext jobContext);
+    + boolean isOnce();
+}
+CustomRewriteJob .|> RewriteJob
+CustomRewriter -up-* CustomRewriteJob
+```
+
+```java
+public class CustomRewriteJob implements RewriteJob {
+    private final RuleType ruleType;
+    private final Supplier<CustomRewriter> customRewriter;
+
+    public CustomRewriteJob(Supplier<CustomRewriter> rewriter, RuleType ruleType) {
+            .....
+    }
+
+    @Override
+    public void execute(JobContext context) {
+        Set<String> disableRules = Job.getDisableRules(context);
+        if (disableRules.contains(ruleType.name().toUpperCase(Locale.ROOT))) {
+            return;
+        }
+        Plan root = context.getCascadesContext().getRewritePlan();
+        Plan rewrittenRoot = customRewriter.get().rewriteRoot(root, context);
+        context.getCascadesContext().setRewritePlan(rewrittenRoot);
+    }
+
+    @Override
+    public boolean isOnce() {
+        return false;
+    }
+}
+
+// 函数式编程接口
+public interface CustomRewriter {
+    Plan rewriteRoot(Plan plan, JobContext jobContext);
+}
+```
+
+
+
+```java
+public class CostBasedRewriteJob implements RewriteJob {}
+
+
+
+public class RootPlanTreeRewriteJob implements RewriteJob {}
+```
 借助`RootPlanTreeRewriteJob`
 ```java
 public class RootPlanTreeRewriteJob implements RewriteJob {
