@@ -263,9 +263,95 @@ int main() {
 ## 前缀和与差分
 
 ## 双指针算法
+```C++
+or (int i = 0, j = 0; i < n; i ++ )
+{
+    while (j < i && check(i, j)) j ++ ;
+
+    // 具体问题的逻辑
+}
+常见问题分类：
+    (1) 对于一个序列，用两个指针维护一段区间
+    (2) 对于两个序列，维护某种次序，比如归并排序中合并两个有序序列的操作
+```
+
+[799.最长连续不重复子序列](https://www.acwing.com/problem/content/801/)
+
+```C++
+#include <iostream>
+
+const int N = 100010;
+int data[N], cnt[N];
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
+
+    int ans = 0;
+    for (int i = 0, j = 0; i < n; ++i) {
+        ++cnt[data[i]];
+        while (cnt[data[i]] > 1) --cnt[data[j++]];
+        ans = std::max(ans, i - j + 1);
+    }
+    std::cout << ans;
+    return 0;
+}
+```
+
+
+
+[800.数组元素的目标和](https://www.acwing.com/problem/content/802/)
+
+```C++
+#include <iostream>
+
+const int N = 100010;
+int a[N], b[N];
+
+int main() {
+    int m, n, x;
+    scanf("%d%d%d", &m, &n, &x);
+    for (int i = 0; i < m; ++i) scanf("%d", &a[i]);
+    for (int i = 0; i < n; ++i) scanf("%d", &b[i]);
+    
+    for (int i = 0, j = n - 1; i < m; ++i) {
+        while(a[i] + b[j] > x) --j;
+        if (a[i] + b[j] == x) {
+            std::cout << i << " " << j;
+        }
+    }
+    return 0;
+}
+```
+
+[2816.判断子序列](https://www.acwing.com/problem/content/2818/)
+
+```C++
+#include <iostream>
+
+const int N = 100010;
+int a[N], b[N];
+
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+    for (int i = 0; i < m; ++i) scanf("%d", &a[i]);
+    for (int i = 0; i < n; ++i) scanf("%d", &b[i]);
+    
+    int i = 0, j = 0;
+    for (; i < n; ++i) {
+        if (j < m && a[j] == b[i]) j++;
+    }
+    std::cout << ((j == m) ? "Yes" : "No");
+    return 0;
+}
+```
+
 
 
 ## 位运算
+
 ```C++
 // 求n的第k位数字
 n >> k & 1
