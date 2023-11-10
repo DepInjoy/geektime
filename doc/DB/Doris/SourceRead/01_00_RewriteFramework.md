@@ -1,3 +1,43 @@
+rewite的调用入口来自`NereidsPlanner`的`rewrite`
+```java
+public class NereidsPlanner extends Planner {
+                ......
+    private void rewrite() {
+        Rewriter.getWholeTreeRewriter(cascadesContext).execute();
+        NereidsTracer.logImportantTime("EndRewritePlan");
+    }
+                ......
+}
+```
+`Rewriter`继承`AbstractBatchJobExecutor`，`Rewriter`提供一系列RewriteJob并实现`getJobs()`接口，其父类`AbstractBatchJobExecutor`实现`execute()`实现Job执行采用统一逻辑。
+
+```java
+public class Rewriter extends AbstractBatchJobExecutor {
+    private final List<RewriteJob> rewriteJobs;
+
+            .....
+    @Override
+    public List<RewriteJob> getJobs() {
+        return rewriteJobs;
+    }
+            ......
+}
+
+// Base class for executing all jobs.
+// Each batch of rules will be uniformly executed.
+public abstract class AbstractBatchJobExecutor {
+    protected CascadesContext cascadesContext;
+
+    public void execute() {
+            ......
+    }
+
+    public abstract List<RewriteJob> getJobs();
+}
+```
+
+# Job执行
+
 ```plantuml
 @startuml
 abstract class AbstractBatchJobExecutor {
