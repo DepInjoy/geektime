@@ -167,14 +167,47 @@ JobContext -left--o RewriteJob
 TopicRewriteJob -down..|> RewriteJob
 CustomRewriteJob -down..|> RewriteJob
 CostBasedRewriteJob -down..|> RewriteJob
+RootPlanTreeRewriteJob -down..|> RewriteJob
 
 RewriteJob -down..> Rule
 @enduml
 ```
+将Rewrite Job抽象为RewriteJob,在其上派生出TopicRewriteJob，CustomRewriteJob等，进行不同类型的Job执行
 ```java
 public interface RewriteJob {
     void execute(JobContext jobContext);
     boolean isOnce();
+}
+
+public class TopicRewriteJob implements RewriteJob { ...... }
+public class CustomRewriteJob implements RewriteJob { ...... }
+public class CostBasedRewriteJob implements RewriteJob {......}
+public class RootPlanTreeRewriteJob implements RewriteJob {.....}
+```
+在AbstractBatchJobExecutor提供一系列对外接口
+```java
+public abstract class AbstractBatchJobExecutor {
+            ......
+    public static TopicRewriteJob topic(String topicName, RewriteJob... jobs) {
+        return new TopicRewriteJob(topicName, Arrays.asList(jobs));
+    }
+
+    public static RewriteJob costBased(RewriteJob... jobs) {
+        return new CostBasedRewriteJob(Arrays.asList(jobs));
+    }
+
+    public static RewriteJob bottomUp(RuleFactory... ruleFactories) {
+        return bottomUp(Arrays.asList(ruleFactories));
+    }
+
+    public static RewriteJob topDown(RuleFactory... ruleFactories) {
+        return topDown(Arrays.asList(ruleFactories));
+    }
+
+
+    public static RewriteJob custom(RuleType ruleType, Supplier<CustomRewriter> planRewriter) {
+        return new CustomRewriteJob(planRewriter, ruleType);
+    }
 }
 ```
 
