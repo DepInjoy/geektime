@@ -338,16 +338,17 @@ public class RootPlanTreeRewriteJob implements RewriteJob {
         this.once = once;
     }
 
-    protected RewriteResult rewrite(Plan plan, List<Rule> rules, RewriteJobContext rewriteJobContext) {
-                        .......
-        List<Rule> validRules = getValidRules(rules);
-        for (Rule rule : validRules) {
-            Pattern<Plan> pattern = (Pattern<Plan>) rule.getPattern();
-            if (pattern.matchPlanTree(plan)) {
-                List<Plan> newPlans = rule.transform(plan, cascadesContext);
-            }
-            ......
-        }
+    @Override
+    public void execute(JobContext context) {
+        CascadesContext cascadesContext = context.getCascadesContext();
+        // get plan from the cascades context
+        Plan root = cascadesContext.getRewritePlan();
+        // write rewritten root plan to cascades context by the RootRewriteJobContext
+        RootRewriteJobContext rewriteJobContext = new RootRewriteJobContext(root, false, context);
+        Job rewriteJob = rewriteJobBuilder.build(rewriteJobContext, context, rules);
+
+        context.getScheduleContext().pushJob(rewriteJob);
+        cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
     }
 
     // 函数式编程接口
@@ -397,28 +398,48 @@ public abstract class PlanTreeRewriteJob extends Job {
     private final RewriteJobContext rewriteJobContext;
     private final List<Rule> rules;
 
+    protected RewriteResult rewrite(Plan plan, List<Rule> rules,
+            RewriteJobContext rewriteJobContext) {
+                        .......
+        List<Rule> validRules = getValidRules(rules);
+        for (Rule rule : validRules) {
+            Pattern<Plan> pattern = (Pattern<Plan>) rule.getPattern();
+            if (pattern.matchPlanTree(plan)) {
+                List<Plan> newPlans = rule.transform(plan, cascadesContext);
+            }
+            ......
+        }
+    }
 }
 ```
 
-## BottomUp
-```java
-public class RootPlanTreeRewriteJob implements RewriteJob {
-    private final List<Rule> rules;
-    private final RewriteJobBuilder rewriteJobBuilder;
-    private final boolean once;
-}
-```
+### BottomUp
 ```java
 public class PlanTreeRewriteBottomUpJob extends PlanTreeRewriteJob {
-
+    public PlanTreeRewriteBottomUpJob(RewriteJobContext rewriteJobContext,
+            JobContext context, List<Rule> rules) {
+        super(JobType.BOTTOM_UP_REWRITE, context);
+        this.rewriteJobContext = Objects.requireNonNull(
+                rewriteJobContext, "rewriteContext cannot be null");
+        this.rules = Objects.requireNonNull(rules, "rules cannot be null");
+    }
 }
 ```
 
-## TopDown
+### TopDown
 ```java
 public class PlanTreeRewriteTopDownJob extends PlanTreeRewriteJob {
     private final RewriteJobContext rewriteJobContext;
     private final List<Rule> rules;
+
+    public PlanTreeRewriteTopDownJob(RewriteJobContext rewriteJobContext,
+            JobContext context, List<Rule> rules) {
+        super(JobType.TOP_DOWN_REWRITE, context);
+        this.rewriteJobContext = Objects.requireNonNull(
+                rewriteJobContext, "rewriteContext cannot be null");
+        this.rules = Objects.requireNonNull(
+                rules, "rules cannot be null");
+    }
 }
 ```
 
