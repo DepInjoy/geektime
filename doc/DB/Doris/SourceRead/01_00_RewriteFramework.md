@@ -341,9 +341,7 @@ public class RootPlanTreeRewriteJob implements RewriteJob {
     @Override
     public void execute(JobContext context) {
         CascadesContext cascadesContext = context.getCascadesContext();
-        // get plan from the cascades context
         Plan root = cascadesContext.getRewritePlan();
-        // write rewritten root plan to cascades context by the RootRewriteJobContext
         RootRewriteJobContext rewriteJobContext = new RootRewriteJobContext(root, false, context);
         Job rewriteJob = rewriteJobBuilder.build(rewriteJobContext, context, rules);
 
