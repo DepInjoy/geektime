@@ -388,6 +388,67 @@ int main() {
 
 ## 区间合并
 
+# 数据结构
+
+## 单链表
+
+## 双链表
+
+## 栈
+
+## 队列
+
+
+
+## 单调栈
+
+[830.单调栈](https://www.acwing.com/problem/content/832/)
+
+```C++
+#include <iostream>
+
+const int N = 100010;
+int stk[N], tt;
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    while(n--) {
+        int x;
+        scanf("%d", &x);
+        while(tt && stk[tt] >= x) --tt;
+        if (tt) {
+            std::cout << stk[tt] << " ";
+        } else {
+            std::cout << "-1 ";
+        }
+        stk[++tt] = x; 
+    }
+    return 0;
+}
+```
+
+
+
+## 单调队列
+
+[154.滑动窗口](https://www.acwing.com/problem/content/156/)
+
+```C++
+```
+
+
+
+## KMP
+
+## Trie
+
+## 并查集
+
+## 堆
+
+## 哈希表
 
 # 动态规划
 
