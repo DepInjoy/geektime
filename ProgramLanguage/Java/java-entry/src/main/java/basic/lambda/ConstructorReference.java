@@ -1,4 +1,4 @@
-package base.lambda;
+package basic.lambda;
 
 class Person {
     private String  name_;
@@ -32,9 +32,9 @@ public class ConstructorReference {
     }
 
     public static void main(String[] args) {
-        // 采用构造器引用方式
+        // 1. 采用构造器引用方式
         printPersonInfo("Lucy", 18, Person::new);
-        // 采用Lambda表达式方式
+        // 2. 采用Lambda表达式方式
         printPersonInfo("Jack", 25,
                 (name, age) -> new Person(name, age));
     }

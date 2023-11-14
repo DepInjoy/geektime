@@ -1,4 +1,4 @@
-package base.lambda;
+package basic.lambda;
 
 // 函数式编程接口,JDK 8专门为函数式接口引入了@FunctionalInterface注解
 interface Animal {
@@ -37,3 +37,4 @@ public class LambdaExample {
         ShowSum(3, 5, (x, y) -> x + y);
     }
 }
+
