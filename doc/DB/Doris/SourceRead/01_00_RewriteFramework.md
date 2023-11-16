@@ -477,33 +477,85 @@ public abstract class PlanTreeRewriteJob extends Job {
 ```
 
 #### Bottom-Up Rewrite
+`PlanTreeRewriteBottomUpJob`也是一种Job，其主要的实现是`execute`接口。执行过程主要生Job然后状态切换，涉及下面几个状态
 ```java
-public class PlanTreeRewriteBottomUpJob extends PlanTreeRewriteJob {
-    public PlanTreeRewriteBottomUpJob(RewriteJobContext rewriteJobContext,
-            JobContext context, List<Rule> rules) {
-        super(JobType.BOTTOM_UP_REWRITE, context);
-        this.rewriteJobContext = Objects.requireNonNull(
-                rewriteJobContext, "rewriteContext cannot be null");
-        this.rules = Objects.requireNonNull(rules, "rules cannot be null");
+enum RewriteState {
+    // 可以处理当前节点，因为是自下而上处理，这表示所有的孩子已完成重写
+    REWRITE_THIS,
+    // 表示当前节点已处理完成
+    REWRITTEN,
+    // 表示处理当前节点生成了新计划，需要对其孩子节点重新处理
+    ENSURE_CHILDREN_REWRITTEN
+}
+```
+`execute`接口实现主要过程
+```java
+@Override
+public void execute() {
+    // 1. 由于是Bottom-up rewrite job，遍历并重置孩子状态为REWRITE_THIS
+    boolean clearStatePhase = !rewriteJobContext.childrenVisited;
+    if (clearStatePhase) {
+        traverseClearState();
+        return;
+    }
+
+    Plan plan = rewriteJobContext.plan;
+    RewriteState state = getState(plan);
+    switch (state) {
+        case REWRITE_THIS:
+            // 2. 调用rewrite进行重写，如果没有生成新Plan，状态切到REWRITTEN
+            //    否则,切到ENSURE_CHILDREN_REWRITTEN,对其孩子重新处理
+            rewriteThis();
+            return;
+        case ENSURE_CHILDREN_REWRITTEN:
+            // 3.1 Plan被修改，重新处理孩子
+            ensureChildrenRewritten();
+            return;
+        case REWRITTEN:
+            // 3.2 Plan未被修改
+            rewriteJobContext.result = plan;
+            return;
     }
 }
 ```
 
 #### TopDown
+`PlanTreeRewriteTopDownJob`也是一种Job，其主要的实现是`execute`接口。
 ```java
-public class PlanTreeRewriteTopDownJob extends PlanTreeRewriteJob {
-    private final RewriteJobContext rewriteJobContext;
-    private final List<Rule> rules;
+public void execute() {
+    if (!rewriteJobContext.childrenVisited) {
+        // 1. 自上而下, 先rewrite当前节点
+        RewriteResult rewriteResult = rewrite(rewriteJobContext.plan, rules, rewriteJobContext);
+        if (rewriteResult.hasNewPlan) {
+            // 1.1 Plan被修改，生成新的Rewrite Job等下一次Job执行来执行Rewrite
+            RewriteJobContext newContext = rewriteJobContext
+                    .withPlanAndChildrenVisited(rewriteResult.plan, false);
+            pushJob(new PlanTreeRewriteTopDownJob(newContext, context, rules));
+            return;
+        }
+        
+        // 2. 生成一个childrenVisited=true的Job，待孩子孩子处理完成，实现将孩子链接到当前节点
+        //    参见下方的else处理,这样依赖Job Schedule是stack，先进后出
+        //    下方处理孩子节点的Rewrite Job后进先出，这样可以确保将处理完的孩子链接到当前已处理的节点
+        RewriteJobContext newRewriteJobContext = rewriteJobContext.withChildrenVisited(true);
+        pushJob(new PlanTreeRewriteTopDownJob(newRewriteJobContext, context, rules));
 
-    public PlanTreeRewriteTopDownJob(RewriteJobContext rewriteJobContext,
-            JobContext context, List<Rule> rules) {
-        super(JobType.TOP_DOWN_REWRITE, context);
-        this.rewriteJobContext = Objects.requireNonNull(
-                rewriteJobContext, "rewriteContext cannot be null");
-        this.rules = Objects.requireNonNull(
-                rules, "rules cannot be null");
+        // 3. 生成RewriteJob处理孩子节点
+        List<Plan> children = newRewriteJobContext.plan.children();
+        for (int i = children.size() - 1; i >= 0; i--) {
+            RewriteJobContext childRewriteJobContext = new RewriteJobContext(
+                    children.get(i), newRewriteJobContext, i, false);
+            if (!(rewriteJobContext.plan instanceof LogicalCTEAnchor)) {
+                pushJob(new PlanTreeRewriteTopDownJob(childRewriteJobContext, context, rules));
+            }
+        }
+    } else {
+        // 2.1 所有孩子阶段已处理完成,将孩子连接到当前节点即可
+        Plan result = linkChildrenAndParent(rewriteJobContext.plan, rewriteJobContext);
+        if (rewriteJobContext.parentContext == null) {
+            context.getCascadesContext().setRewritePlan(result);
+        }
     }
 }
 ```
-
 
