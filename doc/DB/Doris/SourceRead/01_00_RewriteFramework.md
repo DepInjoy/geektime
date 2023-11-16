@@ -289,8 +289,41 @@ public class CostBasedRewriteJob implements RewriteJob {
 }
 ```
 ## RootPlanTreeRewrite
-`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`实现对外提供`topDown`和`bottomUp`两个接口。
+`AbstractBatchJobExecutor`对外提供`topDown`实现自上而下rewrite，也就是先rewrite自己，再rewrite孩子。
+```java
+public static RewriteJob topDown(RuleFactory... ruleFactories) {
+    return topDown(Arrays.asList(ruleFactories));
+}
 
+public static RewriteJob topDown(List<RuleFactory> ruleFactories) {
+    return topDown(ruleFactories, true);
+}
+
+public static RewriteJob topDown(List<RuleFactory> ruleFactories, boolean once) {
+    List<Rule> rules = ruleFactories.stream()
+            .map(RuleFactory::buildRules)
+            .flatMap(List::stream)
+            .collect(ImmutableList.toImmutableList());
+    return new RootPlanTreeRewriteJob(rules, PlanTreeRewriteTopDownJob::new, once);
+}
+```
+
+`AbstractBatchJobExecutor`对外提供`bottomUp`实现自下而上的rewrite，也就是写rewrite孩子，再rewrite自己。
+```java
+public static RewriteJob bottomUp(RuleFactory... ruleFactories) {
+    return bottomUp(Arrays.asList(ruleFactories));
+}
+
+public static RewriteJob bottomUp(List<RuleFactory> ruleFactories) {
+    List<Rule> rules = ruleFactories.stream()
+            .map(RuleFactory::buildRules)
+            .flatMap(List::stream)
+            .collect(ImmutableList.toImmutableList());
+    return new RootPlanTreeRewriteJob(rules, PlanTreeRewriteBottomUpJob::new, true);
+}
+```
+
+在具体的实现过程中，借助`RootPlanTreeRewriteJob`将两个Job统一封装，提供`RewriteJobBuilder`函数式编程接口，借助方法引用`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`分别实现Top-Down和Bottom-UP。
 ```plantuml
 @startuml
 class RootPlanTreeRewriteJob {
@@ -303,6 +336,7 @@ interface RewriteJob {
     + void execute(JobContext jobContext);
     + boolean isOnce();
 }
+note bottom : rewrite job抽象接口
 
 class RootRewriteJobContext {
     - final JobContext jobContext;
@@ -317,9 +351,18 @@ class RewriteJobContext {
     Plan result;
 }
 
-RootRewriteJobContext -down-|>RewriteJobContext
+interface RewriteJobBuilder {
+    Job build(RewriteJobContext rewriteJobContext,
+        \tJobContext jobContext, List<Rule> rules);
+}
+note bottom : 函数式编程接口，方法引用PlanTreeRewriteTopDownJob和\nPlanTreeRewriteBottomUpJob
+
+RootRewriteJobContext -down-|> RewriteJobContext
 RootPlanTreeRewriteJob -down.|> RewriteJob
-RootPlanTreeRewriteJob -right..> RootRewriteJobContext
+RewriteJobBuilder -left-* RootPlanTreeRewriteJob
+
+RewriteJobBuilder -right..> RootRewriteJobContext
+
 @enduml
 ```
 
@@ -333,6 +376,8 @@ public class RootPlanTreeRewriteJob implements RewriteJob {
     public RootPlanTreeRewriteJob(List<Rule> rules,
                 RewriteJobBuilder rewriteJobBuilder, boolean once) {
         this.rules = Objects.requireNonNull(rules, "rules cannot be null");
+        // 函数式编程接口，在AbstractBatchJobExecutor方法式引用
+        // PlanTreeRewriteTopDownJob或PlanTreeRewriteBottomUpJob
         this.rewriteJobBuilder = Objects.requireNonNull(
                 rewriteJobBuilder, "rewriteJobBuilder cannot be null");
         this.once = once;
@@ -343,9 +388,11 @@ public class RootPlanTreeRewriteJob implements RewriteJob {
         CascadesContext cascadesContext = context.getCascadesContext();
         Plan root = cascadesContext.getRewritePlan();
         RootRewriteJobContext rewriteJobContext = new RootRewriteJobContext(root, false, context);
+        // 1. 引用PlanTreeRewriteTopDownJob和PlanTreeRewriteBottomUpJob
         Job rewriteJob = rewriteJobBuilder.build(rewriteJobContext, context, rules);
-
+        // 2. rewriteJob加入job列表
         context.getScheduleContext().pushJob(rewriteJob);
+        // 3. 取出Job执行
         cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
     }
 
@@ -355,26 +402,37 @@ public class RootPlanTreeRewriteJob implements RewriteJob {
     }
 }
 ```
-
+### PlanTreeRewriteJob
+接下来，了解负责Top-Down和Bottom-UP rewrite处理的`PlanTreeRewriteTopDownJob`和`PlanTreeRewriteBottomUpJob`的实现
 ```plantuml
 @startuml
-class Job {
+abstract class Job {
     # JobType type
     # JobContext context
     # boolean once
     # Set<String> disableRules
-    + Job(JobType type, JobContext context)
+    + List<Rule> getValidRules(List<Rule> candidateRules)
     + abstract void execute()
 }
 
-class PlanTreeRewriteJob {
+abstract class PlanTreeRewriteJob {
     # RewriteResult rewrite(Plan plan, List<Rule> rules,\n\tRewriteJobContext rewriteJobContext)
 }
+note right : 统一实现改写\napply valid rule
 
-class PlanTreeRewriteTopDownJob {}
-note top: 自上而下改写
-class PlanTreeRewriteBottomUpJob {}
-note top: 自下而上改写
+class PlanTreeRewriteTopDownJob {
+    - final RewriteJobContext rewriteJobContext;
+    - final List<Rule> rules;
+    + public void execute()
+}
+note top: 自上而下rewrite
+
+class PlanTreeRewriteBottomUpJob {
+    - final RewriteJobContext rewriteJobContext;
+    - final List<Rule> rules;
+    + public void execute()
+}
+note top: 自下而上rewrite
 
 PlanTreeRewriteTopDownJob -down.|> PlanTreeRewriteJob
 PlanTreeRewriteBottomUpJob -down.|> PlanTreeRewriteJob
@@ -382,14 +440,21 @@ PlanTreeRewriteJob -down.|> Job
 @enduml
 ```
 
-`PlanTreeRewriteJob`实现了`rewrite`接口,通过`Job`获取可用的规则，调用`transform`进行变换。
+`PlanTreeRewriteJob`实现了`rewrite`接口,通过`Job`获取valid规则(Rule)，调用`transform`接口进行变换。
 ```java
 public abstract class Job implements TracerSupplier {
     protected JobType type;
     protected JobContext context;
     protected boolean once;
     protected final Set<String> disableRules;
-    List<Rule> getValidRules(...) {}
+
+    // 实现统一获取valid规则接口实现
+    // Doris支持会话级参数disable_nereids_rules禁用一系列Rule
+    // JobContext有CascadesContext获取到会话级参数(SessionVariable)
+    // 将输入中候选Rule去除禁用Rule得到valid Rule
+    public List<Rule> getValidRules(List<Rule> candidateRules) {
+            ......
+    }
 }
 
 public abstract class PlanTreeRewriteJob extends Job {
@@ -411,7 +476,7 @@ public abstract class PlanTreeRewriteJob extends Job {
 }
 ```
 
-### BottomUp
+#### Bottom-Up Rewrite
 ```java
 public class PlanTreeRewriteBottomUpJob extends PlanTreeRewriteJob {
     public PlanTreeRewriteBottomUpJob(RewriteJobContext rewriteJobContext,
@@ -424,7 +489,7 @@ public class PlanTreeRewriteBottomUpJob extends PlanTreeRewriteJob {
 }
 ```
 
-### TopDown
+#### TopDown
 ```java
 public class PlanTreeRewriteTopDownJob extends PlanTreeRewriteJob {
     private final RewriteJobContext rewriteJobContext;
