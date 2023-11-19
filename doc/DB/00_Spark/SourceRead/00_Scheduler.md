@@ -22,6 +22,39 @@ class ResultStage(
 2. org.apache.spark.scheduler.SchedulerBackend
 3. org.apache.spark.scheduler.TaskScheduler
 
+```plantuml
+@startuml
+class SparkContext {
+ - var _dagScheduler: DAGScheduler
+ - var _taskScheduler: TaskScheduler
+ - var _schedulerBackend: SchedulerBackend
+}
+
+class SparkEnv {
+  - val mapOutputTracker: MapOutputTracker
+  - val conf: SparkConf
+}
+
+class DAGScheduler {
+ - MapOutputTrackerMaster
+ - val taskScheduler: TaskScheduler
+ - val sc: SparkContext
+}
+
+class MapOutputTracker {
+  + getStatistics(dep: ShuffleDependency[_, _, _]): \n\tMapOutputStatistics
+}
+
+MapOutputTrackerMaster -down-* DAGScheduler
+
+DAGScheduler -right-- SparkContext
+SparkEnv -up-* SparkContext
+TaskScheduler -down-* SparkContext
+SchedulerBackend -down-* SparkContext
+
+MapOutputTrackerMaster -down.|> MapOutputTracker
+@enduml
+```
 #  DAGScheduler
 
 DAGScheduler主要负责分析用户提交的应用，并根据计算任务的依赖关系建立DAG，然后将DAG划分为不同的Stage(阶段)，其中每个Stage由可以并发执行的一组Task构成，这些Task的执行逻辑完全相同，只是作用于不同的数据，DAG在不同的资源管理框架下实现相同。
