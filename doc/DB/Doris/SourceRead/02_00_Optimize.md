@@ -479,17 +479,26 @@ abstract class PlanVisitor {
 
 class CostModelV1 {
     - int beNumber
-    + Cost visitPhysicalXX(XX, physicalXX, PlanContext context)
+    + Cost visitPhysicalXX(XX, physicalXX,\n\tPlanContext context)
 }
 
+class RequestPropertyDeriver {
+    Void visitPhysicalXX(PhysicalXX<? extends \n\tPlan> xx, PlanContext context);
+}
 
-CostAndEnforcerJob -down--> RequestPropertyDeriver
+CostAndEnforcerJob -down--> RequestPropertyDeriver : Derive属性
 CostAndEnforcerJob -down--> ChildrenPropertiesRegulator
 CostAndEnforcerJob -down--> ChildOutputPropertyDeriver
-CostAndEnforcerJob -left--> CostCalculator
+CostAndEnforcerJob -left--> CostCalculator : 代价计算
 
-CostCalculator -down--> CostModelV1
+CostCalculator -down--> CostModelV1 : 代价模型计算代价
 CostModelV1 -down-|> PlanVisitor : R: Cost, C: PlanContext
+
+RequestPropertyDeriver -down-|> PlanVisitor : R:Void, C: PlanContext
+ChildOutputPropertyDeriver -down-|> PlanVisitor : R:PhysicalProperties, C:PlanContext
+ChildrenPropertiesRegulator-down-|> PlanVisitor : R:Boolean, C: Void
+
+CostAndEnforcerJob -right--> EnforceMissingPropertiesHelper :父节点向子节点发出\n子节点无的属性请求\n子节点Enforce add
 @enduml
 ```
 
@@ -517,4 +526,24 @@ public static Cost calculateCost(GroupExpression groupExpression,
         // 调用CostModelV1::visitPhysicalHashJoin计算hash Join代价
         return visitor.visitPhysicalHashJoin(this, context);
     }
+```
+
+#### 父属性Derive
+`RequestPropertyDeriver::getRequestChildrenPropertyList`
+```java
+public class RequestPropertyDeriver extends PlanVisitor<Void, PlanContext> {
+    private final PhysicalProperties requestPropertyFromParent;
+    private List<List<PhysicalProperties>> requestPropertyToChildren;
+
+    public RequestPropertyDeriver(JobContext context) {
+        this.requestPropertyFromParent = context.getRequiredProperties();
+    }
+
+    public List<List<PhysicalProperties>> getRequestChildrenPropertyList(
+            GroupExpression groupExpression) {
+        requestPropertyToChildren = Lists.newArrayList();
+        groupExpression.getPlan().accept(this, new PlanContext(groupExpression));
+        return requestPropertyToChildren;
+    }
+}
 ```
