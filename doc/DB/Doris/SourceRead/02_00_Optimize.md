@@ -1,4 +1,4 @@
-optimize的入口通过`NereidsPlanner`的`optimize`
+完成rewrite，开始optimize的入口通过`NereidsPlanner`的`optimize`，这部分是CBO(基于代价的优化)
 ```java
 private void optimize() {
     new Optimizer(cascadesContext).execute();
@@ -38,8 +38,8 @@ public class Optimizer {
         }
 
         // 4. Cascades optimize
-        cascadesContext.pushJob(
-                new OptimizeGroupJob(cascadesContext.getMemo().getRoot(), cascadesContext.getCurrentJobContext()));
+        cascadesContext.pushJob(new OptimizeGroupJob(cascadesContext.getMemo().getRoot(),
+                cascadesContext.getCurrentJobContext()));
         cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
     }
 }
@@ -122,7 +122,8 @@ public class DeriveStatsJob extends Job {
 }
 ```
 ## Derive Stats Job
-自底向上derive stat,
+
+自下而上derive stat,
 ```java
 public void execute() {
     // 如果stat已经derive直接返回，在StatsCalculator::estimate完成统计信息计算
@@ -133,9 +134,13 @@ public void execute() {
 
     countJobExecutionTimesOfGroupExpressions(groupExpression);
     // 1. 孩子还没derive，为子GroupExpression生成DeriveStatsJob计算孩子统计信息
+    //    由于Job处理是stack模式，现生成当前GroupExpression的DeriveStatsJob
+    //    再为子GroupExpression生成DeriveStatsJob，实现自下而上计算统计信息
     if (!deriveChildren && groupExpression.arity() > 0) {
+        // 1.1 生成当前GroupExpression的DeriveStatsJob
         pushJob(new DeriveStatsJob(groupExpression, true, context, cteIdToStats));
 
+        // 1.2 为子GroupExpression生成DeriveStatsJob生成DeriveStatsJob
         List<Group> children = groupExpression.children();
         for (int i = children.size() - 1; i >= 0; i--) {
             Group childGroup = children.get(i);
@@ -237,7 +242,7 @@ public Statistics visitLogicalJoin(LogicalJoin<? extends Plan, ? extends Plan> j
 其他的Plan的统计信息计算和上面的过程类似，找到Plan中的accept接口实现，之后在`StatsCalculator`找对应的接口。
 
 # DPHyp
-在`Optimizer`的`execute`可以看到`dpHypOptimize`的调用入口
+基于DP的bottom-up枚举, 典型代表DPhyp算法，其优势在于可以高效的产生bushy tree。在`Optimizer`的`execute`可以看到`dpHypOptimize`的调用入口
 ```java
 public void execute() {
             ....
@@ -288,37 +293,228 @@ class JoinOrderJob {
 abstract class Job {
     + abstract void execute();
 }
-JoinOrderJob -down-|> Job
+
+class HyperGraph {
+    - List<Edge> edges
+    - HashSet<Group> nodeSet;
+    - HashMap<Slot, Long> slotToNodeMap
+}
+
+JoinOrderJob -right-|> Job
+JoinOrderJob -down--> HyperGraph : 依赖
+JoinOrderJob -down--> PlanReceiver : 依赖
+Edge -up-* HyperGraph : 拥有
 @enduml
+```
+可见，DPHyp optimize通过`JoinOrderJob`实现优化，`JoinOrderJob`是一种Job，其主要实现在`execute()`
+```java
+public void execute() throws AnalysisException {
+    GroupExpression rootExpr = group.getLogicalExpression();
+    int arity = rootExpr.arity();
+    // DPHyp算法是自下而上的, 先optimize孩子
+    // 由于Root Group肯定不会是Join因而不对rootExpr进行optimize
+    for (int i = 0; i < arity; i++) {
+        rootExpr.setChild(i, optimizePlan(rootExpr.child(i)));
+    }
+
+    CascadesContext cascadesContext = context.getCascadesContext();
+    cascadesContext.pushJob(
+            new DeriveStatsJob(group.getLogicalExpression(),
+                cascadesContext.getCurrentJobContext()));
+    cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
+}
+
+private Group optimizePlan(Group group) {
+    // 检查当前Group是否可以执行DPHyp优化
+    if (group.isValidJoinGroup()) {
+        return optimizeJoin(group);
+    }
+
+    GroupExpression rootExpr = group.getLogicalExpression();
+    int arity = rootExpr.arity();
+    for (int i = 0; i < arity; i++) {
+        rootExpr.setChild(i, optimizePlan(rootExpr.child(i)));
+    }
+    return group;
+}
 ```
 
 
-
-## OptimizeGroupJob
-
+## Cascades optimize
+```java
+public void execute() {
+                ......
+    // 4. Cascades optimize
+    cascadesContext.pushJob(
+            new OptimizeGroupJob(cascadesContext.getMemo().getRoot(),
+            cascadesContext.getCurrentJobContext()));
+    cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
+}
+```
 ```plantuml
 @startuml
+class OptimizeGroupJob {
+    - Group group
+}
+
 class CostAndEnforcerJob {
 
 }
-note top : Job to compute cost and add enforcer
 
 abstract class Job {
     + abstract void execute();
 }
 
-CostAndEnforcerJob -down-|> Job
-CostAndEnforcerJob -down.|> Cloneable
+class ApplyRuleJob {
+    - GroupExpression groupExpression;
+    - Rule rule;
+}
 
+class GroupExpressionMatching {
+    - Pattern<Plan> pattern
+    - GroupExpression groupExpression
+    + GroupExpressionIterator iterator()
+}
+
+OptimizeGroupJob -down-|> Job : 继承
+OptimizeGroupJob -down--> OptimizeGroupExpressionJob : 为Logical Expression生成Job
+OptimizeGroupJob -down--> CostAndEnforcerJob : 为Physical Expression生成Job
+CostAndEnforcerJob -down-|> Job : 继承
+OptimizeGroupExpressionJob -down-|> Job : 继承
+
+CostAndEnforcerJob -down--> CostCalculator : 依赖, 计算Cost
+CostAndEnforcerJob -down--> EnforceMissingPropertiesHelper : 依赖, 父节点向子节点发出\n子节点没有的属性请求\n子节点Enforce add
+
+OptimizeGroupExpressionJob -left--> ApplyRuleJob
+ApplyRuleJob -down-|> Job : 继承
+ApplyRuleJob -down--> GroupExpressionMatching : 依赖
 @enduml
 ```
 ```java
 public class OptimizeGroupJob extends Job {
     private final Group group;
+
+     @Override
+    public void execute() {
+        if (group.getLowestCostPlan(context.getRequiredProperties()).isPresent()) {
+            return;
+        }
+
+        // 1. Group还没Explore生成OptimizeGroupExpressionJob进行Exploration和Implementation
+        if (!group.isExplored()) {
+            List<GroupExpression> logicalExpressions = group.getLogicalExpressions();
+            for (int i = logicalExpressions.size() - 1; i >= 0; i--) {
+                context.getCascadesContext().pushJob(
+                        new OptimizeGroupExpressionJob(logicalExpressions.get(i), context));
+            }
+        }
+
+        // 2. 对Physical Expression生成CostAndEnforcerJob计算代价和enforce属性
+        List<GroupExpression> physicalExpressions = group.getPhysicalExpressions();
+        for (int i = physicalExpressions.size() - 1; i >= 0; i--) {
+            context.getCascadesContext().pushJob(
+                new CostAndEnforcerJob(physicalExpressions.get(i), context));
+        }
+        group.setExplored(true);
+    }
+}
+```
+### Optimize GroupExpression
+```java
+public class OptimizeGroupExpressionJob extends Job {
+    private final GroupExpression groupExpression;
+
+    public OptimizeGroupExpressionJob(GroupExpression groupExpression,
+                JobContext context) {
+        super(JobType.OPTIMIZE_PLAN, context);
+        this.groupExpression = groupExpression;
+    }
+
+    @Override
+    public void execute() {
+        countJobExecutionTimesOfGroupExpressions(groupExpression);
+        List<Rule> implementationRules = getRuleSet().getImplementationRules();
+        List<Rule> explorationRules = getExplorationRules();
+
+        // 1. 执行Exploration变换规则(Logical to Logical)
+        for (Rule rule : getValidRules(groupExpression, explorationRules)) {
+            pushJob(new ApplyRuleJob(groupExpression, rule, context));
+        }
+
+        // 2. 应用Implementation变换规则(Logical to Physical)
+        for (Rule rule : getValidRules(groupExpression, implementationRules)) {
+            pushJob(new ApplyRuleJob(groupExpression, rule, context));
+        }
+    }
+
+    private List<Rule> getExplorationRules() {
+            ......
+    }
 }
 ```
 
+### 代价计算和Enforce属性
+
 ```java
-OptimizeGroupExpressionJob
-CostAndEnforcerJob
+public class CostAndEnforcerJob extends Job implements Cloneable {
+    // GroupExpression to optimize
+    private final GroupExpression groupExpression;
+
+}
+```
+
+```plantuml
+@startuml
+class CostAndEnforcerJob {
+    
+}
+
+class CostCalculator {
+    + Cost calculateCost(GroupExpression groupExpression,\n\tList<PhysicalProperties> childrenProperties)
+}
+
+abstract class PlanVisitor {
+    + abstract R visit(Plan plan, C context)
+}
+
+class CostModelV1 {
+    - int beNumber
+    + Cost visitPhysicalXX(XX, physicalXX, PlanContext context)
+}
+
+
+CostAndEnforcerJob -down--> RequestPropertyDeriver
+CostAndEnforcerJob -down--> ChildrenPropertiesRegulator
+CostAndEnforcerJob -down--> ChildOutputPropertyDeriver
+CostAndEnforcerJob -left--> CostCalculator
+
+CostCalculator -down--> CostModelV1
+CostModelV1 -down-|> PlanVisitor : R: Cost, C: PlanContext
+@enduml
+```
+
+`CostCalculator::calculateCost`实现计算Plan的代价。
+```java
+public static Cost calculateCost(GroupExpression groupExpression,
+        List<PhysicalProperties> childrenProperties) {
+    PlanContext planContext = new PlanContext(groupExpression);
+    if (childrenProperties.size() >= 2
+            && childrenProperties.get(1).getDistributionSpec()
+                instanceof DistributionSpecReplicated) {
+        planContext.setBroadcastJoin();
+    }
+
+    // 调用物理算子的accept计算代价,其中, CostModelV1是其visitor
+    // 以PhysicalHashJoin了解其调用流程
+    CostModelV1 costModelV1 = new CostModelV1();
+    return groupExpression.getPlan().accept(costModelV1, planContext);
+}
+```
+
+例如，`PhysicalHashJoin`的`accept`接口来了解代价计算的主流程
+```java
+    public <R, C> R accept(PlanVisitor<R, C> visitor, C context) {
+        // 调用CostModelV1::visitPhysicalHashJoin计算hash Join代价
+        return visitor.visitPhysicalHashJoin(this, context);
+    }
 ```
