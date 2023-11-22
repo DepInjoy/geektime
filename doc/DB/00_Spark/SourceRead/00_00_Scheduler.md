@@ -5,6 +5,95 @@
 
 # DAGScheduler实现
 ## DAGScheduler创建
+DAGScheduler在SparkContext创建的时候创建的，由于DAGScheduler引用了TaskScheduler，因此需要先创建TaskScheduler，
+```scala
+  // 创建TaskScheduler
+  val (sched, ts) = SparkContext.createTaskScheduler(this, master)
+  _schedulerBackend = sched
+  _taskScheduler = ts
+  // 创建DAGScheduler
+  _dagScheduler = new DAGScheduler(this)
+```
+在DAGSchedule入参`SparkContext`的构造函数如下:
+```scala
+def this(sc: SparkContext) = this(sc, sc.taskScheduler)
+```
+
+`this(sc, sc.taskScheduler)`的实现
+```scala
+  def this(sc: SparkContext, taskScheduler: TaskScheduler) = {
+    this(sc, taskScheduler, sc.listenerBus,
+      sc.env.mapOutputTracker.asInstanceOf[MapOutputTrackerMaster],
+      sc.env.blockManager.master, sc.env)
+  }
+```
+之后调用`DAGScheduler`的构造函数
+```scala
+private[spark] class DAGScheduler(
+    private[scheduler] val sc: SparkContext,
+    private[scheduler] val taskScheduler: TaskScheduler,
+    listenerBus: LiveListenerBus,
+    mapOutputTracker: MapOutputTrackerMaster,
+    blockManagerMaster: BlockManagerMaster,
+    env: SparkEnv,
+    clock: Clock = new SystemClock()) extends Logging { }
+```
+
+```plantuml
+@startuml
+class SparkContext {
+  - var _taskScheduler: TaskScheduler 
+  - var _dagScheduler : DAGScheduler
+}
+
+class DAGScheduler {
+  - val eventProcessLoop : DAGSchedulerEventProcessLoop
+}
+
+class DAGSchedulerEventProcessLoop {
+  + def onReceive(event: DAGSchedulerEvent): Unit
+}
+
+abstract class EventLoop {
+  + def post(event: E): Unit
+}
+
+class TaskSchedulerImpl {
+  var backend: SchedulerBackend
+}
+
+DAGScheduler -up-o SparkContext
+TaskScheduler -up-o SparkContext
+
+TaskScheduler -o DAGScheduler : 提交Task
+SchedulerBackend -o TaskScheduler
+
+DAGSchedulerEventProcessLoop -up-- DAGScheduler
+DAGSchedulerEventProcessLoop -down-|> EventLoop : E=DAGSchedulerEvent
+
+MapOutputTrackerMaster -left-o DAGScheduler
+MapOutputTrackerMaster -down-|> MapOutputTracker
+
+TaskSchedulerImpl -up-|> TaskScheduler
+@enduml
+```
+1. `org.apache.spark.scheduler.TaskScheduler`是一个trait，作用是为创建它的SparkContext调度任务，即从DAGScheduler接收不同Stage的任务，并向集群提交任务，并为执行特别慢的任务启动备份任务。TaskScheduler是以后实现多种任务调度器的基础，目前`org.apache.spark.scheduler.TaskSchedulerImpl`是它的实现。
+2. `org.apache.spark.scheduler.SchedulerBackend`是一个trait，作用是分配当前可用的资源，具体就是向当前等待分配计算资源的Task分配计算资源(即Executor)，并且在分配的Executor上启动Task，完成计算的调度过程。
+3. `MapOutputTrackerMaster`是运行在Driver端管理Shuffle Map Task的输出的，下游的Task可以通过`MapOutputTrackerMaster`来获取Shuffle输出的位置信息。
+4. `DAGScheduler`将调度抽象为一系列的Event(时间)，例如Job提交对应于`JobSubmitted`，MapStageSubmitted对应于Map Stage提交等(更多定义参看`core/src/main/scala/org/apache/spark/scheduler\DAGSchedulerEvent.scala`实现)，`DAGSchedulerEventProcessLoop`实现事件调度逻辑,例如
+```scala
+private[scheduler] sealed trait DAGSchedulerEvent
+
+private[scheduler] case class JobSubmitted(...)
+  extends DAGSchedulerEvent
+
+private[scheduler] case class MapStageSubmitted(...)
+  extends DAGSchedulerEvent
+    ....
+```
+
+
+
 
 ## Job提交
 Job提交的调用流程
@@ -43,7 +132,8 @@ DAGSchedulerEventProcessLoop -up-- DAGScheduler : 提交(post)JobSubmitted事件
 DAGSchedulerEventProcessLoop -right-|> EventLoop : E=DAGSchedulerEvent
 ```
 
-Job提交会为这个Job生成一个JobID，并生成一个JobWaiter实例例来监听Job执行状态
+Job提交会为这个Job生成一个JobID，并生成一个JobWaiter实例例来监听Job执行状态，JobWaiter会监听Job的执行状态，而Job是由多个Task组成的，只有Job的所有Task都成功完成，Job才标记为成功；任意一个Task失败都会标记该Job失败。
+
 ```scala
 def runJob[T, U](rdd: RDD[T], func: (TaskContext, Iterator[T]) => U,
     partitions: Seq[Int], callSite: CallSite,
@@ -54,7 +144,6 @@ def runJob[T, U](rdd: RDD[T], func: (TaskContext, Iterator[T]) => U,
         ......
 }
 
-
 def submitJob[T, U](rdd: RDD[T], func: (TaskContext, Iterator[T]) => U,
     partitions: Seq[Int], callSite: CallSite,
     resultHandler: (Int, U) => Unit, properties: Properties): JobWaiter[U] = {
@@ -62,7 +151,7 @@ def submitJob[T, U](rdd: RDD[T], func: (TaskContext, Iterator[T]) => U,
   // 1. 创建Job ID
   val jobId = nextJobId.getAndIncrement()
   
-  // 2. 创建JobWaiter实例来监听Job执行状态
+  // 2. 创建JobListener(JobWaiter)实例来监听Job执行状态
   if (partitions.isEmpty) {
     // 2.1 创建共有0个task的JobWaiter，
             ......
@@ -76,6 +165,38 @@ def submitJob[T, U](rdd: RDD[T], func: (TaskContext, Iterator[T]) => U,
   val waiter = new JobWaiter[U](this, jobId, partitions.size, resultHandler)
   eventProcessLoop.post(JobSubmitted(....))
   waiter
+}
+```
+
+对于近似估计的Job，DAGScheduler会调用`runApproximateJob`，其逻辑类似，JobWaiter换成了`org.apache.spark.partial.ApproximateActionListener`
+```scala
+def runApproximateJob[T, U, R](rdd: RDD[T],
+    func: (TaskContext, Iterator[T]) => U,
+    evaluator: ApproximateEvaluator[U, R],
+    callSite: CallSite, timeout: Long,
+    properties: Properties): PartialResult[R] = {
+    // 1. 创建Job ID
+  val jobId = nextJobId.getAndIncrement()
+
+  // 2. 创建JobListener(ApproximateActionListener)实例来监听Job执行状态
+  if (rdd.partitions.isEmpty) {
+    // 2.1 直接返回
+            ......
+    listenerBus.post(SparkListenerJobStart(jobId, time, Seq[StageInfo](), clonedProperties))
+    listenerBus.post(SparkListenerJobEnd(jobId, time, JobSucceeded))
+    return new PartialResult(evaluator.currentResult(), true)
+  }
+
+
+  // 2.2 创建ApproximateActionListener并提交JobSubmitted事件
+  val listener = new ApproximateActionListener(rdd, func, evaluator, timeout)
+  val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
+  eventProcessLoop.post(JobSubmitted(
+    jobId, rdd, func2, rdd.partitions.indices.toArray, callSite, listener,
+    JobArtifactSet.getActiveOrDefault(sc), clonedProperties))
+  
+  // 3. 异步等待结果，timeout毫秒超时
+  listener.awaitResult()
 }
 ```
 
@@ -134,6 +255,25 @@ private[scheduler] def handleJobSubmitted(jobId: Int,
   submitStage(finalStage)
 }
 ```
+## Job监听
+JobWaiter会监听Job的执行状态
+
+```plantuml
+class ApproximateActionListener {
+  + def awaitResult(): PartialResult[R]
+}
+note top : 近似估计Job监听
+
+class JobWaiter {}
+
+interface JobListener {
+  + def taskSucceeded(index: Int, result: Any): Unit
+  + def jobFailed(exception: Exception): Unit
+}
+JobWaiter -down-|> JobListener
+ApproximateActionListener -down-|> JobListener
+
+```
 
 ```scala
 org.apache.spark.scheduler.DAGScheduler#handleJobSubmitted
@@ -146,56 +286,9 @@ org.apache.spark.scheduler.DAGScheduler#handleJobSubmitted
   org.apache.spark.scheduler.DAGScheduler#getOrCreateParentStages()
   org.apache.spark.scheduler.DAGScheduler#createResultStage
 ```
-```plantuml
-@startuml
-class SparkContext {
-  - var _schedulerBackend: SchedulerBackend
-  - var _taskScheduler: TaskScheduler 
-  - var _dagScheduler : DAGScheduler
-}
 
-class DAGScheduler {
-  - val eventProcessLoop : DAGSchedulerEventProcessLoop
-}
 
-class DAGSchedulerEventProcessLoop {
-  + def onReceive(event: DAGSchedulerEvent): Unit
-}
 
-abstract class EventLoop {
-  + def post(event: E): Unit
-}
-
-class TaskSchedulerImpl {
-  var backend: SchedulerBackend
-}
-
-DAGScheduler -up-o SparkContext
-TaskScheduler -up-o SparkContext
-SchedulerBackend -up-o SparkContext
-
-TaskScheduler -o DAGScheduler : 提交Task
-
-DAGSchedulerEventProcessLoop -up-- DAGScheduler
-DAGSchedulerEventProcessLoop -down-|> EventLoop : E=DAGSchedulerEvent
-
-MapOutputTrackerMaster -up-o DAGScheduler
-MapOutputTrackerMaster -down-|> MapOutputTracker
-
-TaskSchedulerImpl -up-|> TaskScheduler
-@enduml
-```
-
-```scala
-private[scheduler] sealed trait DAGSchedulerEvent
-
-private[scheduler] case class JobSubmitted(...)
-  extends DAGSchedulerEvent
-
-private[scheduler] case class MapStageSubmitted(...)
-  extends DAGSchedulerEvent
-    ....
-```
 
 
 
@@ -354,34 +447,9 @@ TaskSchedulerImpl -right-|> TaskScheduler
 SchedulerBackend -up-o TaskSchedulerImpl
 ```
 
-```plantuml
-@startuml
-class ShuffleMapTask {
-
-}
-
-abstract class Task {
-
-}
-
-ShuffleMapTask -down-|> Task
-ResultTask -down-|> Task
-@enduml
-
-```
 
 
-```scala
-class DAGScheduler
-trait TaskScheduler {}
-```
 
-
-任务调度模块涉及的最重要的三个类是：
-
-1. `org.apache.spark.scheduler.DAGScheduler`，主要负责分析用户提交的应用，并根据计算任务的依赖关系建立DAG，然后将DAG划分为不同的Stage(阶段)。
-2. `org.apache.spark.scheduler.SchedulerBackend`，这是一个trait，作用是分配当前可用的资源，具体就是向当前等待分配计算资源的Task分配计算资源(即Executor)，并且在分配的Executor上启动Task，完成计算的调度过程。
-3. `org.apache.spark.scheduler.TaskScheduler`，这也是一个trait，作用是为创建它的SparkContext调度任务，即从DAGScheduler接收不同Stage的任务，并向集群提交任务，并为执行特别慢的任务启动备份任务。TaskScheduler是以后实现多种任务调度器的基础，目前`org.apache.spark.scheduler.TaskSchedulerImpl`是唯一实现。
 
 ```plantuml
 @startuml
@@ -420,19 +488,6 @@ MapOutputTrackerMaster -down.|> MapOutputTracker
 
 DAGScheduler主要负责分析用户提交的应用，并根据计算任务的依赖关系建立DAG，然后将DAG划分为不同的Stage(阶段)，其中每个Stage由可以并发执行的一组Task构成，这些Task的执行逻辑完全相同，只是作用于不同的数据，DAG在不同的资源管理框架下实现相同。
 
-
-
-```scala
-private[spark] class DAGScheduler(
-    private[scheduler] val sc: SparkContext,
-    private[scheduler] val taskScheduler: TaskScheduler,
-    listenerBus: LiveListenerBus,
-    mapOutputTracker: MapOutputTrackerMaster,
-    blockManagerMaster: BlockManagerMaster,
-    env: SparkEnv,
-    clock: Clock = new SystemClock())
-  extends Logging {}
-```
 
 ```plantuml
 @startuml
