@@ -251,10 +251,11 @@ private[scheduler] def handleJobSubmitted(jobId: Int,
   listenerBus.post(SparkListenerJobStart(job.jobId, jobSubmissionTime, stageInfos,
       Utils.cloneProperties(properties)))
 
-  // 4. Stage提交
+  // 4. Stage提交,这里会向TaskScheduler提交Task
   submitStage(finalStage)
 }
 ```
+
 ## Job监听
 JobWaiter会监听Job的执行状态
 
@@ -381,6 +382,31 @@ private[scheduler] def handleJobSubmitted(...): Unit = {
         ......
 }
 ```
+```plantuml
+@startuml
+class TaskSet {}
+abstract class Task {}
+
+interface Schedulable {
+  - var parent: Pool
+}
+
+class TaskSchedulerImpl {
+  - val taskSetsByStageIdAndAttempt = new HashMap\n\t[Int, HashMap[Int, TaskSetManager]]
+  - var schedulableBuilder: SchedulableBuilder
+}
+Task -down-o TaskSet
+
+ShuffleMapTask -down-|> Task
+ResultTask -down-|> Task
+
+TaskSet -down-o TaskSetManager
+TaskSetManager .|> Schedulable
+
+TaskSetManager -left-o TaskSchedulerImpl
+@enduml
+```
+
 ### 创建TaskScheduler和SchedulerBackend
 ```plantuml
 abstract class YarnSchedulerBackend {}
@@ -404,19 +430,380 @@ YarnClusterSchedulerBackend -up-|> YarnSchedulerBackend
 org.apache.spark.SparkContext#createTaskScheduler
 ```
 ### Task提交
-```
-org.apache.spark.scheduler.DAGScheduler#submitStage
-  org.apache.spark.scheduler.DAGScheduler#submitMissingTasks
-    org.apache.spark.scheduler.TaskSchedulerImpl#submitTasks
-      org.apache.spark.scheduler.TaskSchedulerImpl#createTaskSetManager
-      org.apache.spark.scheduler.SchedulableBuilder#addTaskSetManager
-      org.apache.spark.scheduler.CoarseGrainedSchedulerBackend#reviveOffers
-        makeOffers
-          buildWorkerOffer
-          org.apache.spark.scheduler.TaskSchedulerImpl#resourceOffers
-          launchTasks
 
+```
+-- 在Driver端执行
+org.apache.spark.scheduler.TaskSchedulerImpl#submitTasks
+  org.apache.spark.scheduler.TaskSchedulerImpl#createTaskSetManager
+  org.apache.spark.scheduler.SchedulableBuilder#addTaskSetManager
+  org.apache.spark.scheduler.CoarseGrainedSchedulerBackend#reviveOffers
+    makeOffers
+      buildWorkerOffer
+      org.apache.spark.scheduler.TaskSchedulerImpl#resourceOffers
+
+-- 在Executor上执行
+org.apache.spark.executor.CoarseGrainedExecutorBackend.receiveWithLogging#launchTask
 org.apache.spark.executor.Executor#launchTask     
+```
+`TaskSchedulerImpl::submitTasks`
+```scala
+
+
+```
+
+`TaskSchedulerImpl::resourceOffers`响应CoarseGrainedSchedulerBackend的资源调度请求，为每个Task具体分配资源。
+
+
+- `spark.task.cpus`配置参数，默认值为1，用于设置每个Task所需要的cores(线程数)。
+
+- `spark.scheduler.mode`设置的调度策略。默认为FIFO，
+
+  ```scala
+  org.apache.spark.scheduler.Pool
+  
+  private[spark] class Pool(val poolName: String,
+  	val schedulingMode: SchedulingMode,
+  	initMinShare: Int, initWeight: Int)
+    extends Schedulable with Logging {
+    
+    private val taskSetSchedulingAlgorithm: SchedulingAlgorithm = {
+      schedulingMode match {
+        case SchedulingMode.FAIR =>
+          new FairSchedulingAlgorithm()
+        case SchedulingMode.FIFO =>
+          new FIFOSchedulingAlgorithm()
+      }
+    }
+  			......
+  }
+  ```
+
+`TaskSchedulerImpl::resourceOffers`响应资源调度请求，为每个Task分配资源，该函数的输入是Executor列表，输出是`TaskDescription`二维数组，`TaskDescription`包含了Task ID，Executor ID和Task执行环境的依赖信息等。
+
+```scala
+  def resourceOffers(offers: IndexedSeq[WorkerOffer],
+      isAllFreeResources: Boolean = true): Seq[Seq[TaskDescription]] = synchronized {
+    var newExecAvail = false
+    for (o <- offers) {
+      if (!hostToExecutors.contains(o.host)) {
+        hostToExecutors(o.host) = new HashSet[String]()
+      }
+      if (!executorIdToRunningTaskIds.contains(o.executorId)) {
+        // 有新的executor加入
+        hostToExecutors(o.host) += o.executorId
+        executorAdded(o.executorId, o.host)
+        executorIdToHost(o.executorId) = o.host
+        executorIdToRunningTaskIds(o.executorId) = HashSet[Long]()
+        newExecAvail = true
+      }
+    }
+    val hosts = offers.map(_.host).distinct
+    for ((host, Some(rack)) <- hosts.zip(getRacksForHosts(hosts))) {
+      hostsByRack.getOrElseUpdate(rack, new HashSet[String]()) += host
+    }
+
+    // 1. 如果开启组织在失败Executor上重新调度任务
+    //    过滤掉排除在外的执行器节点,避免单独创建线程和同步开销
+    healthTrackerOpt.foreach(_.applyExcludeOnFailureTimeout())
+    val filteredOffers = healthTrackerOpt.map { healthTracker =>
+      offers.filter { offer =>
+        !healthTracker.isNodeExcluded(offer.host) &&
+          !healthTracker.isExecutorExcluded(offer.executorId)
+      }
+    }.getOrElse(offers)
+
+    // 2. 随机打散,避免将Task集中分配给某些机器
+    val shuffledOffers = shuffleOffers(filteredOffers)
+
+    // 3. 构建分配给每个worker的tasks
+    // 	  offer代表Executor列表,Spark cores概念表示并行执行的线程数
+    //    根据spark.task.cpus配置参数(每个Task所需要的cores(线程数)
+    //    因此, 需要的Task数量 = cores / CPUS_PER_TASK
+    val tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores / CPUS_PER_TASK))
+    val availableResources = shuffledOffers.map(_.resources).toArray
+    val availableCpus = shuffledOffers.map(o => o.cores).toArray
+    val resourceProfileIds = shuffledOffers.map(o => o.resourceProfileId).toArray
+    // 根据用户spark.scheduler.mode设置的调度策略
+    //   1. FIFO: FIFOSchedulingAlgorithm::comparator规则
+    //   2. Fair: FairSchedulingAlgorithm::comparator规则
+    // 对TaskSetManager进行排序
+    val sortedTaskSets = rootPool.getSortedTaskSetQueue
+    for (taskSet <- sortedTaskSets) {
+      if (newExecAvail) {
+        // 重新计算该TaskSetManager的就近原则
+        taskSet.executorAdded()
+      }
+    }
+
+    // 为根据调度策略排序好的的TaskSetManager列表分配资源
+    // 按照就近原则进行分配,其中优先分配顺序:
+    // PROCESS_LOCAL, NODE_LOCAL, NO_PREF, RACK_LOCAL, ANY
+    for (taskSet <- sortedTaskSets) { /// -- todo
+      // we only need to calculate available slots if using barrier scheduling, otherwise the
+      // value is -1
+      val numBarrierSlotsAvailable = if (taskSet.isBarrier) {
+        val rpId = taskSet.taskSet.resourceProfileId
+        val availableResourcesAmount = availableResources.map { resourceMap =>
+          // available addresses already takes into account if there are fractional
+          // task resource requests
+          resourceMap.map { case (name, addresses) => (name, addresses.length) }
+        }
+        calculateAvailableSlots(this, conf, rpId, resourceProfileIds, availableCpus,
+          availableResourcesAmount)
+      } else {
+        -1
+      }
+      // Skip the barrier taskSet if the available slots are less than the number of pending tasks.
+      if (taskSet.isBarrier && numBarrierSlotsAvailable < taskSet.numTasks) {
+        // Skip the launch process.
+        // TODO SPARK-24819 If the job requires more slots than available (both busy and free
+        // slots), fail the job on submit.
+        logInfo(s"Skip current round of resource offers for barrier stage ${taskSet.stageId} " +
+          s"because the barrier taskSet requires ${taskSet.numTasks} slots, while the total " +
+          s"number of available slots is $numBarrierSlotsAvailable.")
+      } else {
+        var launchedAnyTask = false
+        var noDelaySchedulingRejects = true
+        var globalMinLocality: Option[TaskLocality] = None
+        for (currentMaxLocality <- taskSet.myLocalityLevels) {
+          var launchedTaskAtCurrentMaxLocality = false
+          do {
+            val (noDelayScheduleReject, minLocality) = resourceOfferSingleTaskSet(
+              taskSet, currentMaxLocality, shuffledOffers, availableCpus,
+              availableResources, tasks)
+            launchedTaskAtCurrentMaxLocality = minLocality.isDefined
+            launchedAnyTask |= launchedTaskAtCurrentMaxLocality
+            noDelaySchedulingRejects &= noDelayScheduleReject
+            globalMinLocality = minTaskLocality(globalMinLocality, minLocality)
+          } while (launchedTaskAtCurrentMaxLocality)
+        }
+
+        if (!legacyLocalityWaitReset) {
+          if (noDelaySchedulingRejects) {
+            if (launchedAnyTask &&
+              (isAllFreeResources || noRejectsSinceLastReset.getOrElse(taskSet.taskSet, true))) {
+              taskSet.resetDelayScheduleTimer(globalMinLocality)
+              noRejectsSinceLastReset.update(taskSet.taskSet, true)
+            }
+          } else {
+            noRejectsSinceLastReset.update(taskSet.taskSet, false)
+          }
+        }
+
+        if (!launchedAnyTask) {
+          taskSet.getCompletelyExcludedTaskIfAny(hostToExecutors).foreach { taskIndex =>
+              // If the taskSet is unschedulable we try to find an existing idle excluded
+              // executor and kill the idle executor and kick off an abortTimer which if it doesn't
+              // schedule a task within the timeout will abort the taskSet if we were unable to
+              // schedule any task from the taskSet.
+              // Note 1: We keep track of schedulability on a per taskSet basis rather than on a per
+              // task basis.
+              // Note 2: The taskSet can still be aborted when there are more than one idle
+              // excluded executors and dynamic allocation is on. This can happen when a killed
+              // idle executor isn't replaced in time by ExecutorAllocationManager as it relies on
+              // pending tasks and doesn't kill executors on idle timeouts, resulting in the abort
+              // timer to expire and abort the taskSet.
+              //
+              // If there are no idle executors and dynamic allocation is enabled, then we would
+              // notify ExecutorAllocationManager to allocate more executors to schedule the
+              // unschedulable tasks else we will abort immediately.
+              executorIdToRunningTaskIds.find(x => !isExecutorBusy(x._1)) match {
+                case Some ((executorId, _)) =>
+                  if (!unschedulableTaskSetToExpiryTime.contains(taskSet)) {
+                    healthTrackerOpt.foreach(blt => blt.killExcludedIdleExecutor(executorId))
+                    updateUnschedulableTaskSetTimeoutAndStartAbortTimer(taskSet, taskIndex)
+                  }
+                case None =>
+                  //  Notify ExecutorAllocationManager about the unschedulable task set,
+                  // in order to provision more executors to make them schedulable
+                  if (Utils.isDynamicAllocationEnabled(conf)) {
+                    if (!unschedulableTaskSetToExpiryTime.contains(taskSet)) {
+                      logInfo("Notifying ExecutorAllocationManager to allocate more executors to" +
+                        " schedule the unschedulable task before aborting" +
+                        s" stage ${taskSet.stageId}.")
+                      dagScheduler.unschedulableTaskSetAdded(taskSet.taskSet.stageId,
+                        taskSet.taskSet.stageAttemptId)
+                      updateUnschedulableTaskSetTimeoutAndStartAbortTimer(taskSet, taskIndex)
+                    }
+                  } else {
+                    // Abort Immediately
+                    logInfo("Cannot schedule any task because all executors excluded from " +
+                      "failures. No idle executors can be found to kill. Aborting stage " +
+                      s"${taskSet.stageId}.")
+                    taskSet.abortSinceCompletelyExcludedOnFailure(taskIndex)
+                  }
+              }
+          }
+        } else {
+          // We want to defer killing any taskSets as long as we have a non excluded executor
+          // which can be used to schedule a task from any active taskSets. This ensures that the
+          // job can make progress.
+          // Note: It is theoretically possible that a taskSet never gets scheduled on a
+          // non-excluded executor and the abort timer doesn't kick in because of a constant
+          // submission of new TaskSets. See the PR for more details.
+          if (unschedulableTaskSetToExpiryTime.nonEmpty) {
+            logInfo("Clearing the expiry times for all unschedulable taskSets as a task was " +
+              "recently scheduled.")
+            // Notify ExecutorAllocationManager as well as other subscribers that a task now
+            // recently becomes schedulable
+            dagScheduler.unschedulableTaskSetRemoved(taskSet.taskSet.stageId,
+              taskSet.taskSet.stageAttemptId)
+            unschedulableTaskSetToExpiryTime.clear()
+          }
+        }
+
+        if (launchedAnyTask && taskSet.isBarrier) {
+          val barrierPendingLaunchTasks = taskSet.barrierPendingLaunchTasks.values.toArray
+          // Check whether the barrier tasks are partially launched.
+          if (barrierPendingLaunchTasks.length != taskSet.numTasks) {
+            if (legacyLocalityWaitReset) {
+              // Legacy delay scheduling always reset the timer when there's a task that is able
+              // to be scheduled. Thus, whenever there's a timer reset could happen during a single
+              // round resourceOffer, tasks that don't get or have the preferred locations would
+              // always reject the offered resources. As a result, the barrier taskset can't get
+              // launched. And if we retry the resourceOffer, we'd go through the same path again
+              // and get into the endless loop in the end.
+              val errorMsg = s"Fail resource offers for barrier stage ${taskSet.stageId} " +
+                s"because only ${barrierPendingLaunchTasks.length} out of a total number " +
+                s"of ${taskSet.numTasks} tasks got resource offers. We highly recommend " +
+                "you to use the non-legacy delay scheduling by setting " +
+                s"${LEGACY_LOCALITY_WAIT_RESET.key} to false to get rid of this error."
+              logWarning(errorMsg)
+              taskSet.abort(errorMsg)
+              throw SparkCoreErrors.sparkError(errorMsg)
+            } else {
+              val curTime = clock.getTimeMillis()
+              if (curTime - taskSet.lastResourceOfferFailLogTime >
+                TaskSetManager.BARRIER_LOGGING_INTERVAL) {
+                logInfo("Releasing the assigned resource offers since only partial tasks can " +
+                  "be launched. Waiting for later round resource offers.")
+                taskSet.lastResourceOfferFailLogTime = curTime
+              }
+              barrierPendingLaunchTasks.foreach { task =>
+                // revert all assigned resources
+                availableCpus(task.assignedOfferIndex) += task.assignedCores
+                task.assignedResources.foreach { case (rName, rInfo) =>
+                  availableResources(task.assignedOfferIndex)(rName).appendAll(rInfo.addresses)
+                }
+                // re-add the task to the schedule pending list
+                taskSet.addPendingTask(task.index)
+              }
+            }
+          } else {
+            // All tasks are able to launch in this barrier task set. Let's do
+            // some preparation work before launching them.
+            val launchTime = clock.getTimeMillis()
+            val addressesWithDescs = barrierPendingLaunchTasks.map { task =>
+              val taskDesc = taskSet.prepareLaunchingTask(
+                task.execId,
+                task.host,
+                task.index,
+                task.taskLocality,
+                false,
+                task.assignedCores,
+                task.assignedResources,
+                launchTime)
+              addRunningTask(taskDesc.taskId, taskDesc.executorId, taskSet)
+              tasks(task.assignedOfferIndex) += taskDesc
+              shuffledOffers(task.assignedOfferIndex).address.get -> taskDesc
+            }
+
+            // materialize the barrier coordinator.
+            maybeInitBarrierCoordinator()
+
+            // Update the taskInfos into all the barrier task properties.
+            val addressesStr = addressesWithDescs
+              // Addresses ordered by partitionId
+              .sortBy(_._2.partitionId)
+              .map(_._1)
+              .mkString(",")
+            addressesWithDescs.foreach(_._2.properties.setProperty("addresses", addressesStr))
+
+            logInfo(s"Successfully scheduled all the ${addressesWithDescs.size} tasks for " +
+              s"barrier stage ${taskSet.stageId}.")
+          }
+          taskSet.barrierPendingLaunchTasks.clear()
+        }
+      }
+    }
+
+    // TODO SPARK-24823 Cancel a job that contains barrier stage(s) if the barrier tasks don't get
+    // launched within a configured time.
+    if (tasks.nonEmpty) {
+      hasLaunchedTask = true
+    }
+    return tasks.map(_.toSeq)
+  }
+```
+
+
+
+```scala
+  private def resourceOfferSingleTaskSet(
+      taskSet: TaskSetManager,
+      maxLocality: TaskLocality,
+      shuffledOffers: Seq[WorkerOffer],
+      availableCpus: Array[Int],
+      availableResources: Array[Map[String, Buffer[String]]],
+      tasks: IndexedSeq[ArrayBuffer[TaskDescription]])
+    : (Boolean, Option[TaskLocality]) = {
+    var noDelayScheduleRejects = true
+    var minLaunchedLocality: Option[TaskLocality] = None
+    // nodes and executors that are excluded for the entire application have already been
+    // filtered out by this point
+    for (i <- shuffledOffers.indices) {
+      val execId = shuffledOffers(i).executorId
+      val host = shuffledOffers(i).host
+      val taskSetRpID = taskSet.taskSet.resourceProfileId
+
+      // check whether the task can be scheduled to the executor base on resource profile.
+      if (sc.resourceProfileManager
+        .canBeScheduled(taskSetRpID, shuffledOffers(i).resourceProfileId)) {
+        val taskResAssignmentsOpt = resourcesMeetTaskRequirements(taskSet, availableCpus(i),
+          availableResources(i))
+        taskResAssignmentsOpt.foreach { taskResAssignments =>
+          try {
+            val prof = sc.resourceProfileManager.resourceProfileFromId(taskSetRpID)
+            val taskCpus = ResourceProfile.getTaskCpusOrDefaultForProfile(prof, conf)
+            val (taskDescOption, didReject, index) =
+              taskSet.resourceOffer(execId, host, maxLocality, taskCpus, taskResAssignments)
+            noDelayScheduleRejects &= !didReject
+            for (task <- taskDescOption) {
+              val (locality, resources) = if (task != null) {
+                tasks(i) += task
+                addRunningTask(task.taskId, execId, taskSet)
+                (taskSet.taskInfos(task.taskId).taskLocality, task.resources)
+              } else {
+                assert(taskSet.isBarrier, "TaskDescription can only be null for barrier task")
+                val barrierTask = taskSet.barrierPendingLaunchTasks(index)
+                barrierTask.assignedOfferIndex = i
+                barrierTask.assignedCores = taskCpus
+                (barrierTask.taskLocality, barrierTask.assignedResources)
+              }
+
+              minLaunchedLocality = minTaskLocality(minLaunchedLocality, Some(locality))
+              availableCpus(i) -= taskCpus
+              assert(availableCpus(i) >= 0)
+              resources.foreach { case (rName, rInfo) =>
+                // Remove the first n elements from availableResources addresses, these removed
+                // addresses are the same as that we allocated in taskResourceAssignments since it's
+                // synchronized. We don't remove the exact addresses allocated because the current
+                // approach produces the identical result with less time complexity.
+                availableResources(i)(rName).remove(0, rInfo.addresses.size)
+              }
+            }
+          } catch {
+            case e: TaskNotSerializableException =>
+              logError(s"Resource offer failed, task set ${taskSet.name} was not serializable")
+              // Do not offer resources for this task, but don't throw an error to allow other
+              // task sets to be submitted.
+              return (noDelayScheduleRejects, minLaunchedLocality)
+          }
+        }
+      }
+    }
+    (noDelayScheduleRejects, minLaunchedLocality)
+  }
 ```
 
 ```plantuml
