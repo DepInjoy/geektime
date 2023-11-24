@@ -539,8 +539,7 @@ org.apache.spark.executor.Executor#launchTask
     // 按照就近原则进行分配,其中优先分配顺序:
     // PROCESS_LOCAL, NODE_LOCAL, NO_PREF, RACK_LOCAL, ANY
     for (taskSet <- sortedTaskSets) { /// -- todo
-      // we only need to calculate available slots if using barrier scheduling, otherwise the
-      // value is -1
+      // 如果采用Barrier执行模式，计算可用的Barrier Slot数, 否则为-1
       val numBarrierSlotsAvailable = if (taskSet.isBarrier) {
         val rpId = taskSet.taskSet.resourceProfileId
         val availableResourcesAmount = availableResources.map { resourceMap =>
