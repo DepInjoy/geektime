@@ -246,15 +246,19 @@ public Statistics visitLogicalJoin(LogicalJoin<? extends Plan, ? extends Plan> j
 ```java
 public void execute() {
             ....
-    // DPHyp optimize
+    // 3. DPHyp optimize
     int maxJoinCount = cascadesContext.getMemo().countMaxContinuousJoin();
     cascadesContext.getStatementContext().setMaxContinuousJoin(maxJoinCount);
     boolean isDpHyp = getSessionVariable().enableDPHypOptimizer
+        	// cascade优化最大表数量max_table_count_use_cascades_join_reorder(默认10)
+        	// JOIN表数量>10采用dphyper
             || maxJoinCount > getSessionVariable().getMaxTableCountUseCascadesJoinReorder();
     cascadesContext.getStatementContext().setDpHyp(isDpHyp);
     cascadesContext.getStatementContext().setOtherJoinReorder(false);
     if (!getSessionVariable().isDisableJoinReorder() && isDpHyp
             && maxJoinCount <= getSessionVariable().getMaxJoinNumberOfReorder()) {
+        // max_join_number_of_reorder默认值是63
+        // 
         //RightNow, dphyper can only order 64 join operators
         dpHypOptimize();
     }
@@ -263,18 +267,23 @@ public void execute() {
 ```
 可见，使用DPHyp和下面几个参数相关
 ```sql
+-- 开启DPHyp优化,默认开启
 SET enable_dphyp_optimizer = true;
-max_table_count_use_cascades_join_reorder
+-- cascade优化最大采用的表数量，默认值10
+SET max_table_count_use_cascades_join_reorder =10
 
-set disable_join_reorder = true
-max_join_number_of_reorder
+-- 关闭所有的自动Join Reorder算法，默认是False
+SET disable_join_reorder = true
+-- Join reorder算法最大的表数量, 默认63
+SET max_join_number_of_reorder = 63
 ```
 
 Optimizer的`dpHypOptimize()`是DPHyp的入口
 ```java
 private void dpHypOptimize() {
     Group root = cascadesContext.getMemo().getRoot();
-    cascadesContext.pushJob(new JoinOrderJob(root, cascadesContext.getCurrentJobContext()));
+    cascadesContext.pushJob(new JoinOrderJob(
+        root, cascadesContext.getCurrentJobContext()));
     cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
     // after DPHyp just keep logical expression
     cascadesContext.getMemo().removePhysicalExpression();
