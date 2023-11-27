@@ -257,7 +257,7 @@ private[scheduler] def handleJobSubmitted(jobId: Int,
 ```
 
 ## Job监听
-JobWaiter会监听Job的执行状态
+`JobListener`是一种特质，在其上派生出`JobWaiter`会监听Job的执行状态
 
 ```plantuml
 class ApproximateActionListener {
@@ -364,8 +364,18 @@ private def submitStage(stage: Stage): Unit = {
 }
 ```
 
+
+
+# 任务调度实现
+
+每个TaskScheduler都对应一个SchedulerBackend。其中，TaskScheduler负责Application的不同Job之间的调度，在Task执行失败时启动重试机制，并且为执行速度慢的Task启动备份的任务。而SchedulerBackend负责与Cluster Manager交互，取得该Application分配到的资源，并且将这些资源传给TaskScheduler，由TaskScheduler为Task最终分配计算资源。
+
+
+
 ## Task生成
+
 org.apache.spark.scheduler.DAGScheduler#handleJobSubmitted，生成finalStage后就会为该Job生成一个org.apache.spark.scheduler.ActiveJob，并准备计算这个finalStage
+
 ```scala
 private[scheduler] def handleJobSubmitted(...): Unit = {
   var finalStage: ResultStage = null
@@ -407,7 +417,7 @@ TaskSetManager -left-o TaskSchedulerImpl
 @enduml
 ```
 
-### 创建TaskScheduler和SchedulerBackend
+## 创建TaskScheduler和SchedulerBackend
 ```plantuml
 abstract class YarnSchedulerBackend {}
 
@@ -429,27 +439,26 @@ YarnClusterSchedulerBackend -up-|> YarnSchedulerBackend
 ```scala
 org.apache.spark.SparkContext#createTaskScheduler
 ```
-### Task提交
+## Task提交
 
-```
--- 在Driver端执行
+```scala
+// 在Driver端执行
 org.apache.spark.scheduler.TaskSchedulerImpl#submitTasks
   org.apache.spark.scheduler.TaskSchedulerImpl#createTaskSetManager
   org.apache.spark.scheduler.SchedulableBuilder#addTaskSetManager
   org.apache.spark.scheduler.CoarseGrainedSchedulerBackend#reviveOffers
-    makeOffers
-      buildWorkerOffer
-      org.apache.spark.scheduler.TaskSchedulerImpl#resourceOffers
+  org.apache.spark.scheduler.CoarseGrainedSchedulerBackend.DriverEndpoint#makeOffers
+  	org.apache.spark.scheduler.CoarseGrainedSchedulerBackend.DriverEndpoint#buildWorkerOffer
+  	org.apache.spark.scheduler.TaskSchedulerImpl#resourceOffers
+	org.apache.spark.scheduler.CoarseGrainedSchedulerBackend.DriverEndpoint#launchTasks
+	// 这里executorEndpoint.send(LaunchTask(......)
 
--- 在Executor上执行
+// 在Executor上执行
 org.apache.spark.executor.CoarseGrainedExecutorBackend.receiveWithLogging#launchTask
 org.apache.spark.executor.Executor#launchTask     
 ```
 `TaskSchedulerImpl::submitTasks`
-```scala
 
-
-```
 
 `TaskSchedulerImpl::resourceOffers`响应CoarseGrainedSchedulerBackend的资源调度请求，为每个Task具体分配资源。
 
@@ -458,25 +467,7 @@ org.apache.spark.executor.Executor#launchTask
 
 - `spark.scheduler.mode`设置的调度策略。默认为FIFO，
 
-  ```scala
-  org.apache.spark.scheduler.Pool
-  
-  private[spark] class Pool(val poolName: String,
-  	val schedulingMode: SchedulingMode,
-  	initMinShare: Int, initWeight: Int)
-    extends Schedulable with Logging {
-    
-    private val taskSetSchedulingAlgorithm: SchedulingAlgorithm = {
-      schedulingMode match {
-        case SchedulingMode.FAIR =>
-          new FairSchedulingAlgorithm()
-        case SchedulingMode.FIFO =>
-          new FIFOSchedulingAlgorithm()
-      }
-    }
-  			......
-  }
-  ```
+
 
 `TaskSchedulerImpl::resourceOffers`响应资源调度请求，为每个Task分配资源，该函数的输入是Executor列表，输出是`TaskDescription`二维数组，`TaskDescription`包含了Task ID，Executor ID和Task执行环境的依赖信息等。
 
@@ -502,7 +493,9 @@ org.apache.spark.executor.Executor#launchTask
       hostsByRack.getOrElseUpdate(rack, new HashSet[String]()) += host
     }
 
-    // 1. 如果开启组织在失败Executor上重新调度任务
+    // 1. 如果开启spark.excludeOnFailure.enabled为true
+    //    如果某节点的任务多次失败，Spark会将这个节点排除在集群之外
+    //	  这意味着不会用于之后的任务调度
     //    过滤掉排除在外的执行器节点,避免单独创建线程和同步开销
     healthTrackerOpt.foreach(_.applyExcludeOnFailureTimeout())
     val filteredOffers = healthTrackerOpt.map { healthTracker =>
@@ -538,7 +531,8 @@ org.apache.spark.executor.Executor#launchTask
     // 为根据调度策略排序好的的TaskSetManager列表分配资源
     // 按照就近原则进行分配,其中优先分配顺序:
     // PROCESS_LOCAL, NODE_LOCAL, NO_PREF, RACK_LOCAL, ANY
-    for (taskSet <- sortedTaskSets) { /// -- todo
+    for (taskSet <- sortedTaskSets) {
+      // Barrier Task -- todo
       // 如果采用Barrier执行模式，计算可用的Barrier Slot数, 否则为-1
       val numBarrierSlotsAvailable = if (taskSet.isBarrier) {
         val rpId = taskSet.taskSet.resourceProfileId
@@ -552,11 +546,10 @@ org.apache.spark.executor.Executor#launchTask
       } else {
         -1
       }
+
       // Skip the barrier taskSet if the available slots are less than the number of pending tasks.
       if (taskSet.isBarrier && numBarrierSlotsAvailable < taskSet.numTasks) {
         // Skip the launch process.
-        // TODO SPARK-24819 If the job requires more slots than available (both busy and free
-        // slots), fail the job on submit.
         logInfo(s"Skip current round of resource offers for barrier stage ${taskSet.stageId} " +
           s"because the barrier taskSet requires ${taskSet.numTasks} slots, while the total " +
           s"number of available slots is $numBarrierSlotsAvailable.")
@@ -726,8 +719,6 @@ org.apache.spark.executor.Executor#launchTask
       }
     }
 
-    // TODO SPARK-24823 Cancel a job that contains barrier stage(s) if the barrier tasks don't get
-    // launched within a configured time.
     if (tasks.nonEmpty) {
       hasLaunchedTask = true
     }
@@ -736,73 +727,68 @@ org.apache.spark.executor.Executor#launchTask
 ```
 
 
-
+忽略异常处理了解offer resource的实现
 ```scala
-  private def resourceOfferSingleTaskSet(
-      taskSet: TaskSetManager,
-      maxLocality: TaskLocality,
-      shuffledOffers: Seq[WorkerOffer],
-      availableCpus: Array[Int],
-      availableResources: Array[Map[String, Buffer[String]]],
-      tasks: IndexedSeq[ArrayBuffer[TaskDescription]])
-    : (Boolean, Option[TaskLocality]) = {
-    var noDelayScheduleRejects = true
-    var minLaunchedLocality: Option[TaskLocality] = None
-    // nodes and executors that are excluded for the entire application have already been
-    // filtered out by this point
-    for (i <- shuffledOffers.indices) {
-      val execId = shuffledOffers(i).executorId
-      val host = shuffledOffers(i).host
-      val taskSetRpID = taskSet.taskSet.resourceProfileId
+private def resourceOfferSingleTaskSet(taskSet: TaskSetManager,
+    maxLocality: TaskLocality, shuffledOffers: Seq[WorkerOffer],
+    availableCpus: Array[Int],
+    availableResources: Array[Map[String, Buffer[String]]],
+    tasks: IndexedSeq[ArrayBuffer[TaskDescription]])
+  : (Boolean, Option[TaskLocality]) = {
+  var noDelayScheduleRejects = true
+  var minLaunchedLocality: Option[TaskLocality] = None
 
-      // check whether the task can be scheduled to the executor base on resource profile.
-      if (sc.resourceProfileManager
-        .canBeScheduled(taskSetRpID, shuffledOffers(i).resourceProfileId)) {
-        val taskResAssignmentsOpt = resourcesMeetTaskRequirements(taskSet, availableCpus(i),
-          availableResources(i))
-        taskResAssignmentsOpt.foreach { taskResAssignments =>
-          try {
-            val prof = sc.resourceProfileManager.resourceProfileFromId(taskSetRpID)
-            val taskCpus = ResourceProfile.getTaskCpusOrDefaultForProfile(prof, conf)
-            val (taskDescOption, didReject, index) =
-              taskSet.resourceOffer(execId, host, maxLocality, taskCpus, taskResAssignments)
-            noDelayScheduleRejects &= !didReject
-            for (task <- taskDescOption) {
-              val (locality, resources) = if (task != null) {
-                tasks(i) += task
-                addRunningTask(task.taskId, execId, taskSet)
-                (taskSet.taskInfos(task.taskId).taskLocality, task.resources)
-              } else {
-                assert(taskSet.isBarrier, "TaskDescription can only be null for barrier task")
-                val barrierTask = taskSet.barrierPendingLaunchTasks(index)
-                barrierTask.assignedOfferIndex = i
-                barrierTask.assignedCores = taskCpus
-                (barrierTask.taskLocality, barrierTask.assignedResources)
-              }
+  // 顺序遍历当前的Executor
+  for (i <- shuffledOffers.indices) {
+    // 获取当前Executor的Executor ID和host name
+    val execId = shuffledOffers(i).executorId
+    val host = shuffledOffers(i).host
+    val taskSetRpID = taskSet.taskSet.resourceProfileId
 
-              minLaunchedLocality = minTaskLocality(minLaunchedLocality, Some(locality))
-              availableCpus(i) -= taskCpus
-              assert(availableCpus(i) >= 0)
-              resources.foreach { case (rName, rInfo) =>
-                // Remove the first n elements from availableResources addresses, these removed
-                // addresses are the same as that we allocated in taskResourceAssignments since it's
-                // synchronized. We don't remove the exact addresses allocated because the current
-                // approach produces the identical result with less time complexity.
-                availableResources(i)(rName).remove(0, rInfo.addresses.size)
-              }
-            }
-          } catch {
-            case e: TaskNotSerializableException =>
-              logError(s"Resource offer failed, task set ${taskSet.name} was not serializable")
-              // Do not offer resources for this task, but don't throw an error to allow other
-              // task sets to be submitted.
-              return (noDelayScheduleRejects, minLaunchedLocality)
+    // 根据ResourceProfile检查该Executor是否可以分配Task
+    if (sc.resourceProfileManager.canBeScheduled(
+          taskSetRpID, shuffledOffers(i).resourceProfileId)) {
+      // 检查WorkOffer提供的Resource是否足够运行至少一个Task
+      // 如果不满足，返回None,否则返回一组分配task resource
+      val taskResAssignmentsOpt = resourcesMeetTaskRequirements(
+          	taskSet, availableCpus(i), availableResources(i))
+      // taskResAssignmentsOpt不为None,该Executor可以分配任务
+      taskResAssignmentsOpt.foreach { taskResAssignments =>
+        val prof = sc.resourceProfileManager.resourceProfileFromId(taskSetRpID)
+        val taskCpus = ResourceProfile.getTaskCpusOrDefaultForProfile(prof, conf)
+        // 调用TaskSetManager为Executor分配Task
+        val (taskDescOption, didReject, index) =
+          taskSet.resourceOffer(execId, host, maxLocality, taskCpus, taskResAssignments)
+        noDelayScheduleRejects &= !didReject
+        for (task <- taskDescOption) {
+          val (locality, resources) = if (task != null) {
+            tasks(i) += task
+            addRunningTask(task.taskId, execId, taskSet)
+            (taskSet.taskInfos(task.taskId).taskLocality, task.resources)
+          } else {
+            assert(taskSet.isBarrier, "TaskDescription can only be null for barrier task")
+            val barrierTask = taskSet.barrierPendingLaunchTasks(index)
+            barrierTask.assignedOfferIndex = i
+            barrierTask.assignedCores = taskCpus
+            (barrierTask.taskLocality, barrierTask.assignedResources)
+          }
+
+          minLaunchedLocality = minTaskLocality(minLaunchedLocality, Some(locality))
+          availableCpus(i) -= taskCpus
+          assert(availableCpus(i) >= 0)
+          resources.foreach { case (rName, rInfo) =>
+            // Remove the first n elements from availableResources addresses, these removed
+            // addresses are the same as that we allocated in taskResourceAssignments since it's
+            // synchronized. We don't remove the exact addresses allocated because the current
+            // approach produces the identical result with less time complexity.
+            availableResources(i)(rName).remove(0, rInfo.addresses.size)
           }
         }
       }
     }
-    (noDelayScheduleRejects, minLaunchedLocality)
   }
+  (noDelayScheduleRejects, minLaunchedLocality)
+}
 ```
 
 ```plantuml
@@ -832,10 +818,6 @@ abstract class SchedulerBackend {
 TaskSchedulerImpl -right-|> TaskScheduler
 SchedulerBackend -up-o TaskSchedulerImpl
 ```
-
-
-
-
 
 ```plantuml
 @startuml
@@ -870,6 +852,247 @@ SchedulerBackend -down-* SparkContext
 MapOutputTrackerMaster -down.|> MapOutputTracker
 @enduml
 ```
+
+## Task调度
+在org.apache.spark.scheduler.TaskSchedulerImpl#submitTasks关键性的调用是``
+```scala
+override def submitTasks(taskSet: TaskSet): Unit = {
+    val tasks = taskSet.tasks
+    this.synchronized {
+      // 创建TaskSetManager
+      val manager = createTaskSetManager(taskSet, maxTaskFailures)
+              ......
+      
+      schedulableBuilder.addTaskSetManager(manager, manager.taskSet.properties)
+              ......
+    }
+    backend.reviveOffers()
+  }
+```
+Spark支持FIFO和FAIR两种调度策略，通过`spark.scheduler.mode`配置参数设置的调度策略，默认为FIFO。`schedulableBuilder`在创建在`在org.apache.spark.scheduler.TaskSchedulerImpl#initialize`,相关实现如下：
+```scala
+val rootPool: Pool = new Pool("", schedulingMode, 0, 0)
+            ......
+def initialize(backend: SchedulerBackend): Unit = {
+  this.backend = backend
+  schedulableBuilder = {
+    // schedulingMode取决于spark.scheduler.mode配置
+    schedulingMode match {
+      // FIFO对应的FIFOSchedulableBuilder
+      case SchedulingMode.FIFO =>
+        new FIFOSchedulableBuilder(rootPool)
+      // FAIR对应的是FairSchedulableBuilder
+      case SchedulingMode.FAIR =>
+        new FairSchedulableBuilder(rootPool, sc)
+    }
+  }
+
+  // 对于FIFO调度, buildPools是空
+  // FAIR调度，根据配置文件创建调度树
+  // 值得注意的是Pool也是一种Schedulable
+  schedulableBuilder.buildPools()
+}
+```
+
+```plantuml
+Interface SchedulableBuilder {
+  + def rootPool: Pool
+  + def buildPools(): Unit
+  + def addTaskSetManager(manager: Schedulable, properties: Properties): Unit
+}
+
+class Pool {
+  - val schedulableQueue = new ConcurrentLinkedQueue[Schedulable]
+  - val taskSetSchedulingAlgorithm: SchedulingAlgorithm
+  + def getSortedTaskSetQueue(): ArrayBuffer[TaskSetManager]
+}
+
+
+Interface SchedulingAlgorithm {
+  + def comparator(s1: Schedulable, s2: Schedulable): Boolean
+}
+FIFOSchedulableBuilder -down.|> SchedulableBuilder
+FairSchedulableBuilder -down.|> SchedulableBuilder
+
+Pool -|> Schedulable : 继承
+Pool -up-* SchedulableBuilder
+SchedulingAlgorithm -up-* Pool
+FIFOSchedulingAlgorithm -up.|> SchedulingAlgorithm
+FairSchedulingAlgorithm -up.|> SchedulingAlgorithm
+
+TaskSetManager -left-o Pool : 包含
+TaskSetManager -down-|> Schedulable : 继承
+```
+
+`Pool::getSortedTaskSetQueue`用SchedulingAlgorithm对TaskSetManager排序，进而实现控制Task的调度顺序。
+```scala
+// org.apache.spark.scheduler.Pool
+
+private[spark] class Pool(val poolName: String,
+  val schedulingMode: SchedulingMode, initMinShare: Int,
+  initWeight: Int) extends Schedulable with Logging {
+  
+  private val taskSetSchedulingAlgorithm: SchedulingAlgorithm = {
+    schedulingMode match {
+      case SchedulingMode.FAIR =>
+        new FairSchedulingAlgorithm()
+      case SchedulingMode.FIFO =>
+        new FIFOSchedulingAlgorithm()
+    }
+  }
+      ......
+}
+```
+
+### FIFO调度
+采用FIFO任务调度，首先要保证Job ID较小的先被调度，如果是同一个Job，那么Stage ID小的先被调度。
+```scala
+private[spark] class FIFOSchedulingAlgorithm extends SchedulingAlgorithm {
+  override def comparator(s1: Schedulable, s2: Schedulable): Boolean = {
+    // 实际上就是Job ID
+    val priority1 = s1.priority
+    val priority2 = s2.priority
+    var res = math.signum(priority1 - priority2)
+    if (res == 0) {
+      // Job ID相同，比较Stage ID
+      val stageId1 = s1.stageId
+      val stageId2 = s2.stageId
+      res = math.signum(stageId1 - stageId2)
+    }
+    res < 0
+  }
+}
+```
+
+### FAIR调度
+对于FAIR来说，rootPool包含了一组Pool，这些Pool构成了一棵调度树，其中这棵树的叶子节点就是TaskSetManager。FAIR调度需要在rootPool的基础上根据配置文件(参见`spark.scheduler.allocation.file`配置参数)来构建这课调度树，默认采用`fairscheduler.xml`，一个合法的配置文件格式如下：
+```
+<allocations>
+  <pool name="production">
+    <schedulingMode>FAIR</schedulingMode>
+    <weight>1</weight>
+    <minShare>2</minShare>
+  </pool>
+  <pool name="test">
+    <schedulingMode>FIFO</schedulingMode>
+    <weight>2</weight>
+    <minShare>3</minShare>
+  </pool>
+</allocations>
+```
+对于一个POOL可以指定一些系列的属性：weight表示重要性的概念，minShare(定义最小保留容量)和schedulingMode(指定给定POOL中作业是以FIFO还是FAIR方式调度)。
+
+忽略异常处理了解调度树的构建
+```scala
+private[spark] class FairSchedulableBuilder(val rootPool: Pool, sc: SparkContext)
+  extends SchedulableBuilder with Logging {
+
+  val schedulerAllocFile = sc.conf.get(SCHEDULER_ALLOCATION_FILE)
+  val DEFAULT_SCHEDULER_FILE = "fairscheduler.xml"
+
+  override def buildPools(): Unit = {
+    var fileData: Option[(InputStream, String)] = None
+
+    fileData = schedulerAllocFile.map { f =>
+      // 根据spark.scheduler.allocation.file配置创建InputStream
+      val filePath = new Path(f)
+      val fis = filePath.getFileSystem(sc.hadoopConfiguration).open(filePath)
+      Some((fis, f))
+    }.getOrElse {
+      // spark.scheduler.allocation.file没设置
+      // 以fairscheduler.xml创建InputStream
+      val is = Utils.getSparkClassLoader.getResourceAsStream(DEFAULT_SCHEDULER_FILE)
+      if (is != null) {
+        Some((is, DEFAULT_SCHEDULER_FILE))
+      } else {
+        // 不存在fairscheduler.xml文件，根据默认参数创建POOL
+        val schedulingMode = SchedulingMode.withName(sc.conf.get(SCHEDULER_MODE))
+        rootPool.addSchedulable(new Pool(
+          DEFAULT_POOL_NAME, schedulingMode, DEFAULT_MINIMUM_SHARE, DEFAULT_WEIGHT))
+        None
+      }
+    }
+
+    // 以is InputStream来构建FAIR POOL
+    fileData.foreach { case (is, fileName) => buildFairSchedulerPool(is, fileName) }
+    
+    fileData.foreach { case (is, fileName) => is.close() }
+
+    // 创建default pool
+    buildDefaultPool()
+  }
+
+  private def buildDefaultPool(): Unit = {
+    if (rootPool.getSchedulableByName(DEFAULT_POOL_NAME) == null) {
+      // 创建Pool，作为一个Schedulable添加到pool中
+      val pool = new Pool(DEFAULT_POOL_NAME, DEFAULT_SCHEDULING_MODE,
+        DEFAULT_MINIMUM_SHARE, DEFAULT_WEIGHT)
+      rootPool.addSchedulable(pool)
+    }
+  }
+
+  private def buildFairSchedulerPool(is: InputStream, fileName: String): Unit = {
+    val xml = XML.load(is)
+    for (poolNode <- (xml \\ POOLS_PROPERTY)) {
+      val poolName = (poolNode \ POOL_NAME_PROPERTY).text
+      val schedulingMode = getSchedulingModeValue(poolNode, poolName,
+        DEFAULT_SCHEDULING_MODE, fileName)
+      val minShare = getIntValue(poolNode, poolName, MINIMUM_SHARES_PROPERTY,
+        DEFAULT_MINIMUM_SHARE, fileName)
+      val weight = getIntValue(poolNode, poolName, WEIGHT_PROPERTY,
+        DEFAULT_WEIGHT, fileName)
+
+      // POOL中通过schedulingMode指定调度方式
+      // 实现内部采用一种调度算法来确定TaskSetManager的调度顺序
+      rootPool.addSchedulable(new Pool(poolName, schedulingMode, minShare, weight))
+    }
+  }
+}
+```
+<center>
+  <img src="../img/Fair_Pool_Arch.jpg" width=75% height=75%>
+  <div> FAIR调度逻辑图<div>
+</center>
+
+对于FAIR，首先是挂到rootPool下面的pool先确定调度顺序，然后在每个pool内部使用相同的算法来确定TaskSetManager的调度顺序,其调度算法实现如下：
+```scala
+private[spark] class FairSchedulingAlgorithm extends SchedulingAlgorithm {
+  override def comparator(s1: Schedulable, s2: Schedulable): Boolean = {
+    val minShare1 = s1.minShare
+    val minShare2 = s2.minShare
+    val runningTasks1 = s1.runningTasks
+    val runningTasks2 = s2.runningTasks
+    val s1Needy = runningTasks1 < minShare1
+    val s2Needy = runningTasks2 < minShare2
+    val minShareRatio1 = runningTasks1.toDouble / math.max(minShare1, 1.0)
+    val minShareRatio2 = runningTasks2.toDouble / math.max(minShare2, 1.0)
+    val taskToWeightRatio1 = runningTasks1.toDouble / s1.weight.toDouble
+    val taskToWeightRatio2 = runningTasks2.toDouble / s2.weight.toDouble
+
+    var compare = 0
+    if (s1Needy && !s2Needy) {
+      // 1. 如果s1满足最小保留容量,s2不满足，s1先调度
+      return true
+    } else if (!s1Needy && s2Needy) {
+      // 2. s1不满足最小保留容量，s2满足，s2先调度
+      return false
+    } else if (s1Needy && s2Needy) {
+      // 3. s1和s2同时满足最小保留容量，需要最小保留量分数小的先调度
+      compare = minShareRatio1.compareTo(minShareRatio2)
+    } else {
+      // 4. s1和s2都不满足最小保留容量，权重大的小调度
+      compare = taskToWeightRatio1.compareTo(taskToWeightRatio2)
+    }
+    if (compare < 0) {
+      true
+    } else if (compare > 0) {
+      false
+    } else {
+      s1.name < s2.name
+    }
+  }
+}
+```
 #  DAGScheduler
 
 DAGScheduler主要负责分析用户提交的应用，并根据计算任务的依赖关系建立DAG，然后将DAG划分为不同的Stage(阶段)，其中每个Stage由可以并发执行的一组Task构成，这些Task的执行逻辑完全相同，只是作用于不同的数据，DAG在不同的资源管理框架下实现相同。
@@ -886,7 +1109,7 @@ JobWaiter -down-|> JobListener
 @enduml
 ```
 
-JobListener是一种特质，
+
 ```scala
 // org.apache.spark.scheduler
 
@@ -971,13 +1194,6 @@ private[scheduler] class DAGSchedulerEventProcessLoop(dagScheduler: DAGScheduler
 ```
 
 ## 提交Stage
-```
-org.apache.spark.SparkContext#submitMapStage
-org.apache.spark.scheduler.DAGScheduler#submitMapStage
-
-
-```
-
 ```scala
 class SimpleFutureAction[T] private[spark](jobWaiter: JobWaiter[_], resultFunc: => T)
   extends FutureAction[T] {}
