@@ -349,7 +349,43 @@ private Group optimizePlan(Group group) {
 ```
 
 
-## Cascades optimize
+# Cascades optimize
+
+理解这部分需要先建立几个概念：搜索空间，Group和GroupExpression以及Task
+
+Cascades Optimizer在搜索的过程中，其搜索的空间是一个关系代数算子树所组成的森林，而保存这个森林的数据结构就是Memo。Memo中两个最基本的概念就是Group以及 Group Expression(对应关系代数算子)。每个Group中保存的是逻辑等价的Group Expression，而Group Expression的子节点是由Group组成。
+<center>
+    <img src="https://img1.www.pingcap.com/prod/2_Memo_3754a27552.png" width=75% height=75%>
+</center>
+使用Memo存储下面两棵树，可以避免存储冗余的算子(如Scan A 以及 Scan B),上面的 Memo 提取出以下两棵等价的算子树
+<center>
+    <img src="https://img1.www.pingcap.com/prod/3_5d0f533150.png" width=75% height=75%>
+</center>
+
+
+搜索优化过程被拆分为一些固定的步骤，每个步骤用task来描述，task之间有依赖和调用关系，当一个线程独立执行时，可以把所有task组织为一个stack，形成task间的递归调用。
+<center>
+    <img src="https://pic4.zhimg.com/v2-9d4a225f21dff521b4daf9914739360f_r.jpg" width=75% height=75%>
+</center>
+
+利用转换规则生成等价表达式分为两个阶段：
+1. Exploration，探索和补全计划空间，生成逻辑等价的表达式，例如`a INNER JOIN b`和`b INNER JOIN a`。
+2. Implementation,将逻辑算子转换成物理算子。例如`Join(A,B)-> HashJoin(A, B)`。
+
+```
+-> Optimize Group是整个递归的入口，带有Optimization Goal(cost limit + physical props)
+   实际就是对group所包含的expr，依次调用Optimize Expr
+   /* 注: 关于goal的描述参看上篇文章中Volcano optimizer的算法部分 */
+   -> Optimize Expr
+      -> apply transformation rule生成新expr，针对新expr，递归调用Optimize Expr
+         apply transformation rule也可能生成新group，对新group，调用Explore Group
+         -> Explore Group，就是在group内调用Explore Expr，生成该group内更多的expr
+      -> apply implementation rule转换为物理operator，再基于该operator的cost/input requirement
+         形成新的Optimization Goal,递归到children group，调用Optimize Group
+```
+
+Doris中`Optimizer::execute`实现中可以Cascades optimize的调用入口，最初先生成的OptimizeGroupJob。
+
 ```java
 public void execute() {
                 ......
@@ -360,23 +396,92 @@ public void execute() {
     cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
 }
 ```
+对于Job的执行调用的是`execute`接口，可以看到`OptimizeGroupJob::execute()`的实现
 ```plantuml
 @startuml
-class OptimizeGroupJob {
-    - Group group
+OptimizeGroupJob -down-|> Job : 继承
+
+OptimizeGroupJob -up--> CostAndEnforcerJob : 为Physical Expression生成Job
+OptimizeGroupJob -up--> OptimizeGroupExpressionJob : 为Logical Expression生成Job\n进行Exploration和Implementation变换
+
+@enduml
+```
+```java
+@Override
+public void execute() {
+    if (group.getLowestCostPlan(context.getRequiredProperties()).isPresent()) {
+        return;
+    }
+
+    // 1. Group还没Explore生成OptimizeGroupExpressionJob进行Exploration和Implementation
+    //    当前接口结束，调用group.setExplored(true)设置相关标志,不重复生成Job
+    if (!group.isExplored()) {
+        List<GroupExpression> logicalExpressions = group.getLogicalExpressions();
+        for (int i = logicalExpressions.size() - 1; i >= 0; i--) {
+            context.getCascadesContext().pushJob(
+                    new OptimizeGroupExpressionJob(logicalExpressions.get(i), context));
+        }
+    }
+
+    // 2. 对Physical Expression生成CostAndEnforcerJob计算代价和enforce属性
+    List<GroupExpression> physicalExpressions = group.getPhysicalExpressions();
+    for (int i = physicalExpressions.size() - 1; i >= 0; i--) {
+        context.getCascadesContext().pushJob(
+            new CostAndEnforcerJob(physicalExpressions.get(i), context));
+    }
+
+    // 3. 对Group设置Explored标志
+    group.setExplored(true);
+}
+```
+## Optimize GroupExpression
+
+Cascades将变换统一抽象为一系列的Rule其中
+- Logical -> Logical等价变换称为Exploration
+- 逻辑算子 -> 物理算子的变化称为Implementation
+
+```plantuml
+@startuml
+class OptimizeGroupExpressionJob {
+    - GroupExpression groupExpression
+    + void execute()
 }
 
-class CostAndEnforcerJob {
+OptimizeGroupExpressionJob -down-|> Job : 继承
+OptimizeGroupExpressionJob -right--> ApplyRuleJob : 生成ApplyRuleJob\n应用变换(Rule)
+@enduml
+```
+```java
+@Override
+public void execute() {
+    // 分别获取相应的Rule集合，之后通过ApplyRuleJob进行变换
+    List<Rule> implementationRules = getRuleSet().getImplementationRules();
+    List<Rule> explorationRules = getExplorationRules();
 
+    // 1. 先执行Exploration变换规则(Logical to Logical)
+    for (Rule rule : getValidRules(groupExpression, explorationRules)) {
+        pushJob(new ApplyRuleJob(groupExpression, rule, context));
+    }
+
+    // 2. 再应用Implementation变换规则(Logical to Physical)
+    for (Rule rule : getValidRules(groupExpression, implementationRules)) {
+        pushJob(new ApplyRuleJob(groupExpression, rule, context));
+    }
 }
 
-abstract class Job {
-    + abstract void execute();
+private List<Rule> getExplorationRules() {
+        ......
 }
+```
 
+## ApplyRuleJob
+
+```plantuml
+@startuml
 class ApplyRuleJob {
     - GroupExpression groupExpression;
     - Rule rule;
+    + void execute()
 }
 
 class GroupExpressionMatching {
@@ -384,85 +489,110 @@ class GroupExpressionMatching {
     - GroupExpression groupExpression
     + GroupExpressionIterator iterator()
 }
+note bottom : 获取GroupExpression中所有符合Pattern的Plan
 
-OptimizeGroupJob -down-|> Job : 继承
-OptimizeGroupJob -down--> OptimizeGroupExpressionJob : 为Logical Expression生成Job
-OptimizeGroupJob -down--> CostAndEnforcerJob : 为Physical Expression生成Job
-CostAndEnforcerJob -down-|> Job : 继承
-OptimizeGroupExpressionJob -down-|> Job : 继承
-
-CostAndEnforcerJob -down--> CostCalculator : 依赖, 计算Cost
-CostAndEnforcerJob -down--> EnforceMissingPropertiesHelper : 依赖, 父节点向子节点发出\n子节点没有的属性请求\n子节点Enforce add
-
-OptimizeGroupExpressionJob -left--> ApplyRuleJob
 ApplyRuleJob -down-|> Job : 继承
-ApplyRuleJob -down--> GroupExpressionMatching : 依赖
+ApplyRuleJob -right--> GroupExpressionMatching : 依赖
 @enduml
 ```
+
+ApplyRuleJob也是一种Job，其主要的实现是`ApplyRuleJob::execute`，该接口实现在GroupExpression上应用给定的Rule。每个Rule都有自己的Pattern，Pattern用于描述 Group Expression的局部特征，只有满足了相应Pattern的Group Expression才能够应用该Rule。
+
 ```java
-public class OptimizeGroupJob extends Job {
-    private final Group group;
+@Override
+public void execute() throws AnalysisException {
+    // 当前GroupExpression已经完成当前变换，直接返回
+    // 当前接口执行完,调用groupExpression.setApplied(rule)进行设置
+    if (groupExpression.hasApplied(rule) || groupExpression.isUnused()) {
+        return;
+    }
+    countJobExecutionTimesOfGroupExpressions(groupExpression);
 
-     @Override
-    public void execute() {
-        if (group.getLowestCostPlan(context.getRequiredProperties()).isPresent()) {
-            return;
-        }
+    // 1. 获取所有满足Pattern的Plan
+    GroupExpressionMatching groupExpressionMatching
+            = new GroupExpressionMatching(rule.getPattern(), groupExpression);
+    for (Plan plan : groupExpressionMatching) {
+        // 2. 对Plan应用变换
+        List<Plan> newPlans = rule.transform(plan, context.getCascadesContext());
+        // 3. 将新生成的Plan插入Memo
+        for (Plan newPlan : newPlans) {
+            CopyInResult result = context.getCascadesContext()
+                    .getMemo()
+                    .copyIn(newPlan, groupExpression.getOwnerGroup(), false);
 
-        // 1. Group还没Explore生成OptimizeGroupExpressionJob进行Exploration和Implementation
-        if (!group.isExplored()) {
-            List<GroupExpression> logicalExpressions = group.getLogicalExpressions();
-            for (int i = logicalExpressions.size() - 1; i >= 0; i--) {
-                context.getCascadesContext().pushJob(
-                        new OptimizeGroupExpressionJob(logicalExpressions.get(i), context));
+            if (!result.generateNewExpression) {
+                // 3.1 不是新生成的expr，继续
+                continue;
             }
-        }
 
-        // 2. 对Physical Expression生成CostAndEnforcerJob计算代价和enforce属性
-        List<GroupExpression> physicalExpressions = group.getPhysicalExpressions();
-        for (int i = physicalExpressions.size() - 1; i >= 0; i--) {
-            context.getCascadesContext().pushJob(
-                new CostAndEnforcerJob(physicalExpressions.get(i), context));
-        }
-        group.setExplored(true);
-    }
-}
-```
-### Optimize GroupExpression
-```java
-public class OptimizeGroupExpressionJob extends Job {
-    private final GroupExpression groupExpression;
+            // 3.2 新生成的expr，对该表达式优化
+            //     逻辑算子生成OptimizeGroupExpressionJob
+            //     物理算子生成CostAndEnforcerJob
+            GroupExpression newGroupExpression = result.correspondingExpression;
+            newGroupExpression.setFromRule(rule);
+            if (newPlan instanceof LogicalPlan) {
+                pushJob(new OptimizeGroupExpressionJob(newGroupExpression, context));
+            } else {
+                pushJob(new CostAndEnforcerJob(newGroupExpression, context));
+            }
 
-    public OptimizeGroupExpressionJob(GroupExpression groupExpression,
-                JobContext context) {
-        super(JobType.OPTIMIZE_PLAN, context);
-        this.groupExpression = groupExpression;
-    }
-
-    @Override
-    public void execute() {
-        countJobExecutionTimesOfGroupExpressions(groupExpression);
-        List<Rule> implementationRules = getRuleSet().getImplementationRules();
-        List<Rule> explorationRules = getExplorationRules();
-
-        // 1. 执行Exploration变换规则(Logical to Logical)
-        for (Rule rule : getValidRules(groupExpression, explorationRules)) {
-            pushJob(new ApplyRuleJob(groupExpression, rule, context));
-        }
-
-        // 2. 应用Implementation变换规则(Logical to Physical)
-        for (Rule rule : getValidRules(groupExpression, implementationRules)) {
-            pushJob(new ApplyRuleJob(groupExpression, rule, context));
+            // 3.3 如果没有生成统计信息，生成DeriveStatsJob来derive stat
+            //     由于是Job调度是stask模式,LIFO后进先出
+            //     因此先DeriveStatsJob(计算统计信息) -> CostAndEnforcerJob(计算代价)
+            pushJob(new DeriveStatsJob(newGroupExpression, context));
         }
     }
 
-    private List<Rule> getExplorationRules() {
-            ......
-    }
+    // rule规则已应用到groupExpression设置状态,不再重复执行
+    groupExpression.setApplied(rule);
 }
 ```
 
-### 代价计算和Enforce属性
+## 代价计算和Enforce属性
+```plantuml
+@startuml
+class CostAndEnforcerJob {
+    - GroupExpression groupExpression
+}
+
+abstract class Job {
+    + abstract void execute();
+}
+
+class CostCalculator {
+    + Cost calculateCost(GroupExpression groupExpression,\n\tList<PhysicalProperties> childrenProperties)
+}
+
+class CostModelV1 {
+    - int beNumber
+    + Cost visitPhysicalXX(XX, physicalXX,\n\tPlanContext context)
+}
+
+abstract class PlanVisitor {
+    + abstract R visit(Plan plan, C context)
+}
+
+class RequestPropertyDeriver {
+    Void visitPhysicalXX(PhysicalXX<? extends \n\tPlan> xx, PlanContext context);
+}
+
+CostAndEnforcerJob -right-|> Job : 继承
+
+CostAndEnforcerJob -left--> CostCalculator : 计算代价Cost
+CostAndEnforcerJob -down--> RequestPropertyDeriver : Derive request属性
+CostAndEnforcerJob -down--> ChildrenPropertiesRegulator
+CostAndEnforcerJob -down--> ChildOutputPropertyDeriver
+CostAndEnforcerJob ---> EnforceMissingPropertiesHelper : 父节点向子节点发出\n子节点没有的属性请求\n add enforce node
+
+ChildOutputPropertyDeriver -down-|> PlanVisitor : R:PhysicalProperties, C:PlanContext
+ChildrenPropertiesRegulator-down-|> PlanVisitor : R:Boolean, C: Void
+
+CostModelV1 -up-o CostCalculator
+CostModelV1 -down-|> PlanVisitor : 代价模型\nR:Cost, C:PlanContext
+
+RequestPropertyDeriver -down-|> PlanVisitor : R:Void, C: PlanContext
+@enduml
+```
 
 ```java
 public class CostAndEnforcerJob extends Job implements Cloneable {
@@ -478,39 +608,24 @@ class CostAndEnforcerJob {
     
 }
 
-class CostCalculator {
-    + Cost calculateCost(GroupExpression groupExpression,\n\tList<PhysicalProperties> childrenProperties)
-}
 
-abstract class PlanVisitor {
-    + abstract R visit(Plan plan, C context)
-}
 
-class CostModelV1 {
-    - int beNumber
-    + Cost visitPhysicalXX(XX, physicalXX,\n\tPlanContext context)
-}
-
-class RequestPropertyDeriver {
-    Void visitPhysicalXX(PhysicalXX<? extends \n\tPlan> xx, PlanContext context);
-}
 
 CostAndEnforcerJob -down--> RequestPropertyDeriver : Derive属性
-CostAndEnforcerJob -down--> ChildrenPropertiesRegulator
-CostAndEnforcerJob -down--> ChildOutputPropertyDeriver
+
 CostAndEnforcerJob -left--> CostCalculator : 代价计算
 
 CostCalculator -down--> CostModelV1 : 代价模型计算代价
 CostModelV1 -down-|> PlanVisitor : R: Cost, C: PlanContext
 
 RequestPropertyDeriver -down-|> PlanVisitor : R:Void, C: PlanContext
-ChildOutputPropertyDeriver -down-|> PlanVisitor : R:PhysicalProperties, C:PlanContext
-ChildrenPropertiesRegulator-down-|> PlanVisitor : R:Boolean, C: Void
+
 
 CostAndEnforcerJob -right--> EnforceMissingPropertiesHelper :父节点向子节点发出\n子节点无的属性请求\n子节点Enforce add
 @enduml
 ```
 
+### 代价计算
 `CostCalculator::calculateCost`实现计算Plan的代价。
 ```java
 public static Cost calculateCost(GroupExpression groupExpression,
@@ -537,7 +652,7 @@ public static Cost calculateCost(GroupExpression groupExpression,
     }
 ```
 
-#### 父属性Derive
+### 父属性Derive
 `RequestPropertyDeriver::getRequestChildrenPropertyList`
 ```java
 public class RequestPropertyDeriver extends PlanVisitor<Void, PlanContext> {
@@ -551,8 +666,13 @@ public class RequestPropertyDeriver extends PlanVisitor<Void, PlanContext> {
     public List<List<PhysicalProperties>> getRequestChildrenPropertyList(
             GroupExpression groupExpression) {
         requestPropertyToChildren = Lists.newArrayList();
+        // 调用Plan的accept
         groupExpression.getPlan().accept(this, new PlanContext(groupExpression));
         return requestPropertyToChildren;
     }
 }
 ```
+
+## 参考资料
+1. [揭秘TiDB新优化器：Cascades Planner 原理解析](https://cn.pingcap.com/blog/tidb-cascades-planner/)
+2. [知乎：The Cascades Framework for Query Optimization](https://zhuanlan.zhihu.com/p/365085770)
