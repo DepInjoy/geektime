@@ -402,6 +402,8 @@ int main() {
 
 ## 单调栈
 
+
+
 [830.单调栈](https://www.acwing.com/problem/content/832/)
 
 ```C++
@@ -436,6 +438,34 @@ int main() {
 [154.滑动窗口](https://www.acwing.com/problem/content/156/)
 
 ```C++
+#include <iostream>
+
+const int N = 1000010;
+int q[N], d[N];
+
+int main() {
+    int n, k;
+    scanf("%d%d", &n, &k);
+    for (int i = 0; i < n; ++i) scanf("%d", &d[i]);
+    
+    int hh = 0, tt = -1;
+    for (int i = 0; i < n; ++i) {
+        if (hh <= tt && q[hh] < i - k + 1) ++hh;
+        while (hh <= tt && d[q[tt]] >= d[i]) --tt;
+        q[++tt] = i;
+        if (i >=  k - 1) std::cout << d[q[hh]] << " ";
+    }
+    std::cout << std::endl;
+    
+    hh = 0, tt = -1;
+    for (int i = 0; i < n; ++i) {
+        if (hh <= tt && q[hh] < i - k + 1) ++hh;
+        while(hh <= tt && d[q[tt]] <= d[i]) --tt;
+        q[++tt] = i;
+        if (i >= k - 1) std::cout << d[q[hh]] << " ";
+    }
+    return 0;
+}
 ```
 
 
@@ -443,6 +473,49 @@ int main() {
 ## KMP
 
 ## Trie
+
+```C++
+int son[N][26], cnt[N], idx;
+// 0号点既是根节点，又是空节点
+// son[][]存储树中每个节点的子节点
+// cnt[]存储以每个节点结尾的单词数量
+
+// 插入一个字符串
+void insert(char *str) {
+    int p = 0;
+    for (int i = 0; str[i]; i ++ ) {
+        int u = str[i] - 'a';
+        if (!son[p][u]) son[p][u] = ++ idx;
+        p = son[p][u];
+    }
+    cnt[p] ++ ;
+}
+
+// 查询字符串出现的次数
+int query(char *str) {
+    int p = 0;
+    for (int i = 0; str[i]; i ++ ) {
+        int u = str[i] - 'a';
+        if (!son[p][u]) return 0;
+        p = son[p][u];
+    }
+    return cnt[p];
+}
+```
+
+[835.Trie字符串统计](https://www.acwing.com/problem/content/837/)
+
+```C++
+```
+
+
+
+[143.最大异或对](https://www.acwing.com/problem/content/145/)
+
+```C++
+```
+
+
 
 ## 并查集
 
