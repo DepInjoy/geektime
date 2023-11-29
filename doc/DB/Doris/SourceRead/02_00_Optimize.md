@@ -549,6 +549,63 @@ public void execute() throws AnalysisException {
 ```
 
 ## 代价计算和Enforce属性
+在Doris的源码中，可以看到这部分的实现参考了ORCA的论文，先了解一下原理，ORCA的Optimization进行属性enforce和候选计划的代价估计。可以拆分为下面几个步骤
+1. > Optimization starts by submitting an initial optimization request to the Memo’s root group specifying query requirements such as result distribution and sort order. Submitting a request r to a group g corresponds to requesting the least cost plan satisfying r with a root physical operator in g.
+   >
+   > 
+   >
+   > 也就是说：Optimization首先向Memo的Root Group提交初始，满足查询要求的请求，例如数据重分布和排序。向Group g提交r请求意味着请求代价最低的计划，该计划满足g中的根物理算子满足属性r。
+   
+   Doris源码有这个注释图：
+   
+   ```java
+       /*
+       *                currentJobSubPlanRoot
+       *             / ▲                     ▲ \
+       *   requested/ /childOutput childOutput\ \requested
+       * Properties/ /Properties     Properties\ \Properties
+       *          ▼ /                           \ ▼
+       *        child                           child
+       */
+   ```
+<br/>
+
+2. > For each incoming request, each physical group expression passes corresponding requests to child groups depending on the incoming requirements and operator’s local requirements.
+   >
+   > 
+   >
+   > 也就说：对于每个传入的请求，每个物理GroupExpression根据传入的请求和算子本身的需求，将相应的请求发送给其的子Group。
+
+   Doris有下面的注释图：
+
+   ```java
+       /*
+        *         requestPropertyFromParent          parentPlanNode
+        *    ──►              │               ──►          ▲
+        *                     ▼                            │
+        *         requestPropertyToChildren        ChildOutputProperty
+        */
+   ```
+<br/>
+
+3. > When it is determined that delivered properties do not satisfy the initial requirements, unsatisfied properties have to be enforced.
+   >
+   > 也就是说：当delivered属性(孩子输出的属性)不满足初始的请求时，不满足的属性必须强制添加(enforce)。
+
+   Doris中有下面的注释图：
+
+   ```java
+       /*
+        *         requestPropertyFromParent
+        *                     ┼
+        *    ──►             gap              ──►  add enforcer to fill the gap
+        *                     ┼
+        *            ChildOutputProperty
+        */
+   ```
+
+   
+
 ```plantuml
 @startuml
 class CostAndEnforcerJob {
@@ -594,36 +651,136 @@ RequestPropertyDeriver -down-|> PlanVisitor : R:Void, C: PlanContext
 @enduml
 ```
 
+首先，Memo的Root Group的发出的Gather属性请求，通过`NereidsPlanner::buildInitRequireProperties`进行了最顶层Root Group属性请求的初始化
+
 ```java
-public class CostAndEnforcerJob extends Job implements Cloneable {
-    // GroupExpression to optimize
-    private final GroupExpression groupExpression;
+public static PhysicalProperties buildInitRequireProperties() {
+    return PhysicalProperties.GATHER;
+}
+```
+之后将这个信息存储在`CascadesContext.currentJobContext.requiredProperties`中(参见`initCascadesContext`实现)，其主要的调用栈
+```java
+requireProperties = NereidsPlanner#buildInitRequireProperties
+NereidsPlanner#plan(parsedPlan, requireProperties, explainLevel)
+    NereidsPlanner#initCascadesContext(plan, requireProperties)
+        CascadesContext#initContext(statementContext, plan, requireProperties)
+            new CascadesContext
+                new JobContext (this.requiredProperties = requiredProperties)
+```
 
+
+
+在上面的分析中可见，`CostAndEnforcerJob`中关于属性计算上有两个重要的概念：
+
+```java
+// 父节点向子节点发出的属性请求
+private List<List<PhysicalProperties>> requestChildrenPropertiesList;
+// 子节点返回给父节点它可以输出的属性
+private final List<List<PhysicalProperties>> outputChildrenPropertiesList;
+```
+
+一个节点可能有多个子节点，而且一个节点request属性和output属性可能是多个，因此上述都是二维数组
+
+````java
+    // Example: Physical Hash Join
+    // [ child item: [leftProperties, rightProperties]]
+    // [ [Properties {"", ANY}, Properties {"", BROADCAST}],
+    //   [Properties {"", SHUFFLE_JOIN}, Properties {"", SHUFFLE_JOIN}]
+    // ]
+````
+
+
+
+CostAndEnforcerJob也是一种Job，其重点实现也是`CostAndEnforcerJob::execute`
+
+```java
+public void execute() {
+    if (groupExpression.isUnused()) return;
+
+    // Do init logic of root plan/groupExpr of `subplan`, only run once per task.
+    if (curChildIndex == -1) {
+        curNodeCost = Cost.zero();
+        curTotalCost = Cost.zero();
+        curChildIndex = 0;
+        RequestPropertyDeriver requestPropertyDeriver = new RequestPropertyDeriver(context);
+        requestChildrenPropertiesList = 
+            requestPropertyDeriver.getRequestChildrenPropertyList(groupExpression);
+        for (List<PhysicalProperties> requestChildrenProperties : requestChildrenPropertiesList) {
+            outputChildrenPropertiesList.add(new ArrayList<>(requestChildrenProperties));
+        }
+    }
+
+    for (; requestPropertiesIndex < requestChildrenPropertiesList.size(); requestPropertiesIndex++) {
+        // 1. 获取一组发给子节点的请求,并计算代价
+        List<PhysicalProperties> requestChildrenProperties
+                = requestChildrenPropertiesList.get(requestPropertiesIndex);
+        List<PhysicalProperties> outputChildrenProperties
+                = outputChildrenPropertiesList.get(requestPropertiesIndex);
+        if (curChildIndex == 0 && prevChildIndex == -1) {
+            curNodeCost = CostCalculator.calculateCost(groupExpression, requestChildrenProperties);
+            groupExpression.setCost(curNodeCost);
+            curTotalCost = curNodeCost;
+        }
+
+        // 处理所有的子节点
+        for (; curChildIndex < groupExpression.arity(); curChildIndex++) {
+            // 获取对第curChildIndex孩子的请求
+            PhysicalProperties requestChildProperty = requestChildrenProperties.get(curChildIndex);
+            Group childGroup = groupExpression.child(curChildIndex);
+
+            // 满足requestChildProperty属性请求代价最低的GroupExpression
+            Optional<Pair<Cost, GroupExpression>> lowestCostPlanOpt
+                    = childGroup.getLowestCostPlan(requestChildProperty);
+
+            if (!lowestCostPlanOpt.isPresent()) {
+                 // 如果不存在不存在,表示当前的子Group还没有optimized
+            	// 用requestChildProperty做属性请求生成OptimizeGroupJob对该Group进行优化
+                if (prevChildIndex >= curChildIndex) {
+                    // 当前对子节点发出的属性请求无法得到代价最低的计划，需要剪枝
+                    break;
+                }
+				
+                // 先Clone当前Job并PushJob
+                // 再用requestChildProperty生成OptimizeGroupJob
+                // Job处理是stack模式,确保优化完子Group再对父Group优化
+                prevChildIndex = curChildIndex;
+                pushJob(clone());
+                double newCostUpperBound = context.getCostUpperBound() - curTotalCost.getValue();
+                JobContext jobContext = new JobContext(context.getCascadesContext(),
+                        requestChildProperty, newCostUpperBound);
+                pushJob(new OptimizeGroupJob(childGroup, jobContext));
+                return;
+            }
+
+            // 2. 子group已经完成优化，获取子Group的Output属性
+            GroupExpression lowestCostExpr = lowestCostPlanOpt.get().second;
+            lowestCostChildren.add(lowestCostExpr);
+            PhysicalProperties outputProperties =
+                lowestCostExpr.getOutputProperties(requestChildProperty);
+
+            outputChildrenProperties.set(curChildIndex, outputProperties);
+            curTotalCost = CostCalculator.addChildCost(groupExpression.getPlan(),
+                    curNodeCost, lowestCostExpr.getCostValueByProperties(requestChildProperty),
+                    curChildIndex);
+            if (curTotalCost.getValue() > context.getCostUpperBound()) {
+                curTotalCost = Cost.infinite();
+            }
+        }
+
+        // 3. 计算enforce属性
+        if (curChildIndex == groupExpression.arity()) {
+            if (!calculateEnforce(requestChildrenProperties, outputChildrenProperties)) {
+                return; // if error exists, return
+            }
+            if (curTotalCost.getValue() < context.getCostUpperBound()) {
+                context.setCostUpperBound(curTotalCost.getValue());
+            }
+        }
+        clear();
+    }
 }
 ```
 
-```plantuml
-@startuml
-class CostAndEnforcerJob {
-    
-}
-
-
-
-
-CostAndEnforcerJob -down--> RequestPropertyDeriver : Derive属性
-
-CostAndEnforcerJob -left--> CostCalculator : 代价计算
-
-CostCalculator -down--> CostModelV1 : 代价模型计算代价
-CostModelV1 -down-|> PlanVisitor : R: Cost, C: PlanContext
-
-RequestPropertyDeriver -down-|> PlanVisitor : R:Void, C: PlanContext
-
-
-CostAndEnforcerJob -right--> EnforceMissingPropertiesHelper :父节点向子节点发出\n子节点无的属性请求\n子节点Enforce add
-@enduml
-```
 
 ### 代价计算
 `CostCalculator::calculateCost`实现计算Plan的代价。
