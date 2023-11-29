@@ -386,6 +386,7 @@ Cascades Optimizer在搜索的过程中，其搜索的空间是一个关系代�
 
 Doris中`Optimizer::execute`实现中可以Cascades optimize的调用入口，最初先生成的OptimizeGroupJob。
 
+
 ```java
 public void execute() {
                 ......
@@ -396,7 +397,8 @@ public void execute() {
     cascadesContext.getJobScheduler().executeJobPool(cascadesContext);
 }
 ```
-对于Job的执行调用的是`execute`接口，可以看到`OptimizeGroupJob::execute()`的实现
+## OptimizeGroupJob
+OptimizeGroupJob是一种Job，对于Job的执行调用的是`execute`接口，可以看到`OptimizeGroupJob::execute()`的实现
 ```plantuml
 @startuml
 OptimizeGroupJob -down-|> Job : 继承
