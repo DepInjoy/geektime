@@ -447,7 +447,44 @@ int main() {
 ## 并查集
 
 ## 堆
+[838. 堆排序](https://www.acwing.com/problem/content/840/)
+```C++
+#include <iostream>
 
+const int N = 100010;
+int h[N], size;
+
+void down(int i) {
+    int t = i;
+    if (2*i <= size && h[2*i] < h[t]) t = 2 * i;
+    if (2*i+1 <= size && h[2*i+1] < h[t]) t = 2 * i + 1;
+    if (t != i) {
+        std::swap(h[t], h[i]);
+        down(t);
+    }
+}
+
+int main() {
+    int m;
+    scanf("%d%d", &size, &m);
+    for(int i = 1; i <= size; ++i) scanf("%d", &h[i]);
+    
+    // 自底向上建堆O(N)
+    for (int i = size/2; i; --i) down(i);
+
+    while(m--) {
+        printf("%d ", h[1]);
+        h[1] = h[size--];
+        down(1);
+    }
+    return 0;
+}
+```
+
+[模拟堆](https://www.acwing.com/problem/content/841/)
+```C++
+
+```
 ## 哈希表
 
 # 动态规划
