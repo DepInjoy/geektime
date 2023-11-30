@@ -1093,6 +1093,70 @@ private[spark] class FairSchedulingAlgorithm extends SchedulingAlgorithm {
   }
 }
 ```
+
+
+## Task运算结果处理
+
+Task在Executor执行完成时，会通过向Driver发送StatusUpdate的消息来通知Driver任务的状态更新为TaskState.FINISHED。Driver首先会将任务的状态更新通知TaskScheduler，然后会在这个Executor上重新分配新的计算任务。
+
+`org.apache.spark.scheduler.Task-SchedulerImpl#statusUpdate`忽略异常，了解主执行逻辑
+
+```scala
+def statusUpdate(tid: Long, state: TaskState, serializedData: ByteBuffer): Unit = {
+  var failedExecutor: Option[String] = None
+  var reason: Option[ExecutorLossReason] = None
+  synchronized {
+    try {
+      Option(taskIdToTaskSetManager.get(tid)) match {
+        case Some(taskSet) =>
+          if (state == TaskState.LOST) {
+            val execId = taskIdToExecutorId.getOrElse(tid, {
+              val errorMsg = "taskIdToTaskSetManager.contains(tid) <=> taskIdToExecutorId.contains(tid)"
+              taskSet.abort(errorMsg)
+              throw new SparkException(errorMsg)
+            })
+            if (executorIdToRunningTaskIds.contains(execId)) {
+              reason = Some(ExecutorProcessLost(
+                  s"Task $tid was lost, so marking the executor as lost as well."))
+              removeExecutor(execId, reason.get)
+              failedExecutor = Some(execId)
+            }
+          }
+          if (TaskState.isFinished(state)) {
+            // Task状态是FINISHED, FAILED, KILLED, LOST
+            // 认为Task结束,清理本地数据结构
+            cleanupTaskState(tid)
+            // TaskSetManager标记Task结束
+            taskSet.removeRunningTask(tid)
+            if (state == TaskState.FINISHED) {
+              // Task成功完成,处理计算结果
+              taskResultGetter.enqueueSuccessfulTask(taskSet, tid, serializedData)
+            } else if (Set(TaskState.FAILED, TaskState.KILLED, TaskState.LOST).contains(state)) {
+              // Task失败,处理任务失败情况
+              taskResultGetter.enqueueFailedTask(taskSet, tid, state, serializedData)
+            }
+          }
+          if (state == TaskState.RUNNING) {
+            taskSet.taskInfos(tid).launchSucceeded()
+          }
+        case None =>
+          logError(......)
+      }
+    } catch {
+      case e: Exception => logError("Exception in statusUpdate", e)
+    }
+  }
+
+  // 有Executor失败，通知DAGScheduler
+  if (failedExecutor.isDefined) {
+    dagScheduler.executorLost(failedExecutor.get, reason.get)
+    backend.reviveOffers()
+  }
+}
+```
+
+
+
 #  DAGScheduler
 
 DAGScheduler主要负责分析用户提交的应用，并根据计算任务的依赖关系建立DAG，然后将DAG划分为不同的Stage(阶段)，其中每个Stage由可以并发执行的一组Task构成，这些Task的执行逻辑完全相同，只是作用于不同的数据，DAG在不同的资源管理框架下实现相同。
