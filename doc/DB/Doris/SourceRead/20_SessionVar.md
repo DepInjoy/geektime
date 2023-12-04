@@ -1,0 +1,1 @@
+Doris支持一些会话级参数，参见源码`SessionVariable`
