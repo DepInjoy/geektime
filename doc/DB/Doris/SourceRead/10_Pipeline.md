@@ -1,3 +1,75 @@
+# 前端和后端对接
+
+`Coordinator::exec`
+
+```java
+public void exec() throws Exception {
+		....
+        if (enablePipelineEngine) {
+            sendPipelineCtx();
+        } else {
+            sendFragment();
+        }
+        ......
+}
+```
+
+
+
+```C++
+
+void BackendService::exec_plan_fragment(TExecPlanFragmentResult& return_val,
+                                        const TExecPlanFragmentParams& params) {
+    LOG(INFO) << "exec_plan_fragment() instance_id=" << params.params.fragment_instance_id
+              << " coord=" << params.coord << " backend#=" << params.backend_num;
+    start_plan_fragment_execution(params).set_t_status(&return_val);
+}
+
+Status BackendService::start_plan_fragment_execution(const TExecPlanFragmentParams& exec_params) {
+    if (!exec_params.fragment.__isset.output_sink) {
+        return Status::InternalError("missing sink in plan fragment");
+    }
+    return _exec_env->fragment_mgr()->exec_plan_fragment(exec_params);
+}
+```
+
+
+
+```C++
+Status PipelineFragmentContext::submit() {
+			......
+    auto* scheduler = _exec_env->pipeline_task_scheduler();
+    if (get_task_group()) {
+        scheduler = _exec_env->pipeline_task_group_scheduler();
+    }
+			......
+}
+```
+
+```plantuml
+@startuml
+class PipelineFragmentContext {
+ - ExecEnv* _exec_env
+}
+
+class ExecEnv {
+    - pipeline::TaskScheduler* _pipeline_task_scheduler
+    - pipeline::TaskScheduler* _pipeline_task_group_scheduler 
+}
+
+class TaskScheduler {
+ + Status start();
+ + void shutdown()
+ + Status schedule_task(PipelineTask* task)
+}
+
+ExecEnv -up-o PipelineFragmentContext
+TaskScheduler -up-o ExecEnv
+@enduml
+```
+
+# 后端Pipeline入口
+
 Doris的Be的代码入口在`be/src/service/doris_main.cpp`，这里实现了`main`函数，
 
 ```C++
@@ -730,40 +802,260 @@ PipelineTask* PriorityTaskQueue::try_take_unprotected(bool is_steal) {
 }
 ```
 
-
-
-```C++
-Status PipelineFragmentContext::submit() {
-			......
-    auto* scheduler = _exec_env->pipeline_task_scheduler();
-    if (get_task_group()) {
-        scheduler = _exec_env->pipeline_task_group_scheduler();
-    }
-			......
-}
-```
-
-
-
+# TaskGroupTaskQueue
 
 ```plantuml
 @startuml
+class TaskGroupTaskQueue {
+    - ResouceGroupSet _group_entities
+}
+
+class TaskGroupEntity {
+- std::queue<pipeline::PipelineTask*> _queue
+- taskgroup::TaskGroup* _tg
+- uint64_t _vruntime_ns = 0;
+}
+
+class PipelineTask {
+    - PipelineFragmentContext* _fragment_context
+}
+
 class PipelineFragmentContext {
- - ExecEnv* _exec_env
+    - std::shared_ptr<QueryContext> _query_ctx
 }
 
-class ExecEnv {
-    - pipeline::TaskScheduler* _pipeline_task_scheduler
-    - pipeline::TaskScheduler* _pipeline_task_group_scheduler 
+class QueryContext {
+    - taskgroup::TaskGroupPtr _task_group
 }
 
-class TaskScheduler {
- + Status start();
- + void shutdown()
- + Status schedule_task(PipelineTask* task)
+class TaskGroup {
+    - const uint64_t _id;
+    - std::string _name;
+    - std::atomic<uint64_t> _cpu_share;
+    - int64_t _memory_limit; // bytes
+    - bool _enable_memory_overcommit;
+    - int64_t _version;
+    - TaskGroupEntity _task_entity;
+    - std::vector<TgTrackerLimiterGroup> _mem_tracker_limiter_pool;
 }
 
-ExecEnv -up-o PipelineFragmentContext
-TaskScheduler -up-o ExecEnv
+TaskGroupTaskQueue -right-|> TaskQueue
+
+TaskGroupEntity -up-o TaskGroupTaskQueue
+PipelineTask -left-o TaskGroupEntity
+PipelineFragmentContext -up-o PipelineTask
+QueryContext -up-o PipelineFragmentContext
+TaskGroup -up-o QueryContext
 @enduml
+```
+
+## vruntime计算
+```plantuml
+@startuml
+class TaskGroupEntity {
+- taskgroup::TaskGroup* _tg
+- uint64_t _vruntime_ns = 0;
+}
+
+class TaskGroup {
+    - const uint64_t _id // group_id
+    - std::atomic<uint64_t> _cpu_share
+    - TaskGroupEntity _task_entity
+}
+
+TaskGroupEntity -right-- TaskGroup
+@enduml
+```
+```C++
+class TaskGroupTaskQueue : public TaskQueue {
+            .....
+private:
+    // Like cfs rb tree in sched_entity
+    struct TaskGroupSchedEntityComparator {
+        bool operator()(const taskgroup::TGEntityPtr&, const taskgroup::TGEntityPtr&) const;
+    };
+    using ResouceGroupSet = std::set<taskgroup::TGEntityPtr, TaskGroupSchedEntityComparator>;
+    ResouceGroupSet _group_entities;
+
+            ......
+}
+
+bool TaskGroupTaskQueue::TaskGroupSchedEntityComparator::operator()(
+        const taskgroup::TGEntityPtr& lhs_ptr,
+        const taskgroup::TGEntityPtr& rhs_ptr) const {
+    // 在std::set中的优先级
+    //  1. vruntime
+    //  2. cpu share
+    //  3. task group id
+    int64_t lhs_val = lhs_ptr->vruntime_ns();
+    int64_t rhs_val = rhs_ptr->vruntime_ns();
+    if (lhs_val != rhs_val) {
+        return lhs_val < rhs_val;
+    } else {
+        auto l_share = lhs_ptr->cpu_share();
+        auto r_share = rhs_ptr->cpu_share();
+        if (l_share != r_share) {
+            return l_share < r_share;
+        } else {
+            return lhs_ptr->task_group_id() < rhs_ptr->task_group_id();
+        }
+    }
+}
+```
+
+vruntime计算
+```C++
+uint64_t TaskGroupEntity::vruntime_ns() const {
+    return _vruntime_ns;
+}
+
+void TaskGroupEntity::incr_runtime_ns(uint64_t runtime_ns) {
+    auto v_time = runtime_ns / _tg->cpu_share();
+    _vruntime_ns += v_time;
+}
+
+// 在Push Task时调整vruntime
+// push_back -> _push_back -> _enqueue_task_group
+// 参见_enqueue_task_group
+void TaskGroupEntity::adjust_vruntime_ns(uint64_t vruntime_ns) {
+    _vruntime_ns = vruntime_ns;
+}
+```
+
+在`PipelineTask`的`execute`调用`update_statistics`更新vruntime
+```C++
+void TaskGroupTaskQueue::update_statistics(PipelineTask* task, int64_t time_spent) {
+    std::unique_lock<std::mutex> lock(_rs_mutex);
+    auto* group = task->get_task_group();
+    auto* entity = group->task_entity();
+    auto find_entity = _group_entities.find(entity);
+    bool is_in_queue = find_entity != _group_entities.end();
+    if (is_in_queue) {
+        _group_entities.erase(entity);
+    }
+    entity->incr_runtime_ns(time_spent);
+    if (is_in_queue) {
+        _group_entities.emplace(entity);
+        // 更新_min_tg_entity和_min_tg_v_runtime_ns
+        _update_min_tg();
+    }
+}
+```
+`PipelineTask`入队更新vruntime
+```C++
+template <bool from_worker>
+void TaskGroupTaskQueue::_enqueue_task_group(taskgroup::TGEntityPtr tg_entity) {
+    _total_cpu_share += tg_entity->cpu_share();
+
+    // PipelineTask来自TaskScheduler或BlockedTaskScheduler
+    if constexpr (!from_worker) {
+        auto old_v_ns = tg_entity->vruntime_ns();
+        auto* min_entity = _min_tg_entity.load();
+        if (min_entity) {
+            int64_t new_vruntime_ns = min_entity->vruntime_ns() - _ideal_runtime_ns(tg_entity) / 2;
+            if (new_vruntime_ns > old_v_ns) {
+                tg_entity->adjust_vruntime_ns(new_vruntime_ns);
+            }
+        } else if (old_v_ns < _min_tg_v_runtime_ns) {
+            tg_entity->adjust_vruntime_ns(_min_tg_v_runtime_ns);
+        }
+    }
+            ......
+}
+
+// like sched_fair.c calc_delta_fair, THREAD_TIME_SLICE maybe a dynamic value.
+int64_t TaskGroupTaskQueue::_ideal_runtime_ns(
+        taskgroup::TGEntityPtr tg_entity) const {
+    return PipelineTask::THREAD_TIME_SLICE * _core_size *
+            tg_entity->cpu_share() / _total_cpu_share;
+}
+
+```
+
+## Push Task
+```C++
+// TaskScheduler或BlockedTaskScheduler向TaskQueue添加PipelineTask
+Status TaskGroupTaskQueue::push_back(PipelineTask* task) {
+    return _push_back<false>(task);
+}
+
+// Work Thread向TaskQueue添加PipelineTask
+Status TaskGroupTaskQueue::push_back(PipelineTask* task, size_t core_id) {
+    return _push_back<true>(task);
+}
+```
+
+```C++
+template <bool from_executor>
+Status TaskGroupTaskQueue::_push_back(PipelineTask* task) {
+    auto* entity = task->get_task_group()->task_entity();
+    std::unique_lock<std::mutex> lock(_rs_mutex);
+    entity->push_back(task);
+    // 
+    if (_group_entities.find(entity) == _group_entities.end()) {
+        _enqueue_task_group<from_executor>(entity);
+    }
+    _wait_task.notify_one();
+    return Status::OK();
+}
+
+template <bool from_worker>
+void TaskGroupTaskQueue::_enqueue_task_group(taskgroup::TGEntityPtr tg_entity) {
+    _total_cpu_share += tg_entity->cpu_share();
+
+    // PipelineTask来自TaskScheduler或BlockedTaskScheduler
+    if constexpr (!from_worker) {
+        auto old_v_ns = tg_entity->vruntime_ns();
+        auto* min_entity = _min_tg_entity.load();
+        if (min_entity) {
+            int64_t new_vruntime_ns = min_entity->vruntime_ns() - _ideal_runtime_ns(tg_entity) / 2;
+            if (new_vruntime_ns > old_v_ns) {
+                tg_entity->adjust_vruntime_ns(new_vruntime_ns);
+            }
+        } else if (old_v_ns < _min_tg_v_runtime_ns) {
+            tg_entity->adjust_vruntime_ns(_min_tg_v_runtime_ns);
+        }
+    }
+    _group_entities.emplace(tg_entity);
+    _update_min_tg();
+}
+```
+
+## Take task
+```C++
+PipelineTask* TaskGroupTaskQueue::take(size_t core_id) {
+    std::unique_lock<std::mutex> lock(_rs_mutex);
+    taskgroup::TGEntityPtr entity = nullptr;
+    while (entity == nullptr) {
+        if (_closed) return nullptr;
+
+        if (_group_entities.empty()) {
+            // 空，等待Push PipelineTask
+            _wait_task.wait(lock);
+        } else {
+            // 根据调度规则，取出TaskGroupEntity
+            entity = _next_tg_entity();
+            if (!entity) {
+                _wait_task.wait_for(lock,
+                    std::chrono::milliseconds(WAIT_CORE_TASK_TIMEOUT_MS));
+            }
+        }
+    }
+
+    if (entity->task_size() == 1) {
+        // TaskGroupEntity中只剩一个PipelineTask
+        // PipelineTask取出后，TaskGroupEntity为空
+        // 将其从_group_entities中移除并更新本地的如min task group等信息
+        _dequeue_task_group(entity);
+    }
+
+    // FIFO取出PipelineTask
+    return entity->take();
+}
+
+void TaskGroupTaskQueue::_dequeue_task_group(taskgroup::TGEntityPtr tg_entity) {
+    _total_cpu_share -= tg_entity->cpu_share();
+    _group_entities.erase(tg_entity);
+    _update_min_tg();
+}
 ```
