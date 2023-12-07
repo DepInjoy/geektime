@@ -15,26 +15,149 @@ public void exec() throws Exception {
 ```
 
 
-
+后端调用执行计算的入口
 ```C++
-
-void BackendService::exec_plan_fragment(TExecPlanFragmentResult& return_val,
-                                        const TExecPlanFragmentParams& params) {
-    LOG(INFO) << "exec_plan_fragment() instance_id=" << params.params.fragment_instance_id
-              << " coord=" << params.coord << " backend#=" << params.backend_num;
-    start_plan_fragment_execution(params).set_t_status(&return_val);
-}
-
-Status BackendService::start_plan_fragment_execution(const TExecPlanFragmentParams& exec_params) {
-    if (!exec_params.fragment.__isset.output_sink) {
-        return Status::InternalError("missing sink in plan fragment");
+void PInternalServiceImpl::exec_plan_fragment(
+        google::protobuf::RpcController* controller,
+        const PExecPlanFragmentRequest* request,
+        PExecPlanFragmentResult* response,
+        google::protobuf::Closure* done) {
+    bool ret = _light_work_pool.try_offer([this, controller, request, response, done]() {
+        _exec_plan_fragment_in_pthread(controller, request, response, done);
+    });
+    if (!ret) {
+        offer_failed(response, done, _light_work_pool);
+        return;
     }
-    return _exec_env->fragment_mgr()->exec_plan_fragment(exec_params);
 }
 ```
+对于Pipeline之后调用
+```C++
+Status FragmentMgr::exec_plan_fragment(const TPipelineFragmentParams& params)
+```
 
+```plantuml
+@startuml
+PInternalServiceImpl -> FragmentMgr:exec_plan_fragment( TPipelineFragmentParams)
+FragmentMgr -> FragmentMgr:exec_plan_fragment(\n\tTPipelineFragmentParams,\n\t FinishCallback)
+group exec_plan_fragment
+FragmentMgr -> FragmentMgr:_get_query_ctx
+note bottom : 创建QueryContext
 
+FragmentMgr -> FragmentExecState : new
 
+FragmentMgr -> PipelineFragmentContext : new
+    group pre_and_submit
+        FragmentMgr -> PipelineFragmentContext:prepare
+
+        FragmentMgr -> PipelineFragmentContext:submit
+        PipelineFragmentContext -> TaskScheduler:schedule_task
+    end group
+end group
+@enduml
+```
+## prepare
+```plantuml
+class Pipeline {
+    - std::vector<std::pair<int, std::weak_ptr<Pipeline>>> _parents
+    - std::vector<std::pair<int, std::shared_ptr<Pipeline>>> _dependencies
+
+    + void add_dependency(std::shared_ptr<Pipeline>& pipeline)
+    + void finish_one_dependency(int dep_opr, int dependency_core_id)
+    + bool has_dependency()
+}
+note bottom : Pipeline持有依赖的Pipeline, PipelineTask完成调用finish_one_dependency删除依赖关系
+```
+```C++
+Status PipelineFragmentContext::prepare(const doris::TPipelineFragmentParams& request,
+                                        const size_t idx) {
+    const auto& local_params = request.local_params[idx];
+    _runtime_profile.reset(new RuntimeProfile("PipelineContext"));
+            ......
+
+    auto* fragment_context = this;
+    // 1. init _runtime_state
+    _runtime_state = RuntimeState::create_unique(
+            local_params, request.query_id,
+            request.fragment_id, request.query_options,
+            _query_ctx->query_globals, _exec_env);
+            ......
+
+    // 2. 创建物理执行树
+    RETURN_IF_ERROR_OR_CATCH_EXCEPTION(ExecNode::create_tree(
+        _runtime_state.get(), _runtime_state->obj_pool(),
+        request.fragment.plan, *desc_tbl, &_root_plan));
+
+    // Set senders of exchange nodes before pipeline build
+    std::vector<ExecNode*> exch_nodes;
+    _root_plan->collect_nodes(TPlanNodeType::EXCHANGE_NODE, &exch_nodes);
+    for (ExecNode* exch_node : exch_nodes) {
+        int num_senders = find_with_default(request.per_exch_num_senders, exch_node->id(), 0);
+        static_cast<vectorized::VExchangeNode*>(exch_node)->set_num_senders(num_senders);
+    }
+
+    // All prepare work do in exec node tree
+    RETURN_IF_ERROR(_root_plan->prepare(_runtime_state.get()));
+    // set scan ranges
+    std::vector<ExecNode*> scan_nodes;
+    std::vector<TScanRangeParams> no_scan_ranges;
+    _root_plan->collect_scan_nodes(&scan_nodes);
+
+    // set scan range in ScanNode
+    for (int i = 0; i < scan_nodes.size(); ++i) {
+        ExecNode* node = scan_nodes[i];
+        if (typeid(*node) == typeid(vectorized::NewOlapScanNode) ||
+            typeid(*node) == typeid(vectorized::NewFileScanNode) ||
+            typeid(*node) == typeid(vectorized::NewOdbcScanNode) ||
+            typeid(*node) == typeid(vectorized::NewEsScanNode) ||
+            typeid(*node) == typeid(vectorized::VMetaScanNode) ||
+            typeid(*node) == typeid(vectorized::NewJdbcScanNode)) {
+            auto* scan_node = static_cast<vectorized::VScanNode*>(scan_nodes[i]);
+            auto scan_ranges = find_with_default(
+                local_params.per_node_scan_ranges, scan_node->id(), no_scan_ranges);
+            const bool shared_scan = find_with_default(
+                local_params.per_node_shared_scans, scan_node->id(), false);
+            scan_node->set_scan_ranges(scan_ranges);
+            scan_node->set_shared_scan(_runtime_state.get(), shared_scan);
+        } else {
+            ScanNode* scan_node = static_cast<ScanNode*>(node);
+            auto scan_ranges = find_with_default(
+                local_params.per_node_scan_ranges, scan_node->id(), no_scan_ranges);
+            scan_node->set_scan_ranges(scan_ranges);
+        }
+    }
+
+    _runtime_state->set_per_fragment_instance_idx(local_params.sender_id);
+    _runtime_state->set_num_per_fragment_instances(request.num_senders);
+
+    // 
+    if (request.fragment.__isset.output_sink) {
+        RETURN_IF_ERROR_OR_CATCH_EXCEPTION(DataSink::create_data_sink(
+                _runtime_state->obj_pool(), request.fragment.output_sink,
+                request.fragment.output_exprs, request, idx, _root_plan->row_desc(),
+                _runtime_state.get(), &_sink, *desc_tbl));
+    }
+
+    _root_pipeline = fragment_context->add_pipeline();
+    // 3. 创建Pipeline树
+    //    此时会生成依赖，参见Pipeline::add_dependency
+    //    Cross Join和
+    RETURN_IF_ERROR(_build_pipelines(_root_plan, _root_pipeline));
+    if (_sink) {
+        RETURN_IF_ERROR(_create_sink(request.local_params[idx].sender_id,
+                                     request.fragment.output_sink, _runtime_state.get()));
+    }
+
+    // 4. 生成PipelineTask
+    RETURN_IF_ERROR(_build_pipeline_tasks(request));
+
+            ......
+
+    _prepared = true;
+    return Status::OK();
+}
+```
+## submit tasks
 ```C++
 Status PipelineFragmentContext::submit() {
 			......
@@ -45,7 +168,26 @@ Status PipelineFragmentContext::submit() {
 			......
 }
 ```
+忽略异常,处理了解主流程
+```C++
+Status PipelineFragmentContext::submit() {
+            ......
+    _submitted = true;
 
+    Status st;
+    int submit_tasks = 0;
+    auto* scheduler = _exec_env->pipeline_task_scheduler();
+    if (get_task_group()) {
+        scheduler = _exec_env->pipeline_task_group_scheduler();
+    }
+    for (auto& task : _tasks) {
+        st = scheduler->schedule_task(task.get());
+        submit_tasks++;
+    }
+            ......
+    return st;
+}
+```
 ```plantuml
 @startuml
 class PipelineFragmentContext {
@@ -969,7 +1111,6 @@ int64_t TaskGroupTaskQueue::_ideal_runtime_ns(
     return PipelineTask::THREAD_TIME_SLICE * _core_size *
             tg_entity->cpu_share() / _total_cpu_share;
 }
-
 ```
 
 ## Push Task
