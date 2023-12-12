@@ -351,7 +351,6 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
 }
 ```
 
-
 ### 生成Operator
 
 对于`build_operator`的实现依赖宏定义进行代码生成，以`ScanOperator`为例，存在`OPERATOR_CODE_GENERATOR(ScanOperator, SourceOperator)`
@@ -367,7 +366,17 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
     NAME::NAME(OperatorBuilderBase* operator_builder, ExecNode* node) \
             : SUBCLASS(operator_builder, node) {};
 ```
+例如, `ANALYTIC_EVAL_NODE`它对应的Pipeline的Sink是`AnalyticSinkOperatorBuilder`,Operator是`AnalyticSourceOperatorBuilder`
+```C++
+// Sink生成StreamingOperator，基类是StreamingOperator
+// build_operator生成AnalyticSinkOperator，其ExecNode是VAnalyticEvalNode
 
+OPERATOR_CODE_GENERATOR(AnalyticSinkOperator, StreamingOperator)
+
+// Source生成SourceOperator，基类是SourceOperator
+// build_operator生成AnalyticSourceOperator，其ExecNode是VAnalyticEvalNode
+OPERATOR_CODE_GENERATOR(AnalyticSourceOperator, SourceOperator)
+```
 
 ### 生成PipelineTask
 `PipelineFragmentContext::_build_pipeline_tasks`接口将`Pipeline`生成`PipelineTask`。
@@ -402,6 +411,7 @@ Status PipelineFragmentContext::_build_pipeline_tasks(
 }
 ```
 在`PipelineTask::execute`中调用Operator的`open`, `get_block`接口
+
 ```plantuml
 @startuml
 class PipelineTask {
@@ -420,6 +430,7 @@ interface OperatorBase {
     + virtual Status get_block(RuntimeState* runtime_state,\n\tvectorized::Block* block, SourceState& result_state)
     + virtual Status close(RuntimeState* state)
 }
+
 OperatorBase -up-o PipelineTask
 @enduml
 ```
