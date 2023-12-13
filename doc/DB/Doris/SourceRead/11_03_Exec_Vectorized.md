@@ -34,6 +34,9 @@ note bottom : Column data along with its data type and name
 class IDataType {
     - MutableColumnPtr create_column() const = 0
 }
+
+ColumnWithTypeAndName -up-o Block
+IDataType -left-o  ColumnWithTypeAndName
 @enduml
 ```
 ```C++
