@@ -370,7 +370,7 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
 ```C++
 // Sink生成StreamingOperator，基类是StreamingOperator
 // build_operator生成AnalyticSinkOperator，其ExecNode是VAnalyticEvalNode
-
+// 
 OPERATOR_CODE_GENERATOR(AnalyticSinkOperator, StreamingOperator)
 
 // Source生成SourceOperator，基类是SourceOperator
@@ -737,6 +737,7 @@ PipelineFragmentContext -up-o PipelineTask
 void TaskScheduler::_do_work(size_t index) {
     const auto& marker = _markers[index];
     while (*marker) {
+        // 1. 从执行队列中取Task
         auto* task = _task_queue->take(index);
         if (!task) continue;
         task->set_task_queue(_task_queue.get());
@@ -745,7 +746,7 @@ void TaskScheduler::_do_work(size_t index) {
         signal::query_id_lo = fragment_ctx->get_query_id().lo;
         bool canceled = fragment_ctx->is_canceled();
 
-        // 1. PENDING_FINISH或cancle, close task并设置task state
+        // 2. PENDING_FINISH或cancle, close task并设置task state
         auto check_state = task->get_state();
         if (check_state == PipelineTaskState::PENDING_FINISH) {
             _try_close_task(task, canceled ?
@@ -759,19 +760,19 @@ void TaskScheduler::_do_work(size_t index) {
             continue;
         }
 
-        // 2. 执行task
         bool eos = false;
         auto status = Status::OK();
+        // 3. 实际执行task，绑定执行的线程core id
         try {
             status = task->execute(&eos);
         } catch (const Exception& e) {
             status = e.to_status();
         }
-
         task->set_previous_core_id(index);
+
         if (!status.ok()) {
             task->set_eos_time();
-            // 2.1 执行失败，cancel所有的子计划
+            // 3.1 执行失败，cancel所有的子计划
             fragment_ctx->cancel(PPlanFragmentCancelReason::INTERNAL_ERROR,
                                  status.to_string());
             fragment_ctx->send_report(true);
@@ -779,7 +780,7 @@ void TaskScheduler::_do_work(size_t index) {
             continue;
         }
 
-        // 2.2 任务执行完成, 调用finalize
+        // 3.2 任务执行完成, 调用finalize
         if (eos) {
             task->set_eos_time();
             status = task->finalize();
@@ -800,11 +801,11 @@ void TaskScheduler::_do_work(size_t index) {
         case PipelineTaskState::BLOCKED_FOR_SINK:
         case PipelineTaskState::BLOCKED_FOR_RF:
         case PipelineTaskState::BLOCKED_FOR_DEPENDENCY:
-            // 3. block Task,将其添加到blocked task队列
+            // 4. block Task,放回阻塞队列,将其添加到blocked task队列
             _blocked_task_scheduler->add_blocked_task(task);
             break;
         case PipelineTaskState::RUNNABLE:
-            // 4. worker将task再次入队
+            // 5. 放回调度队列将task再次入队
             _task_queue->push_back(task, index);
             break;
         default:
@@ -956,13 +957,23 @@ enum class PipelineTaskState : uint8_t {
     BLOCKED_FOR_SOURCE = 2,
     BLOCKED_FOR_SINK = 3,
     RUNNABLE = 4, 			// can execute
-    PENDING_FINISH = 5,		// compute task is over,but still hold resource.
-    					  // like some scan and sink task
+    PENDING_FINISH = 5,     // compute task is over,but still hold resource.
+    					    // like some scan and sink task
     FINISHED = 6,
     CANCELED = 7,
     BLOCKED_FOR_RF = 8,
 };
 ```
+状态的表示意义：
+- NOT_READY: The PipeLine task has not called the prepare function and is not ready for execution.
+- BLOCKED: The PipeLine task is blocked, waiting for the polling thread to check.
+    - The pre-pipeline has not finished running : BLOCKED_FOR_DEPENDENCY
+    - SourceOperator's data is not readable, data is not ready: BLOCKED_FOR_SOURCE
+    - SinkOperator's data is not writable: BLOCKED_FOR_SINK
+- RUNNABLE : PipeLine's task is executable, waiting for the execution thread to perform scheduling.
+- PENDING_FINISH: PipeLine's task is ready to finish, wait for other related Pipeline tasks to finish, then call close for resource recovery.
+- FINISHED: The PipeLine task is finished, waiting for Shared_ptr destruct to be released.
+- CANCELED: PipeLineTask that has been cancelled, waiting for Shared_ptr destructor release
 
 状态切换：
 
@@ -1062,6 +1073,19 @@ SubTaskQueue -up-o PriorityTaskQueue
 PipelineTask -left-o SubTaskQueue
 @enduml
 
+```
+
+## 初始化
+
+初始化多级反馈队列，设置level factor。
+```C++
+PriorityTaskQueue::PriorityTaskQueue() : _closed(false) {
+    double factor = 1;
+    for (int i = SUB_QUEUE_LEVEL - 1; i >= 0; i--) {
+        _sub_queues[i].set_level_factor(factor);
+        factor *= LEVEL_QUEUE_TIME_FACTOR;
+    }
+}
 ```
 
 ## vRuntime计算
@@ -1509,3 +1533,6 @@ void TaskGroupTaskQueue::_dequeue_task_group(taskgroup::TGEntityPtr tg_entity) {
     _update_min_tg();
 }
 ```
+
+# 参考资料
+1. [DSIP-027: Support Pipeline Exec Engine](https://cwiki.apache.org/confluence/display/DORIS/DSIP-027%3A+Support+Pipeline+Exec+Engine)
