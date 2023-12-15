@@ -330,3 +330,11 @@ Exception 处理机制带来的第二种成本来自 try 语句块。**粗略估
 
 [cppreference:std::terminate](https://en.cppreference.com/w/cpp/error/terminate)
 
+
+# rethrow数据竞争
+> Concurrently calling rethrow_exception on exception_ptr objects that refer to the same exception is safe.
+>
+> Note though that some implementations may not perform a copy of the pointed object on entering the catch exception handling block, and concurrently accessing the rethrown exception object in this case may introduce a data race.
+>
+>  -- 来自[rethrow_exception](https://cplusplus.com/reference/exception/rethrow_exception/)
+
