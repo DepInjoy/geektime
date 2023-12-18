@@ -5,7 +5,6 @@
 
 # 部署
 ## fe部署
-
 ```shell
 # 1 修改端口配置, 启动即可
 # 1.1 配置文件
@@ -44,3 +43,31 @@ alter system add backend "<be-ip>:<heartbeat_service_port>";
 # 2.4 查看be添加状态. 若查询结果显示Alive = true正证明添加成功
 show backends;
 ```
+## 查看执行计划
+
+1. `EXPLAIN GRAPH select ...;`或`DESC GRAPH select ...;`：获取执行计划的图形表示，帮助我们可视化查询执行的流程，包括关联路径和数据访问方法。
+    ```sql
+    -- 获取执行计划的图形表示
+    explain graph
+    select avg(length(i2)) from t1 group by i1;
+
+    DESC GRAPH
+    select avg(length(i2)) from t1 group by i1;
+    ```
+
+## 集群管理
+`ALTER SYSTEM DECOMMISSION BACKEND`用于节点安全下线
+
+```sql
+ALTER SYSTEM DECOMMISSION BACKEND
+    "host:heartbeat_port"[,"host:heartbeat_port"...];
+```
+
+# 客户端连接
+## Navicat显示乱码
+> 由于系统本身编码(命令行chcp)中为936(GBK)而不是65001(UTF8)造成
+> 执行 chcp查看系统本本身的编码，如果执行结果是Active page code 936
+> 修改系统默认的编码格式为 Beta版：使用Unicode UTF-8提供全球语言支持(具体操作步骤参见下方链接)
+> 
+> 参考链接：[Navicat for Mysql 字段注释中文乱码解决方法](https://blog.csdn.net/qq_39715000/article/details/121425533)
+
