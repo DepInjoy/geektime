@@ -312,7 +312,8 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
     // 存在依赖的算子
     case TPlanNodeType::HASH_JOIN_NODE: {
         auto* join_node = assert_cast<vectorized::HashJoinNode*>(node);
-        // 1. 为右表生成Pipeline(Build端)
+        // 1. 生成Build端的Pipeline
+        // 1.1 递归地为右表生成Pipeline
         auto new_pipe = add_pipeline();
         if (join_node->should_build_hash_table()) {
             RETURN_IF_ERROR(_build_pipelines(node->child(1), new_pipe));
@@ -321,12 +322,15 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
                     node->child(1)->id(), node->child(1)->row_desc(), node->child(1));
             new_pipe->add_operator(builder);
         }
+        // 1.2 为new_pipe生成sink算子
         OperatorBuilderPtr join_sink =
                 std::make_shared<HashJoinBuildSinkBuilder>(node->id(), join_node);
         RETURN_IF_ERROR(new_pipe->set_sink(join_sink));
 
-        // 2. 为左表生成Pipeline(Prob端)
+        // 2. 生成Prob端的Pipeline
+        // 2.1 递归地为左表生成Pipeline(Prob端)
         RETURN_IF_ERROR(_build_pipelines(node->child(0), cur_pipe));
+        // 2.2 生成HashJoinProbeOperatorBuilder并添加到cur_pipe中
         OperatorBuilderPtr join_source =
                 std::make_shared<HashJoinProbeOperatorBuilder>(node->id(), join_node);
         RETURN_IF_ERROR(cur_pipe->add_operator(join_source));
