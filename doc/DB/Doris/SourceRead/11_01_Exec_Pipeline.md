@@ -1021,6 +1021,8 @@ Status push_back(PipelineTask* task)
 Status push_back(PipelineTask* task, size_t core_id)
 ```
 
+
+
 ```plantuml
 @startuml
 class MultiCoreTaskQueue {
@@ -1083,6 +1085,7 @@ PipelineTask -left-o SubTaskQueue
 
 初始化多级反馈队列，设置level factor。
 ```C++
+// 初始化多机反馈队列
 PriorityTaskQueue::PriorityTaskQueue() : _closed(false) {
     double factor = 1;
     for (int i = SUB_QUEUE_LEVEL - 1; i >= 0; i--) {
@@ -1169,7 +1172,7 @@ Status MultiCoreTaskQueue::push_back(PipelineTask* task, size_t core_id) {
 
 ```C++
 Status PriorityTaskQueue::push(PipelineTask* task) {
-    // 计算level等级
+    // 计算优先级(level)
     auto level = _compute_level(task->get_runtime_ns());
     std::unique_lock<std::mutex> lock(_work_size_mutex);
 
@@ -1187,10 +1190,10 @@ Status PriorityTaskQueue::push(PipelineTask* task) {
 }
 ```
 
-`PriorityTaskQueue`通过`_compute_level`计算level将其放进`_sub_queues`。其中每个`SubTaskQueue`对应有一个`_queue_level_limit`时间，`runtime`从做到右遍历，小于`_queue_level_limit[i]`落入对应的level。
+`PriorityTaskQueue`通过`_compute_level`计算level将其放进`_sub_queues`。其中每个`SubTaskQueue`对应有一个`_queue_level_limit`表示对应层的时间片配额，`runtime`从做到右遍历，小于`_queue_level_limit[i]`落入对应的level，实现某层时间配额用完，降低其优先级。
 
 ```C++
-// 1s, 3s, 10s, 60s, 300s
+// 时间片配额 1s, 3s, 10s, 60s, 300s
 uint64_t _queue_level_limit[SUB_QUEUE_LEVEL - 1] = {
     1000000000, 3000000000, 10000000000,
     60000000000, 300000000000
@@ -1198,6 +1201,8 @@ uint64_t _queue_level_limit[SUB_QUEUE_LEVEL - 1] = {
 ```
 
 ```C++
+// 规则1: 工作进入系统时，放在最高优先级(最上层队列)
+// 规则2：一旦工作用完了其在某一层中的时间配额,就降低其优先级(移入低一级队列)
 int PriorityTaskQueue::_compute_level(uint64_t runtime) {
     for (int i = 0; i < SUB_QUEUE_LEVEL - 1; ++i) {
         // runtime小于_queue_level_limit[i]则落入该层级
@@ -1205,7 +1210,7 @@ int PriorityTaskQueue::_compute_level(uint64_t runtime) {
             return i;
         }
     }
-    // 落入最后一个层级
+    // 落入最后一个层级，之后便一直待在这里
     return SUB_QUEUE_LEVEL - 1;
 }
 ```
@@ -1253,9 +1258,13 @@ PipelineTask* MultiCoreTaskQueue::take(size_t core_id) {
 上述3步取`PipelineTask`都是调用`PriorityTaskQueue::try_take_unprotected`来取`PipelineTask`。
 
 ```C++
+// 规则：如果A的优先级 > B的优先级，运行A(不运行B)
+//     PriorityTaskQueue::try_take_unprotected选择level，进而到SubTaskQueue取Task
+// 规则: 如果A的优先级=B的优先级，按照FIFO轮询执行A和B(SubTaskQueue::try_take)
 PipelineTask* PriorityTaskQueue::try_take_unprotected(bool is_steal) {
     if (_total_task_size == 0 || _closed) return nullptr;
 
+    // 1. 规则：如果A的优先级 > B的优先级，运行A(不运行B)
     double min_vruntime = 0;
     int level = -1;
     // 找到vruntime最小的SubTaskQueue的level
@@ -1263,6 +1272,7 @@ PipelineTask* PriorityTaskQueue::try_take_unprotected(bool is_steal) {
     for (int i = 0; i < SUB_QUEUE_LEVEL; ++i) {
         double cur_queue_vruntime = _sub_queues[i].get_vruntime();
         if (!_sub_queues[i].empty()) {
+            // SubTaskQueue vruntime较小先调度
             if (level == -1 || cur_queue_vruntime < min_vruntime) {
                 level = i;
                 min_vruntime = cur_queue_vruntime;
@@ -1271,7 +1281,9 @@ PipelineTask* PriorityTaskQueue::try_take_unprotected(bool is_steal) {
     }
     _queue_level_min_vruntime = min_vruntime;
 
-    // 从SubTaskQueue::_queue的头部取出一个Task
+    // 2. 规则: 如果A的优先级=B的优先级，按照FIFO轮询执行A和B
+    //    从SubTaskQueue::_queue的头部取出一个Task
+    //    队列方式组织数据(FIFO)
     auto task = _sub_queues[level].try_take(is_steal);
     if (task) {
         task->update_queue_level(level);
