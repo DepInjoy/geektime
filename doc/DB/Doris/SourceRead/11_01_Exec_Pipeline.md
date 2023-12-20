@@ -1085,7 +1085,7 @@ PipelineTask -left-o SubTaskQueue
 
 初始化多级反馈队列，设置level factor。
 ```C++
-// 初始化多机反馈队列
+// 初始化多级反馈队列
 PriorityTaskQueue::PriorityTaskQueue() : _closed(false) {
     double factor = 1;
     for (int i = SUB_QUEUE_LEVEL - 1; i >= 0; i--) {
@@ -1128,7 +1128,51 @@ void adjust_runtime(uint64_t vruntime) {
 }
 ```
 
-`PipelineTask::execute`会调用`_task_queue->update_statistics`，对于`MultiCoreTaskQueue`其相关实现如下
+`PipelineTask::execute`会调用`_task_queue->update_statistics`，
+
+```c++
+Status PipelineTask::execute(bool* eos) {
+    int64_t time_spent = 0;
+    // 调用TaskQueue的update_statistics更新runtime
+    // Defer实现离开作用域调用lambda函数
+    Defer defer {[&]() {
+        if (_task_queue) {
+            _task_queue->update_statistics(this, time_spent);
+        }
+    }};
+
+    *eos = false;
+    if (!_opened) {
+        {
+            SCOPED_RAW_TIMER(&time_spent);
+            auto st = _open();
+            if (.....) {
+                set_state(...);
+                return Status::OK();
+            }
+        }
+    }
+
+    this->set_begin_execute_time();
+    while (!_fragment_context->is_canceled()) {
+				......
+        // 规则:间隔THREAD_TIME_SLICE一段时间将所有工作重新加入最高优先级(预防饿死)
+        if (time_spent > THREAD_TIME_SLICE) {
+            COUNTER_UPDATE(_yield_counts, 1);
+            break;
+        }
+        SCOPED_RAW_TIMER(&time_spent);
+        _block->clear_column_data(_root->row_desc().num_materialized_slots());
+        auto* block = _block.get();
+			......
+    }
+    return Status::OK();
+}
+```
+
+
+
+对于`MultiCoreTaskQueue`其相关实现如下
 
 ```C++
 void MultiCoreTaskQueue::update_statistics(PipelineTask* task, int64_t time_spent) override {
