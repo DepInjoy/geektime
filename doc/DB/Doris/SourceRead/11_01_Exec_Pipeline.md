@@ -1156,7 +1156,7 @@ Status PipelineTask::execute(bool* eos) {
     this->set_begin_execute_time();
     while (!_fragment_context->is_canceled()) {
 				......
-        // 规则:间隔THREAD_TIME_SLICE一段时间将所有工作重新加入最高优先级(预防饿死)
+        // 时间片
         if (time_spent > THREAD_TIME_SLICE) {
             COUNTER_UPDATE(_yield_counts, 1);
             break;
@@ -1339,6 +1339,8 @@ PipelineTask* PriorityTaskQueue::try_take_unprotected(bool is_steal) {
 
 # TaskGroupTaskQueue
 
+配置了Workload group采用这个队列调度。
+
 ```plantuml
 @startuml
 class TaskGroupTaskQueue {
@@ -1384,7 +1386,8 @@ TaskGroup -up-o QueryContext
 @enduml
 ```
 
-## vruntime计算
+
+
 ```plantuml
 @startuml
 class TaskGroupEntity {
@@ -1401,44 +1404,10 @@ class TaskGroup {
 TaskGroupEntity -right-- TaskGroup
 @enduml
 ```
-```C++
-class TaskGroupTaskQueue : public TaskQueue {
-            .....
-private:
-    // Like cfs rb tree in sched_entity
-    struct TaskGroupSchedEntityComparator {
-        bool operator()(const taskgroup::TGEntityPtr&, const taskgroup::TGEntityPtr&) const;
-    };
-    using ResouceGroupSet = std::set<taskgroup::TGEntityPtr, TaskGroupSchedEntityComparator>;
-    ResouceGroupSet _group_entities;
 
-            ......
-}
 
-bool TaskGroupTaskQueue::TaskGroupSchedEntityComparator::operator()(
-        const taskgroup::TGEntityPtr& lhs_ptr,
-        const taskgroup::TGEntityPtr& rhs_ptr) const {
-    // 在std::set中的优先级
-    //  1. vruntime
-    //  2. cpu share
-    //  3. task group id
-    int64_t lhs_val = lhs_ptr->vruntime_ns();
-    int64_t rhs_val = rhs_ptr->vruntime_ns();
-    if (lhs_val != rhs_val) {
-        return lhs_val < rhs_val;
-    } else {
-        auto l_share = lhs_ptr->cpu_share();
-        auto r_share = rhs_ptr->cpu_share();
-        if (l_share != r_share) {
-            return l_share < r_share;
-        } else {
-            return lhs_ptr->task_group_id() < rhs_ptr->task_group_id();
-        }
-    }
-}
-```
+## vruntime计算
 
-vruntime计算
 ```C++
 uint64_t TaskGroupEntity::vruntime_ns() const {
     return _vruntime_ns;
@@ -1506,7 +1475,49 @@ int64_t TaskGroupTaskQueue::_ideal_runtime_ns(
 }
 ```
 
+## 任务优先级
+
+```C++
+class TaskGroupTaskQueue : public TaskQueue {
+            .....
+private:
+    // Like cfs rb tree in sched_entity
+    struct TaskGroupSchedEntityComparator {
+        bool operator()(const taskgroup::TGEntityPtr&, const taskgroup::TGEntityPtr&) const;
+    };
+    using ResouceGroupSet = std::set<taskgroup::TGEntityPtr, TaskGroupSchedEntityComparator>;
+    ResouceGroupSet _group_entities;
+
+            ......
+}
+
+bool TaskGroupTaskQueue::TaskGroupSchedEntityComparator::operator()(
+        const taskgroup::TGEntityPtr& lhs_ptr,
+        const taskgroup::TGEntityPtr& rhs_ptr) const {
+    // 在std::set中的优先级
+    //  1. vruntime
+    //  2. cpu share
+    //  3. task group id
+    int64_t lhs_val = lhs_ptr->vruntime_ns();
+    int64_t rhs_val = rhs_ptr->vruntime_ns();
+    if (lhs_val != rhs_val) {
+        return lhs_val < rhs_val;
+    } else {
+        auto l_share = lhs_ptr->cpu_share();
+        auto r_share = rhs_ptr->cpu_share();
+        if (l_share != r_share) {
+            return l_share < r_share;
+        } else {
+            return lhs_ptr->task_group_id() < rhs_ptr->task_group_id();
+        }
+    }
+}
+```
+
+
+
 ## Push Task
+
 ```C++
 // TaskScheduler或BlockedTaskScheduler向TaskQueue添加PipelineTask
 Status TaskGroupTaskQueue::push_back(PipelineTask* task) {
