@@ -256,13 +256,7 @@ int WaitForTrue() {
     return 1;
 }
 ```
-```plantuml
-@startuml
-:加锁进入临界区;
 
-
-@enduml
-```
 这段逻辑用于反复判断一个多线程的共享条件是否满足，一直到该条件满足为止。由于该条件被多个线程操作，因此在每次判断之前都需要进行加锁操作，判断完毕后需要进行解锁操作。该逻辑存在严重的效率问题，假设解锁离开临界区后，其他线程修改了条件导致条件满足，则此时程序仍然需要睡眠n秒才能得到反馈。因此我们需要这样一种机制：某个线程A在条件不满足的情况下主动让出互斥体，让其他线程操作，线程A在此处等待条件满足；一旦条件满足，线程A就可以被立刻唤醒。
 
 [C++多线程并发(三) --- 线程同步之条件变量](https://blog.csdn.net/m0_37621078/article/details/89766449)这个博客用代码的方式形象展示了上述过程。
@@ -288,7 +282,12 @@ while(condition_is_false) {
 
 问题的根源是释放互斥体对象与条件变量等待唤醒不是原子操作，即解锁和等待这两个步骤必须在同一个原子操作中，才能确保`cond_wait`在唤醒之前不会有其他线程获得这个互斥体对象。
 
+## C++的条件变量
+C++标准库提供了条件变量的两种实现`std::condition_variable`和`std::condition_variable_any`。它们都在标准库的头文件`<condition_variable>`内声明。两者都需配合互斥，方能提供妥当的同步操作。`std::condition_variable`仅限于与`s`td::mutex`一起使用；然而，只要某一类型符合成为互斥的最低标准，足以充当互斥，`std::condition_variable_any`即可与之配合使用。由于`std::condition_variable_any`更加通用，它可能产生额外开销，涉及其性能、自身的体积或系统资源等，因此`std::condition_variable`应予优先采用，除非有必要令程序更灵活。
 
+```C++
+
+```
 
 ## 条件变量使用
 
@@ -313,8 +312,8 @@ void notify_all() noexcept;
 
 
 
-[生产者消费者模型 1对1](./ThreadSync/00_ConditionVariable_1to1.cpp)
-[生产者消费者模型 1对多](./ThreadSync/00_ConditionVariable_1toMore.cpp)
+[生产者消费者模型 1对1](code/src/Sync_ConditionVariable_1toMore.cpp)
+[生产者消费者模型 1对多](code/src/Sync_ConditionVariable_1toMore.cpp)
 
 
 
@@ -363,9 +362,8 @@ while (tasks.empty()) {
 
 如果一个条件变量信号在产生时(调用`pthread_cond_signal`或`pthread_cond_broadcast`)，没有相关线程调用 `pthread_cond_wait`捕获该信号，该信号就会永久丢失，再次调用`pthread_cond_wait`会导致永久阻塞。
 
-
-
 # 参考资料
 
 1. C++服务器开发精髓
 2. [C++多线程并发(三) --- 线程同步之条件变量](https://blog.csdn.net/m0_37621078/article/details/89766449)
+3. C++并发编程实践

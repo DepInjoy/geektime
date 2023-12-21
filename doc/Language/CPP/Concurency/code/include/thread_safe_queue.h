@@ -1,3 +1,7 @@
+/**
+ * C++并发编程实践(第2版)
+ * 4.1.2 利用条件变量构建线程安全的队列
+*/
 #ifndef __THREAD_SAFE_QUEUE_H__
 #define __THREAD_SAFE_QUEUE_H__
 #include <memory> 
