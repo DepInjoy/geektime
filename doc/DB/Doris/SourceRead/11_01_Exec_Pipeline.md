@@ -553,7 +553,7 @@ Status ExecEnv::_init(const std::vector<StorePath>& store_paths) {
 ```
 
 # Pipeline调度
-Pipeline调度模块的主要职责是实现PipelineTask的调度和执行，内部维护了两个任务队列，实现任务调度和出让时间
+Pipeline调度通过`TaskScheduler`的主要职责是实现PipelineTask的调度和执行，内部维护了两个任务队列，实现任务调度和出让时间
 
 - 执行队列，抽象为`TaskQueue`接口，`TaskScheduler`后台线程从其中取出任务来执行，`TaskScheduler`内部后台运行了`cores`个后台线程(该参数由默认值为0的`pipeline_executor_size`配置参数决定，如果用户没有设置，和CPU核心数一致)。
 - 阻塞队列，抽象为`BlockedTaskScheduler`，其内部后台运行了一个`_schedule`线程，从本地的任务队列中取出任务检查任务是否可以执行，如果可以执行将其放入`TaskQueue`等待调度执行。
@@ -562,87 +562,51 @@ Pipeline调度模块的主要职责是实现PipelineTask的调度和执行，内
     <img src="./img/TaskScheduler-Model.png">
 </center>
 
-PipelineTask主要的类图
+`TaskScheduler`的类图
 ```plantuml
 @startuml
 class TaskScheduler {
  - std::shared_ptr<TaskQueue> _task_queue
  - std::shared_ptr<BlockedTaskScheduler> _blocked_task_scheduler
  - std::unique_ptr<ThreadPool> _fix_thread_pool
+
  + Status start();
  + void shutdown()
  + Status schedule_task(PipelineTask* task)
  - void _do_work(size_t index)
 }
 
-class TaskQueue {
+
+interface TaskQueue {
     # size_t _core_size
 
     + virtual void close() = 0;
     + virtual PipelineTask* take(size_t core_id) = 0;
     + virtual Status push_back(PipelineTask* task) = 0;
     + virtual Status push_back(PipelineTask* task, size_t core_id) = 0;
-    + virtual void update_statistics(PipelineTask* task, int64_t time_spent)
-    + virtual void update_tg_cpu_share(\n\tconst taskgroup::TaskGroupInfo& task_group_info,\n\ttaskgroup::TaskGroupPtr task_group) = 0;
-    + int cores() const
 }
 
 class BlockedTaskScheduler {
     - _task_queue : std::shared_ptr<TaskQueue>
     - _blocked_tasks : std::list<PipelineTask*>
-    + Status start();
-    + void shutdown();
+    - scoped_refptr<Thread> _thread;
     + Status add_blocked_task(PipelineTask* task)
+    - void _schedule()
 }
 
 class PipelineTask {
- - PipelineTaskState _cur_state
- + PipelineTaskState get_state()
- + Status execute(bool* eos)
-}
-
-enum PipelineTaskState {
-    + NOT_READY = 0, // do not prepare
-    + BLOCKED_FOR_DEPENDENCY = 1,
-    + BLOCKED_FOR_SOURCE = 2,
-    + BLOCKED_FOR_SINK = 3,
-    + RUNNABLE = 4, // can execute
-    + PENDING_FINISH =5
-    + FINISHED = 6,
-    + CANCELED = 7,
-    + BLOCKED_FOR_RF = 8,
-}
-
-class MultiCoreTaskQueue {
-    - std::unique_ptr<PriorityTaskQueue[]> _prio_task_queue_list
-}
-class TaskGroupTaskQueue {
-    - ResouceGroupSet _group_entities
-}
-
-class PriorityTaskQueue {
-    -  SubTaskQueue _sub_queues[SUB_QUEUE_LEVEL]
-}
-note left: 多级反馈队列\nMultilevel Feedback Queue
-
-class TaskGroupEntity {
-- std::queue<pipeline::PipelineTask*> _queue
+    - OperatorPtr _root;
+    - OperatorPtr _sink;
+    - Operators _operators
+    + Status execute(bool* eos)
 }
 
 TaskQueue -up-o TaskScheduler
 BlockedTaskScheduler -up-o TaskScheduler
 TaskQueue -left-- BlockedTaskScheduler
 
-PipelineTask -up-o BlockedTaskScheduler
-PipelineTaskState -up-o PipelineTask
-
-MultiCoreTaskQueue -up-|> TaskQueue
-TaskGroupTaskQueue -up-|> TaskQueue
-
-PriorityTaskQueue -up-o MultiCoreTaskQueue
-SubTaskQueue -up-o PriorityTaskQueue
-
-TaskGroupEntity -up-o TaskGroupTaskQueue
+PipelineTask -up-o BlockedTaskScheduler : blocked task
+PipelineTask -up-o TaskQueue : runable task
 @enduml
 ```
 
@@ -656,13 +620,15 @@ Status ExecEnv::init_pipeline_task_scheduler() {
         executors_size = CpuInfo::num_cores();
     }
 
-    // TODO pipeline task group combie two blocked schedulers.
+    // 1. 创建TaskScheduler，由于有两种调度算法创建了两个
+    // 1.1 通过MultiCoreTaskQueue通过多级反馈队列实现调度
     auto t_queue = std::make_shared<pipeline::MultiCoreTaskQueue>(executors_size);
     auto b_scheduler = std::make_shared<pipeline::BlockedTaskScheduler>(t_queue);
     _pipeline_task_scheduler =
             new pipeline::TaskScheduler(this, b_scheduler, t_queue, "WithoutGroupTaskSchePool");
     RETURN_IF_ERROR(_pipeline_task_scheduler->start());
 
+    // 1.2. 如果前端采用了workload group，采用TaskGroupTaskQueue实现调度
     auto tg_queue = std::make_shared<pipeline::TaskGroupTaskQueue>(executors_size);
     auto tg_b_scheduler = std::make_shared<pipeline::BlockedTaskScheduler>(tg_queue);
     _pipeline_task_group_scheduler =
@@ -673,7 +639,7 @@ Status ExecEnv::init_pipeline_task_scheduler() {
 }
 ```
 
-接下来，了解一下`TaskScheduler::start`，这里会创建执行线程和轮询线程。
+`TaskScheduler::start`，这里会创建执行线程和轮询线程。
 
 ```C++
 Status TaskScheduler::start() {
@@ -708,6 +674,62 @@ Status BlockedTaskScheduler::start() {
             &_thread));
     while (!this->_started.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    return Status::OK();
+}
+```
+
+```plantuml
+@startuml
+class TaskScheduler {
+    - std::shared_ptr<TaskQueue> _task_queue
+}
+
+interface TaskQueue {
+    + virtual PipelineTask* take(size_t core_id) = 0;
+    + virtual Status push_back(PipelineTask* task) = 0;
+    + virtual Status push_back(PipelineTask* task, size_t core_id) = 0;
+}
+
+class MultiCoreTaskQueue {
+    - std::unique_ptr<PriorityTaskQueue[]> _prio_task_queue_list
+}
+note bottom: 通过多级反馈队列(Multilevel Feedback Queue, MLFQ)
+
+class TaskGroupTaskQueue {
+    - ResouceGroupSet _group_entities
+}
+note bottom : 对添加了workload group的Task调度管理
+
+TaskQueue -up-o TaskScheduler
+
+MultiCoreTaskQueue -up-|> TaskQueue
+TaskGroupTaskQueue -up-|> TaskQueue
+@enduml
+```
+
+## 划分时间片
+PipeLine的核心思路可以类比操作系统的分时调度系统，PipelineTask在执行超过`THREAD_TIME_SLICE`(100'000'000ns = 100毫秒)，出让调度线程资源给其他的Task。
+```C++
+Status PipelineTask::execute(bool* eos) {
+    int64_t time_spent = 0;
+    if (!_opened) {
+        {
+            SCOPED_RAW_TIMER(&time_spent);
+            auto st = _open();
+                ......
+        }
+    }
+
+    while (!_fragment_context->is_canceled()) {
+                ......
+        // 让出CPU，给其他的Task
+        // 当前的PipelineTask通过TaskScheduler再次push到TaskQueue中
+        if (time_spent > THREAD_TIME_SLICE) {
+            COUNTER_UPDATE(_yield_counts, 1);
+            break;
+        }
+            ......
     }
     return Status::OK();
 }
@@ -1009,7 +1031,39 @@ enum class PipelineTaskState : uint8_t {
  */
 ```
 
-# 多级反馈队列
+# 多级反馈队列调度策略
+PipeLine的核心思路可以类比操作系统的分时调度系统，其中，CPU资源 = 执行引擎的线程资源， 进程之间的调度策略 = Pipeline的调度策略， 进程的优先级 = 查询的资源管理。
+
+## 进程MLFQ调度策略
+
+多级反馈队列CPU调度需要解决两方面的问题：
+1. 优化周转时间。通过先执行短工作可以实现优化周转时间(类似于短时任务调度(SJF)算法)。
+2. 降低响应时间，保持交互体验。
+
+MLFQ中有许多独立的队列，每个队列有不同的优先级(priority level)。任何时刻，一个工作只能存在于一个队列中。MLFQ总是优先执行较高优先级的工作(即在较高级队列中的工作)。每个队列中可能会有多个工作，因此具有同样的优先级，对同一个队列中的任务轮转调度。因此有了MLFQ的基本规则
+- **规则1**：如果A的优先级 > B的优先级，运行A(不运行B)。
+- **规则2**：如果A的优先级 = B的优先级，轮转运行A和B。
+
+MLFQ调度策略的关键在于如何设置优先级，因为没有先验信息，它利用历史经验进行预测，设计策略来调整优先级
+
+- **规则3**：工作进入系统时，放在最高优先级(最上层队列)。
+    > 假设短工作，先执行，优化周转时间，如果是短工作很快便执行完成，如果是长工作通过规则4降低优先级
+- **规则4a**：工作用完整个时间片后，降低其优先级(移入下一个队列)。
+    > 如果不端来短时任务，可能导致长任务饿死
+- **规则4b**：如果工作在其时间片以内主动释放CPU，则优先级不变。
+    > 如果是I/O型任务，该任务不停出让CPU保持其优先级不变，实现其降低响应时间的目的(存在愚弄程序从而导致程序改变调度优先级，例如，任务用完CPU时间片后调用一个写无关文件的操作，这样便可以保持其有比较高的优先级)
+
+为了避免规则4a导致的饿死的问题，尝试下面的规则：
+- **规则4**：经过一段时间*S*，就将系统中所有工作重新加入最高优先级队列。
+    > 这里时间S设置为多少很难抉择，也存在一些MLFQ的变体，在《Doris PipeLine的设计文档》中指出，每个优先级队列能固定分配到调度的时间片，避免大查询饿死的问题 (原算法是定期flush到level 1上，也可以考虑这种实现)
+    > 
+    > level 1 50%的cpu时间片
+    > level 2 25%的cpu时间片
+    > leve 3 12%的cpu时间片
+    > .......
+
+- **规则 5**：一旦工作用完了其在某一层中的时间配额(无论中间主动放弃了多少次CPU)，就降低其优先级(移入低一级队列)。
+  > 采用更好的计时方式，避免规则4b导致的愚弄调试程序问题。
 
 `MultiCoreTaskQueue`对外提供了两个添加Task的接口
 ```C++
@@ -1078,7 +1132,6 @@ PriorityTaskQueue -up-o MultiCoreTaskQueue
 SubTaskQueue -up-o PriorityTaskQueue
 PipelineTask -left-o SubTaskQueue
 @enduml
-
 ```
 
 ## 初始化
