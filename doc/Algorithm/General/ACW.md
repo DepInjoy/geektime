@@ -401,8 +401,14 @@ int main() {
 
 
 ## 单调栈
-
-
+常见模型：找出每个数左边离它最近的比它大/小的数
+```C++
+int tt = 0;
+for (int i = 1; i <= n; i ++ ) {
+    while (tt && check(stk[tt], i)) tt -- ;
+    stk[++tt] = i;
+}
+```
 
 [830.单调栈](https://www.acwing.com/problem/content/832/)
 
@@ -434,7 +440,15 @@ int main() {
 
 
 ## 单调队列
-
+常见模型：找出滑动窗口中的最大值/最小值
+```C++
+int hh = 0, tt = -1;
+for (int i = 0; i < n; i ++ ) {
+    while (hh <= tt && check_out(q[hh])) hh ++ ;  // 判断队头是否滑出窗口
+    while (hh <= tt && check(q[tt], i)) tt -- ;
+    q[ ++ tt] = i;
+}
+```
 [154.滑动窗口](https://www.acwing.com/problem/content/156/)
 
 ```C++
@@ -468,9 +482,36 @@ int main() {
 }
 ```
 
-
-
 ## KMP
+实现模板
+```C++
+// s[]是长文本，p[]是模式串，n是s的长度，m是p的长度
+
+// 求模式串的Next数组：
+for (int i = 2, j = 0; i <= m; i ++ ) {
+    while (j && p[i] != p[j + 1]) j = ne[j];
+    if (p[i] == p[j + 1]) j ++ ;
+    ne[i] = j;
+}
+
+// 匹配
+for (int i = 1, j = 0; i <= n; i ++ ) {
+    while (j && s[i] != p[j + 1]) j = ne[j];
+    if (s[i] == p[j + 1]) j ++ ;
+    if (j == m) {
+        j = ne[j];
+        // 匹配成功后的逻辑
+    }
+}
+```
+[831. KMP字符串](https://www.acwing.com/problem/content/833/)
+> 给定一个字符串S,以及一个模式串P所有字符串中只包含大小写英文字母以及阿拉伯数字。
+> 模式串 P在字符串 S中多次作为子串出现。
+> 求出模式串P在字符串 S中所有出现的位置的起始下标。
+
+```C++
+
+```
 
 ## Trie
 
