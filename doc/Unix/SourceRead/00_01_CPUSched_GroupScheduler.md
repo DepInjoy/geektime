@@ -5,15 +5,17 @@ struct task_group {
     + struct cfs_rq **cfs_rq
     + unsigned long shares
 }
-note left: shares表示当前进程组权重
 
 struct sched_entity {
+    
 }
 note bottom: 可调度实体
 
 struct cfs_rq {
+    + struct task_group	*tg
+    + struct rq	*rq
 }
-note bottom:完全公平(CFS)运行队列
+note bottom:完全公平(CFS)运行队列\nrq表示它绑定到的CPU运行队列
 
 sched_entity -up-o task_group
 cfs_rq -up-o task_group
