@@ -245,11 +245,22 @@ Linux 在调度的时候，首先会根据 完全公平调度算法 从根进程
 1. 如果筛选出来的是进程，那么可以直接把当前运行的进程切换到筛选出来的进程运行即可。
 2. 如果筛选出来的是进程组，那么就继续根据 完全公平调度算法 从进程组中筛选出一个最优的进程或者进程组进行调度(重复进行第一步操作)，如此类推
 
-
-
 ### 参考资料
 
 1. [一文带你图解Linux组调度(看完悟了) - 知乎 ](https://zhuanlan.zhihu.com/p/480186053)
 
 
+
+## EEVDF调度
+
+EEVDF(Earliest Eligible Virtual Deadline First)调度器是一种基于虚拟截止时间的调度算法，它可以让进程根据它们的优先级和已经获得的CPU时间来计算它们的虚拟截止时间，然后每次选择运行虚拟截止时间最早的进程。它的主要目标是公平地分配 CPU 时间，同时改进现有的 CFS(完全公平调度器)调度器。CFS调度器的设计目标是公平地分配 CPU 时间，但是它不能很好地处理一些延迟敏感的进程，也不能让进程表达它们的延迟需求。
+
+EEVDF 调度器的一个重要特性是它可以处理延迟敏感的进程。当调度程序为每个进程计算时间片时，它会考虑该进程分配的延迟良好值；具有较低延迟良好设置(因此，延迟要求更严格)的进程将获得更短的时间片。这样就可以保证延迟敏感的进程能够及时得到CPU时间，而不会被其他进程抢占。
+
+
+
+### 参考资料
+1. [用于 Linux 的 EEVDF CPU 调度程序 - 知乎]([用于 Linux 的 EEVDF CPU 调度程序 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/617184812))
+1. [An EEVDF CPU scheduler for Linux - 知乎]([An EEVDF CPU scheduler for Linux - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/664758904))
+1. [EEVDF调度器之一 ：简介 - 知乎]([EEVDF调度器之一：简介 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/667001240))
 
