@@ -51,6 +51,50 @@ struct task_group {
 };
 
 ```
+`kernel/sched/fair.c`的`pick_next_task_fair`
+```C
+struct task_struct *
+pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf) {
 
+}
+```
+
+## 更新runtime
+```C
+static void update_curr(struct cfs_rq *cfs_rq)
+```
+
+## 获取下一个可运行进程
+```C
+static struct sched_entity *
+pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr) {
+    // NEXT_BUDDY是一个调度标志
+    // 任务被唤醒并满足抢占条件时,会调用set_next_buddy()函数
+    // 将被唤醒的任务指定为下一次调度将运行的进程
+    // 使能NEXT_BUDDY会影响延迟(latency)且不公平
+	if (sched_feat(NEXT_BUDDY) &&
+	    cfs_rq->next && entity_eligible(cfs_rq, cfs_rq->next))
+		return cfs_rq->next;
+
+    // EEVDF调度(根据截止虚拟截止时间调度)优化CFS
+	return pick_eevdf(cfs_rq);
+}
+
+static struct sched_entity *pick_eevdf(struct cfs_rq *cfs_rq) {
+    // EEVDF调度, 每次首先选择运行截止时间最早的进程
+	struct sched_entity *se = __pick_eevdf(cfs_rq);
+
+	if (!se) {
+        // EEVDF调度失败, 获取红黑树的最左端节点
+		struct sched_entity *left = __pick_first_entity(cfs_rq);
+		if (left) {
+			pr_err("EEVDF scheduling fail, picking leftmost\n");
+			return left;
+		}
+	}
+
+	return se;
+}
+```
 # 参考资料
 1. [一文带你图解Linux组调度(看完悟了) - 知乎 ](https://zhuanlan.zhihu.com/p/480186053)
