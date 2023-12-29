@@ -20,6 +20,7 @@ note bottom:可被内核调度实体\n既可以是进程组,也可以是进程(m
 
 struct task_struct {
     + struct sched_entity se
+	+ struct sched_entity	*curr
 }
 note bottom : 进程描述符
 
@@ -142,12 +143,11 @@ static void update_curr(struct cfs_rq *cfs_rq) {
 	u64 now = rq_clock_task(rq_of(cfs_rq));
 	u64 delta_exec;
 
-	if (unlikely(!curr))
-		return;
+	if (unlikely(!curr)) return;
 
+	// 计算运行时间差
 	delta_exec = now - curr->exec_start;
-	if (unlikely((s64)delta_exec <= 0))
-		return;
+	if (unlikely((s64)delta_exec <= 0)) return;
 
 	curr->exec_start = now;
 
@@ -159,9 +159,11 @@ static void update_curr(struct cfs_rq *cfs_rq) {
 				max(delta_exec, stats->exec_max));
 	}
 
+	// 增加调度实体entity总实际运行时间
 	curr->sum_exec_runtime += delta_exec;
 	schedstat_add(cfs_rq->exec_clock, delta_exec);
 
+	// 更新entity的虚拟运行时间
 	curr->vruntime += calc_delta_fair(delta_exec, curr);
 	update_deadline(cfs_rq, curr);
 	update_min_vruntime(cfs_rq);
@@ -178,7 +180,15 @@ static void update_curr(struct cfs_rq *cfs_rq) {
 }
 ```
 
+```C
+// 计算虚拟运行时间
+static inline u64 calc_delta_fair(u64 delta, struct sched_entity *se) {
+	if (unlikely(se->load.weight != NICE_0_LOAD))
+		delta = __calc_delta(delta, NICE_0_LOAD, &se->load);
 
+	return delta;
+}
+```
 
 # 参考资料
 

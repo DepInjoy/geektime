@@ -68,10 +68,13 @@ static void update_curr(struct cfs_rq *cfs_rq)
 ```C
 static struct sched_entity *
 pick_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *curr) {
-    // NEXT_BUDDY是一个调度标志
-    // 任务被唤醒并满足抢占条件时,会调用set_next_buddy()函数
-    // 将被唤醒的任务指定为下一次调度将运行的进程
-    // 使能NEXT_BUDDY会影响延迟(latency)且不公平
+    /**
+     *  NEXT_BUDDY是一个调度标志
+     *  如果任务被唤醒并满足抢占条件时,会调用set_next_buddy()函数
+     *  将被唤醒的任务指定为下一次调度将运行的进程
+     *
+     *  使能NEXT_BUDDY会影响延迟(latency)且不公平
+    */
 	if (sched_feat(NEXT_BUDDY) &&
 	    cfs_rq->next && entity_eligible(cfs_rq, cfs_rq->next))
 		return cfs_rq->next;
