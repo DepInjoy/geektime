@@ -5,7 +5,7 @@ SET enable_vectorized_engine = true;
 SET batch_size = 4064;
 ```
 
-# 计算引擎采用列存
+# 列式存储
 计算引擎对数据的组织方式由行存的Tuple和RowBatch变成Column和Block。
 ```C++
 class Block {
@@ -74,6 +74,11 @@ struct ColumnWithTypeAndName {
             : column(type_->create_column()), type(type_), name(name_) {}
 }
 ```
+
+# 向量化函数计算框架
+
+# 向量化算子 
+
 # 参考资料
 1. [活动回顾｜Apache Doris 向量化技术实现与后续规划](https://zhuanlan.zhihu.com/p/454141438)
 2. [李昊鹏：单表性能提升数倍，Doris向量化技术升级实践!](https://zhuanlan.zhihu.com/p/473337062)

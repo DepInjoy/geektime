@@ -1,6 +1,9 @@
 # 编译
 ```shell
+docker run -it --network=host --name doris-2.0 -v D:/project/docker/doris/.m2:/root/.m2 -v D:/project/docker/doris/doris-2.0/:/root/doris-2.0/ apache/doris:build-env-for-2.0
 
+# 下载代码
+git clone https://github.com/apache/doris.git -b branch-2.0
 ```
 
 # 部署
