@@ -35,6 +35,14 @@ struct X {
     }
 };
 
+struct Y {
+    double operator()(double in) {
+        std::cout << "Thread(" << std::this_thread::get_id()
+            << ") call " << __FUNCTION__ << " input = " << in
+            << std::endl;
+        return in;
+    }
+};
 
 int main(int argc, char* argv[]) {
     /**
@@ -74,6 +82,10 @@ int main(int argc, char* argv[]) {
             &X::bar, &x, "goodbye");
     std::cout << task2.get() << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    std::future<double> task3 = std::async(std::launch::async, Y(), 3.1415);
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+    task3.get();
 
     return 0;
 }
