@@ -362,6 +362,68 @@ while (tasks.empty()) {
 
 如果一个条件变量信号在产生时(调用`pthread_cond_signal`或`pthread_cond_broadcast`)，没有相关线程调用 `pthread_cond_wait`捕获该信号，该信号就会永久丢失，再次调用`pthread_cond_wait`会导致永久阻塞。
 
+# Future(等待一次性事件)
+
+C++标准程序库使用`std::future`来模拟这类一次性事件，如果线程需要等待某个特定的一次性时间发生，会以某种方式获取一个代表该事件的`future`。该线程边可以一边执行其他任务，一边在`future`上等待，同时以较短时间间隔周期性地以检查该事件是否已经发生；该线程还可以切换到其他任务，直到必要时，再等待future准备就绪。一旦目标事件发生，代表该事件的future进入就绪状态，无法重置。
+
+`std::future`提供了一种访问异步操作结果的机制：
+
+- 异步操作(可以通过`std::async`, `std::packaged_task`或`std::promise`等创建)可以提供一个`std::future`对象给异步操作的创建者。
+- 之后，异步操作的创建者可以通过一系列的查询,等待或取值等对`std::future`操作。如果`std::future`尚未提供值，则上述接口可能会阻塞。
+- 当异步操作已经准备好结果，依然可以通过修改链接给创建者的共享状态(shared state，例如`std::promise::set_value`)来修改。这里的共享状态不与其他的异步操作返回的对象共享。
+
+C++标准程序库有两种`future`，分别由两个类模板实现，其声明位于标准库的头文件`<future>`内：独占`future(unique future`，即`std::future<>`)和共享`future`(shared future，即`std::shared_future<>`）。同一事件仅仅允许关联唯一`std::future`实例，但可以关联多个`std::shared_future`实例，只要目标事件发生，与后者关联的所有实例会同时就绪，并且，它们全都可以访问与该目标事件关联的任何数据。如果没有关联数据，可以使用特化的模板`std::future<void>`和`std::shared_future<void>`。`future`能用于线程间通信，但是`future`对象本身不提供同步访问。若多个线程需访问同一个`future`对象，必须用互斥或其他同步方式进行保护。
+
+`std::future`提供了下面的一些接口
+```C++
+template<class T> class future;
+template<class T> class future<T&>;
+// 特化模版, 没有关联数据
+template<>        class future<void>;
+
+// 等待结果可用
+wait();
+wait_for();
+wait_until();
+
+// 只可move(move-only),不可复制
+future& operator=(future&& other ) noexcept;
+future& operator=(const future& other ) = delete;
+```
+
+## async异步操作
+```C++
+async(Function&& f, Args&&... args )
+async(std::launch policy, Function&& f, Args&&... args );
+```
+默认情况下，`std::async()`会自行决定--等待`future`时，是启动新线程或者是同步执行任务。我们还可以给`std::async`传递一个`std::launch`类型参数来执行采用哪种方式运行，其可能的取值是：
+- `std::launch::deferred `：在当前线程上延后调用任务函数，等到在`future`上调用了`wait()`或`get()`，任务函数才会执行。如果延后调用任务函数，该任务函数有可能永远都不会被调用。
+- `std::launch::async`：指定必须另外开启专属的线程，在其上运行任务函数.
+- `std::launch::deferred | std::launch::async`：表示由`std::async()`的实现自行选择运行方式，这是该参数的默认值。
+
+```C++
+// 运行新线程, 在其上运行任务函数
+auto task1 = std::async(std::launch::async,Y(), 1.2);
+
+// 在当前线程延后调用任务函数
+// 等在future上调用wait()或get(),才会运行该任务函数
+auto task2 = std::async(std::launch::deferred, baz, std::ref(x));
+
+// std::sync自行选择运行方式
+auto task3 = std::async(std::launch::deferred | std::launch::async,
+   baz, std::ref(x));
+
+// std::sync自行选择运行方式
+auto f9=std::async(baz,std::ref(x));
+
+// task2延后调用, 在这里才被运行
+task2.wait();
+```
+
+[从后台取任务返回值的简单示例](code/src/4.2_OneOff_SimpleSync.cpp)
+
+
+
 # 参考资料
 
 1. C++服务器开发精髓
