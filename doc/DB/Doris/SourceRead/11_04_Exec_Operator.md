@@ -53,7 +53,7 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
 ```
 ```plantuml
 @startuml
-VAssertNumRowsNode -o AssertNumRowsOperator
+VAssertNumRowsNode -up-o AssertNumRowsOperator
 @enduml
 ```
 
@@ -88,4 +88,39 @@ Status VAssertNumRowsNode::pull(doris::RuntimeState* state, vectorized::Block* b
     }
     return Status::OK();
 }
+```
+
+# scan
+```plantuml
+PInternalServiceImpl -> FragmentMgr:exec_plan_fragment
+FragmentMgr -> FragmentMgr:_get_query_ctx
+group : _get_query_ctx
+FragmentMgr -> QueryContext:create_shared
+note left of QueryContext: 创建QueryContext
+FragmentMgr -> FragmentMgr:_set_scan_concurrency
+
+FragmentMgr -> QueryContext:set_thread_token
+note left of QueryContext: resource_limit.cpu_limit是否设置\nmode=concurrent(并行)
+end group
+
+```
+
+```C++
+void QueryContext::set_thread_token(int concurrency, bool is_serial) {
+    _thread_token = _exec_env->scanner_scheduler()->new_limited_scan_pool_token(
+            is_serial ? ThreadPool::ExecutionMode::SERIAL
+                        : ThreadPool::ExecutionMode::CONCURRENT,
+            concurrency);
+}
+```
+
+```plantuml
+@startuml
+class ScannerScheduler {
+    - BlockingQueue<ScannerContext*>** _pending_queues
+    - std::unique_ptr<PriorityThreadPool> _local_scan_thread_pool
+    - std::unique_ptr<ThreadPool> _remote_scan_thread_pool
+    - std::unique_ptr<ThreadPool> _limited_scan_thread_pool
+}
+@enduml
 ```
