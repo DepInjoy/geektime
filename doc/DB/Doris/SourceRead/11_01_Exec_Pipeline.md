@@ -522,3 +522,53 @@ Status PipelineFragmentContext::submit() {
     return st;
 }
 ```
+
+# Pipeline执行流程图
+exec_plan_fragment
+```plantuml
+@startuml
+FragmentMgr -> PipelineFragmentContext:prepare
+== PipelineFragmentContext::prepare ==
+PipelineFragmentContext -> ExecNode:create_tree
+activate PipelineFragmentContext
+activate ExecNode
+group ExecNode::create_tree
+    ExecNode -> ExecNode:create_node
+    note right of ExecNode: 1. 递归地创建Exec tree
+    ExecNode -> ExecNode:init
+    note right of ExecNode: 2. 递归执行Operator的init
+end group
+
+PipelineFragmentContext -> ExecNode:prepare
+note right of ExecNode: 3. 递归地执行prepare\n(_root_plan为Exec Tree的根节点)
+deactivate ExecNode
+
+PipelineFragmentContext -> PipelineFragmentContext:_build_pipelines
+note right of PipelineFragmentContext: 构建Pipeline
+
+PipelineFragmentContext -> PipelineFragmentContext:_build_pipeline_tasks
+note right of PipelineFragmentContext: 构建PipelineTask\n(PipelineTask对外提供execute接口\n含operator的open和get_next)
+
+
+== PipelineFragmentContext::submit ==
+FragmentMgr -> PipelineFragmentContext:submit
+PipelineFragmentContext -> TaskScheduler:schedule_task
+activate TaskScheduler
+TaskScheduler -> PipelineTask:execute
+group PipelineTask::execute
+    PipelineTask -> PipelineTask:_open
+    note right of PipelineTask: 4. 执行Operator的open
+    PipelineTask -> SourceOperator:get_block
+    group SourceOperator::get_block
+        SourceOperator -> ExecNode:get_next_after_projects
+        activate ExecNode
+        ExecNode -> ExecNode:pull
+        note right of ExecNode : 5. 调用自身的获取block\n(ExecNode::pull的默认实现是get_next)
+        deactivate ExecNode        
+    end group
+    PipelineTask -> DataSinkOperator:sink
+    note right of DataSinkOperator: eos = true
+end group
+deactivate TaskScheduler
+@enduml
+```

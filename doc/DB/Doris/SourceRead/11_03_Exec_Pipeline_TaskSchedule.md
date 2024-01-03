@@ -1189,3 +1189,4 @@ void TaskGroupTaskQueue::_dequeue_task_group(taskgroup::TGEntityPtr tg_entity) {
 
 # 参考资料
 1. [DSIP-027: Support Pipeline Exec Engine](https://cwiki.apache.org/confluence/display/DORIS/DSIP-027%3A+Support+Pipeline+Exec+Engine)
+2. [操作系统导论：多级反馈队列 - 知乎](https://zhuanlan.zhihu.com/p/367636084)
