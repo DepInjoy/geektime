@@ -394,12 +394,20 @@ future& operator=(const future& other ) = delete;
 ## async异步操作
 ```C++
 async(Function&& f, Args&&... args )
+
+/**
+ * @param policy:  bitmask,可能得bit位有
+ *      std::launch::async:     开启专属线程运行
+ *      std::launch::deferred:  延迟调用
+*/
 async(std::launch policy, Function&& f, Args&&... args );
 ```
+
 默认情况下，`std::async()`会自行决定--等待`future`时，是启动新线程或者是同步执行任务。我们还可以给`std::async`传递一个`std::launch`类型参数来执行采用哪种方式运行，其可能的取值是：
-- `std::launch::deferred `：在当前线程上延后调用任务函数，等到在`future`上调用了`wait()`或`get()`，任务函数才会执行。如果延后调用任务函数，该任务函数有可能永远都不会被调用。
-- `std::launch::async`：指定必须另外开启专属的线程，在其上运行任务函数.
-- `std::launch::deferred | std::launch::async`：表示由`std::async()`的实现自行选择运行方式，这是该参数的默认值。
+
+- `std::launch::deferred`：在当前线程上延后调用任务函数，等到在`future`上调用了`wait()`或`get()`，任务函数才会执行。如果延后调用任务函数，该任务函数有可能永远都不会被调用。
+- `std::launch::async`：指定必须另外开启专属的线程，在其上运行任务函数。如果无法开启新线程会抛出`std::system_error`，其中`error code`是`std::errc::resource_unavailable_try_again`。
+- `std::launch::deferred | std::launch::async`：表示由`std::async()`的实现自行选择运行方式，默认采取这种方式。
 
 ```C++
 // 运行新线程, 在其上运行任务函数
@@ -414,7 +422,7 @@ auto task3 = std::async(std::launch::deferred | std::launch::async,
    baz, std::ref(x));
 
 // std::sync自行选择运行方式
-auto f9=std::async(baz,std::ref(x));
+auto f9 = std::async(baz, std::ref(x));
 
 // task2延后调用, 在这里才被运行
 task2.wait();
