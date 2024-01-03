@@ -75,7 +75,13 @@ frame_end可以是下面其一:
 
 3. 取值窗口函数。
 	
-	- `FIRST_VALUE()`,  `LAST_VALUE()`, `LAG()`,`LEAD()`
+	- `FIRST_VALUE()`,  `LAST_VALUE()`
+	- `LAG()`和`LEAD()`分别用于计算用于统计窗口内向上第n行值和窗口内向下第n行值。
+		```sql
+		LAG | LEAD(col_name, offset_opt, default_opt)
+		-- offset_opt:			偏移的offset
+		-- default_opt:			超出记录窗口时的默认值
+		```
 
 
 # 参考资料
