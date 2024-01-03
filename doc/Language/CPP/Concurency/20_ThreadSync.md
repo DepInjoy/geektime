@@ -430,7 +430,30 @@ task2.wait();
 
 [从后台取任务返回值的简单示例](code/src/4.2_OneOff_SimpleSync.cpp)
 
+## packaged_task包装任务
+`std::packaged_task<>`连结了`future`对象与函数(可调用对象)。`std::packaged_task<>`对象在执行任务时，会调用关联的函数，把返回值保存为`future`的内部数据，并令`future`准备就绪。它可以用作线程池的构建单元，也可以用作其他的任务管理方案。`std::packaged_task<>`是类模板，其模板参数是函数签名(`function signature`)。
 
+```C++
+// f:可调用的对象
+template<class F>
+explicit packaged_task(F&& f);
+
+template<class R, class ...ArgTypes>
+class packaged_task<R(ArgTypes...)>;
+
+// 获取其返回的future实例
+// future的特化参数类型区局与函数签名指定的返回值
+std::future<R> get_future();
+
+// 具备函数调用操作符，参数取决于函数签名参数列表
+void operator()( ArgTypes... args );
+
+// 只可move(move-only),不可复制
+packaged_task& operator=( const packaged_task& ) = delete;
+packaged_task& operator=( packaged_task&& rhs ) noexcept;
+```
+
+[packaged_task包装任务示例](code/src/4.2_OneOff_SimplePackagedTask.cpp)
 
 # 参考资料
 

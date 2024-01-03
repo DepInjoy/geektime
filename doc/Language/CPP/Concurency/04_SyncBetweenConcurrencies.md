@@ -9,28 +9,9 @@
 
 ## 任务包装:关联future实例和任务
 
-`std::packaged_task<>`连结了`future`对象与函数（或可调用对象）。`std::packaged_task<>`对象在执行任务时，会调用关联的函数（或可调用对象），把返回值保存为`future`的内部数据，并令`future`准备就绪。可以用作线程池的构建单元，也可以用作其他的任务管理方案。
 
-`std::packaged_task<>`是类模板，其模板参数是函数签名(`function signature`)。
 
-```C++
-// f:可调用的对象
-template< class F >
-explicit packaged_task(F&& f);
-template< class R, class ...ArgTypes >
-class packaged_task<R(ArgTypes...)>;
 
-// 获取其返回的future实例
-// future的特化参数类型区局与函数签名指定的返回值
-std::future<R> get_future();
-
-// 具备函数调用操作符，参数取决于函数签名参数列表
-void operator()( ArgTypes... args );
-
-// 只可move(move-only),不可复制
-packaged_task& operator=( const packaged_task& ) = delete;
-packaged_task& operator=( packaged_task&& rhs ) noexcept;
-```
 
 
 
@@ -49,63 +30,6 @@ public:
     void operator()(std::vector<char>*,int);
 };
 ```
-
-
-
-线程间传递任务可以先将任务包装在`std::packaged_task`对象中，获取到`future`，之后才将该对象传递给其他线程来执行，等需要使用结果的时候，等待`future`就绪就可以。例如，许多图形用户界面(GUI)框架都设立了专门的线程，作为更新界面的实际执行者。若别的线程需要更新界面，就必须向它发送消息，由它执行操作。运用`std::packaged_task`实现：
-
-```C++
-#include <deque>
-#include <mutex>
-#include <future>
-#include <thread>
-#include <utility>
-
-std::mutex m;
-std::deque<std::packaged_task<void()>> tasks;
-bool gui_shutdown_message_received();
-void get_and_process_gui_message();
-// 实现在GUI线程上轮询任务队列和待处理的界面消息(如用户点击)
-void gui_thread() {
-    // 如果消息提示关闭界面，则终止循环
-    while(!gui_shutdown_message_received()) {
-        // 处理界面消息(如用户点击)
-        get_and_process_gui_message();
-        std::packaged_task<void()> task;
-        {
-            // 对任务队列上锁
-            std::lock_guard<std::mutex> lk(m);
-            // 如果任务队列没有任务，则继续循环
-            if(tasks.empty())
-                continue;
-           	// 存在任务，则取出任务
-            task = std::move(tasks.front());
-            tasks.pop_front();
-        } // 释放任务队列上的锁
-        
-        // 运行任务
-        task();
-    }
-}
-
-std::thread gui_bg_thread(gui_thread);
-// 将任务包装在std::packaged_task对象内,获取到future
-// 之后将包装了任务的std::packaged_task对象放置到任务队列
-// 调用者获取future来获取结果并采取后续动作
-template<typename Func>
-std::future<void> post_task_for_gui_thread(Func f) {
-    // 依据给定函数创建任务并将任务包装在std::packaged_task中
-    std::packaged_task<void()> task(f);
-    // 获取该任务关联的future
-    std::future<void> res = task.get_future();
-    std::lock_guard<std::mutex> lk(m);
-    // 将任务放入任务队列
-    tasks.push_back(std::move(task));
-    // 向该接口的调用者返回future
-    return res;
-}
-```
-
 
 
 有些任务无法以简单的函数调用表达出来，还有一些任务的执行结果可能来自多个部分的代码。如何处理？这种情况就需创建`future`：借助`std::promise`显式地异步求值。

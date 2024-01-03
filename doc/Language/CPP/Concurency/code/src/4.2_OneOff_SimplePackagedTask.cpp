@@ -1,4 +1,9 @@
 /**
+ * 实现功能：
+ *      图形用户界面(GUI)框架都设立了专门的线程，作为更新界面的实际执行者
+ *      如果其他线程需要更新界面，就必须向它发送消息，由它执行操作
+ *      运用std::packaged_task实现：
+ * 
  * 编译命令:
  *      g++ -o 4.2_OneOff_SimplePackagedTask 4.2_OneOff_SimplePackagedTask.cpp -pthread -std=c++11
 */
@@ -44,6 +49,7 @@ void gui_thread(void) {
 template<typename Func>
 std::future<void> post_task_for_gui_thread(Func f) {
     std::packaged_task<void()> task(f);
+    // future对象关联f函数的执行结果
     std::future<void> ans = task.get_future();
 
     std::lock_guard<std::mutex> lk(lock);
