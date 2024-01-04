@@ -5,3 +5,6 @@
 
 # 单调栈
 1. [496. 下一个更大元素 I](https://leetcode.cn/problems/next-greater-element-i/description/)       [相关实现](02_MonotonicStack/496_E_Next-Greater-Element-i.cpp)      单调栈
+
+# 栈
+ 1. [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) [相关实现](03_Stack\1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp)     栈
