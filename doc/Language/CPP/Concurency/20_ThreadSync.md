@@ -455,6 +455,31 @@ packaged_task& operator=( packaged_task&& rhs ) noexcept;
 
 [packaged_task包装任务示例](code/src/4.2_OneOff_SimplePackagedTask.cpp)
 
+## promise异步求值
+有些任务无法以简单的函数调用表达出来，一些任务的执行结果可能来自多个部分的代码需要借助`std::promise`显式地异步求值。
+
+`std::promise<T>`给出了一种异步求值的方法（类型为T），某个`std::future<T>`对象与结果关联，能延后读出需要求取的值。配对的`std::promise`和`std::future`可实现下面的工作机制：等待数据的线程在`future`上阻塞，而提供数据的线程利用相配的`promise`设定关联的值，使`future`准备就绪。
+
+```C++
+promise();
+template <class Alloc>
+promise (allocator_arg_t aa, const Alloc& alloc);
+
+// 获取future(shared state)
+future<T> get_future();
+
+// 给promise设置值，只要设置好，future便准备就绪
+// 如果std::promise销毁时仍未曾设置值，保存的数据则由异常代替
+void set_value (const T& val);
+void set_value (T&& val);
+    
+// 只可移动(move-only)，不可复制
+promise& operator= (promise&& rhs) noexcept;	
+promise& operator= (const promise&) = delete;
+```
+[借助Promise模拟顾客等待奶茶制作,服务员制作奶茶，当奶茶制作完成通知顾客取咖啡](code/src/4.2_OneOff_SimplePromise.cpp)
+
+
 # 参考资料
 
 1. C++服务器开发精髓

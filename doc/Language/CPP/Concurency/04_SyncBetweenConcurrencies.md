@@ -38,25 +38,7 @@ public:
 
 >假设，有个应用需要处理大量网络连接，我们往往倾向于运用多个独立线程，一对一地处理各个连接，这能简化网络通信的构思，程序编写也相对容易。如果连接数量较少（因而线程数量也少），此方式行之有效；随着连接数量攀升，过多线程导致消耗巨量系统资源，一旦线程数量超出硬件所支持的并发任务数量，还可能引起繁重的上下文切换，影响性能。极端情况下，在网络连接超出负荷之前，操作系统就可能已经先耗尽别的资源，无法再运行新线程。故此，若应用要处理大量网络连接，通常交由少量线程负责处理（可能只有一个），每个线程同时处理多个连接。
 
-`std::promise<T>`给出了一种异步求值的方法（类型为T），某个`std::future<T>`对象与结果关联，能延后读出需要求取的值。配对的`std::promise`和`std::future`可实现下面的工作机制：等待数据的线程在`future`上阻塞，而提供数据的线程利用相配的`promise`设定关联的值，使`future`准备就绪。
 
-```C++
-promise();
-template <class Alloc>
-promise (allocator_arg_t aa, const Alloc& alloc);
-
-// 获取future(shared state)
-future<T> get_future();
-
-// 给promise设置值，只要设置好，future便准备就绪
-// 如果std::promise销毁时仍未曾设置值，保存的数据则由异常代替
-void set_value (const T& val);
-void set_value (T&& val);
-    
-// 只可移动(move-only)，不可复制
-promise& operator= (promise&& rhs) noexcept;	
-promise& operator= (const promise&) = delete;
-```
 
 
 
