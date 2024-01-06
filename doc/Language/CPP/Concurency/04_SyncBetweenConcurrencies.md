@@ -87,28 +87,27 @@ int main() {
 
 
 
-例如，单个线程处理多个连接，采用一对`std::promise<bool>/std::future<bool>`，以确证数据包成功向外发送；与future关联的值是一个表示成败的简单标志。对于传入的数据包，与future关联的数据则是包内的有效荷载（payload
+例如，单个线程处理多个连接，采用一对`std::promise<bool>/std::future<bool>`，以确证数据包成功向外发送；与future关联的值是一个表示成败的简单标志。对于传入的数据包，与future关联的数据则是包内的有效荷载（payload)
 
 ```C++
-// error 没明白连接的发送和接受在不同的机器，也就是不同的进程，如何进行数据处理的
 #include <future>
 
 void process_connections(connection_set& connections) {
-    while(!done(connections)) {
+    while (!done(connections)) {
         // 依次检查各个连接，如果有数据传入则接收;如果有数据发出，则向外发送数据
-        for(connection_iterator connection=connections.begin(), end=connections.end();
-            connection!=end; ++connection) {
-            // 有数据传入
+        for(connection_iterator connection = connections.begin(), end = connections.end();
+                connection != end; ++connection) {
+            // 有新数据传入
             if (connection->has_incoming_data()) {
                 data_packet data = connection->incoming();
                 // 定传入的数据包本身已含有ID和荷载数据
-                // 令每个ID与各std::promise对象(可能存储到关联容器）一一对应
+                // 令每个ID与各std::promise对象(可能存储到关联容器)一一对应
                 std::promise<payload_type>& p = connection->get_promise(data.id);
                 p.set_value(data.payload);
             }
 
-            // 有数据需要向外发送
-            if(connection->has_outgoing_data()) {
+            // 发送已入队的传出数据
+            if (connection->has_outgoing_data()) {
                 outgoing_packet data = connection->top_of_outgoing_queue();
                 connection->send(data.payload);
                 // 发送完成,将和数据发送相关的promise设置为true

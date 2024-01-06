@@ -461,9 +461,11 @@ packaged_task& operator=( packaged_task&& rhs ) noexcept;
 `std::promise<T>`给出了一种异步求值的方法（类型为T），某个`std::future<T>`对象与结果关联，能延后读出需要求取的值。配对的`std::promise`和`std::future`可实现下面的工作机制：等待数据的线程在`future`上阻塞，而提供数据的线程利用相配的`promise`设定关联的值，使`future`准备就绪。
 
 ```C++
-promise();
-template <class Alloc>
-promise (allocator_arg_t aa, const Alloc& alloc);
+template<>
+promise<void>();
+
+template <class R>
+promise<R&>();
 
 // 获取future(shared state)
 future<T> get_future();
@@ -477,7 +479,9 @@ void set_value (T&& val);
 promise& operator= (promise&& rhs) noexcept;	
 promise& operator= (const promise&) = delete;
 ```
-[借助Promise模拟顾客等待奶茶制作,服务员制作奶茶，当奶茶制作完成通知顾客取咖啡](code/src/4.2_OneOff_SimplePromise.cpp)
+1. [借助Promise模拟顾客等待奶茶制作,服务员制作奶茶，当奶茶制作完成通知顾客取咖啡](code/src/4.2_OneOff_SimplePromise.cpp)
+2. [利用promise在线程间发送信号实现屏障](code/src/4.2_OneOff_SimplePromisBarrier.cpp)
+
 
 
 # 参考资料
