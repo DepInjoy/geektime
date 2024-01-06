@@ -482,10 +482,38 @@ promise& operator= (const promise&) = delete;
 1. [借助Promise模拟顾客等待奶茶制作,服务员制作奶茶，当奶茶制作完成通知顾客取咖啡](code/src/4.2_OneOff_SimplePromise.cpp)
 2. [利用promise在线程间发送信号实现屏障](code/src/4.2_OneOff_SimplePromisBarrier.cpp)
 
+## 异常保存到future
+由`std::async()`调用的函数抛出异常，则会被保存到`future`中，代替本该设定的值，`future`随之进入就绪状态，等到其成员函数`get()`被调用，存储在内的异常被重新抛出(C++标准没有明确规定应该重新抛出原来的异常，还是其副本；因此,不同的编译器和库可能不同)。如果把任务函数包装在`std::packaged_task`对象内也是这样。
 
+有下面两种方式将异常保存到future中：
+1. 显示调用成员函数
+2. 不调用`std::promise`的set函数或不执行`std::packaged_task`，直接销毁future
+<br/>
+<br/>
+---
+`std::promise`也具有同样的功能，它通过成员函数的显式调用实现。假如想保存异常，调用成员函数`set_exception()`。若算法的并发实现会抛出异常，则该函数通常可用于其`catch`块中，捕获异常并装填`promise`。
+```C++
+extern std::promise<double> some_promise;
+try {
+    some_promise.set_value(calculate_value());
+} catch(...) {
+    some_promise.set_exception(std::current_exception());
+}
+```
+`std::make_exception_ptr()`可以直接保存新异常，并不抛出，相较于`try/catch`，该实现可以简化代码且利于编译器优化，优先采用。
+```C++
+some_promise.set_exception(std::make_exception_ptr(std::logic_error("foo ")));
+```
+<br/>
+
+----
+
+`std::promise`不调用`set_value`和`set_value_at_thread_exit`成员函数，`std::packaged_task`不执行包装任务，直接销毁与`future`关联的`std::promise`对象或`std::packaged_task`对象。如果关联的`future`未能准备就绪，无论销毁两者中的哪一个，其析构函数都会将异常`std::future_error`存储为异步任务的状态数据，错误代码`std::future_errc::broken_promise`。
+
+---
 
 # 参考资料
 
 1. C++服务器开发精髓
 2. [C++多线程并发(三) --- 线程同步之条件变量](https://blog.csdn.net/m0_37621078/article/details/89766449)
-3. C++并发编程实践
+3. 《C++并发编程实践》

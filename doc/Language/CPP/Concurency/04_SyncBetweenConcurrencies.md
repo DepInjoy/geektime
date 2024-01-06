@@ -40,53 +40,6 @@ public:
 
 
 
-
-
-```C++
-#include <vector>
-#include <thread>
-#include <future>
-#include <numeric>
-#include <iostream>
-#include <chrono>
- 
-void accumulate(std::vector<int>::iterator first,
-                std::vector<int>::iterator last,
-                std::promise<int> accumulate_promise) {
-    int sum = std::accumulate(first, last, 0);
-    accumulate_promise.set_value(sum);  // Notify future
-}
- 
-void do_work(std::promise<void> barrier) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    barrier.set_value();
-}
- 
-int main() {
-    // Demonstrate using promise<int> to transmit a result between threads.
-    std::vector<int> numbers = { 1, 2, 3, 4, 5, 6 };
-    std::promise<int> accumulate_promise;
-    std::future<int> accumulate_future = accumulate_promise.get_future();
-    std::thread work_thread(accumulate, numbers.begin(), numbers.end(),
-                            std::move(accumulate_promise));
- 
-    // future::get() will wait until the future has a valid result and retrieves it.
-    // Calling wait() before get() is not needed
-    //accumulate_future.wait();  // wait for result
-    std::cout << "result=" << accumulate_future.get() << '\n';
-    work_thread.join();  // wait for thread completion
- 
-    // Demonstrate using promise<void> to signal state between threads.
-    std::promise<void> barrier;
-    std::future<void> barrier_future = barrier.get_future();
-    std::thread new_work_thread(do_work, std::move(barrier));
-    barrier_future.wait();
-    new_work_thread.join();
-}
-```
-
-
-
 例如，单个线程处理多个连接，采用一对`std::promise<bool>/std::future<bool>`，以确证数据包成功向外发送；与future关联的值是一个表示成败的简单标志。对于传入的数据包，与future关联的数据则是包内的有效荷载（payload)
 
 ```C++
@@ -121,37 +74,6 @@ void process_connections(connection_set& connections) {
 
 
 上面所有的处理都未考虑异常，而线程在运行过程中可能会初选异常。如果为了采用`std::packaged_task`和`std::promise`，而强令保障所有代码都无异常，也不太现实。C++标准库给出了一种干净利落的方法，以在这种情形下处理异常，并且异常更能够被保存为相关结果的组成部分。
-
-##  将异常保存到future中
-
-由`std::async()`调用的函数抛出异常，则会被保存到`future`中，代替本该设定的值，`future`随之进入就绪状态，等到其成员函数`get()`被调用，存储在内的异常即被重新抛出（C++标准没有明确规定应该重新抛出原来的异常，还是其副本；为此，不同的编译器和库有不同的选择）。如果把任务函数包装在`std::packaged_task`对象内，也是如此。
-
-`std::promise`也具有同样的功能，它通过成员函数的显式调用实现。假如我们不想保存值，而想保存异常，就不应调用`set_value()`，而应调用成员函数`set_exception()`。若算法的并发实现会抛出异常，则该函数通常可用于其`catch`块中，捕获异常并装填`promise`
-
-```C++
-extern std::promise<double> some_promise;
-try {
-    some_promise.set_value(calculate_value());
-} catch(...) {
-    some_promise.set_exception(std::current_exception());
-}
-```
-
-能用`std::make_exception_ptr()`直接保存新异常，而不触发抛出行为，相较于`try/catch`，该实现可以简化代码且鲤鱼编译器优化，应该优先采用。
-
-```C++
-some_promise.set_exception(std::make_exception_ptr(std::logic_error("foo ")));
-```
-
-
-
-还有另外一种方式可以将异常保存在future中：
-
-- `std::promise`不调用`set_value`和`set_value_at_thread_exit`成员函数
-- `std::packaged_task`不执行包装任务
-
-直接销毁与`future`关联的`std::promise`对象或`std::packaged_task`对象。如果关联的`future`未能准备就绪，无论销毁两者中的哪一个，其析构函数都会将异常`std::future_error`存储为异步任务的状态数据，它的值是错误代码`std::future_errc::broken_promise`。我们一旦创建`future`对象，便是`future`会按异步方式给出值或异常，但刻意销毁产生它们的来源，就无法提供所求的值或出现的异常，导致`future`被破坏。在这种情形下，倘若编译器不向`future`存入任何数据，则等待的线程有可能永远等不到结果。
-
 
 
 `std::future`只容许一个线程等待结果。若要让多个线程等待同一个目标事件，需要用`std::shared_future`。
