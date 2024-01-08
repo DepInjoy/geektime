@@ -78,50 +78,6 @@ void process_connections(connection_set& connections) {
 
 `std::future`只容许一个线程等待结果。若要让多个线程等待同一个目标事件，需要用`std::shared_future`。
 
-## 多个线程一起等待
-
-> 只要同步操作是一对一地在线程间传递数据，`std::future`就都能处理。对于某个`std::future`实例，如果其成员函数由不同线程调用，不会自动同步。若在多个线程上访问同一个`std::future`对象，而不采取额外的同步措施，将引发数据竞争并导致未定义行为。这是`std::future`特性：它模拟了对异步结果的独占行为，`get()`仅能被有效调用唯一一次，这令并发访问失去意义，只有一个线程可以获取目标值，原因是第一次调用get()会进行移动操作，之后该值不复存在。
->
-> 假设必须让多个线程等待同一目标事件，`std::shared_future`可以处理。`std::future`仅能移动构造和移动赋值，归属权可在多个实例间转移，在相同时刻，只有唯一`future`实例指向特定异步结果；`std::shared_future`实例则能复制出副本，因此可以持有该类的多个对象，它们全指向同一异步任务的状态数据。
-
-即便改用`std::shared_future`，同一个对象的成员函数却依然没有同步。若从多个线程访问同一个对象，就必须采取锁保护以避免数据竞争。首选方式是，向每个线程传递`std::shared_future`对象的副本，它们为各线程独自所有，并被视作局部变量。因此，这些副本就作为各线程的内部数据，由标准库正确地同步，可以安全地访问。若多个线程共享异步状态，只要它们通过自有的`std::shared_future`对象读取状态数据，则该访问行为是安全的。
-
-
-
-<center>
-    <div><b>使用多个std::shared_future对象避免数据竞争</b></div>
-    <img src="./img/shared_future_use.png">
-</center>
-
-
-
-```C++
-std::promise<int> p;
-std::future<int> f(p.get_future());
-assert(f.valid());    // future对象f有效
-std::shared_future<int> sf(std::move(f));
-assert(!f.valid());  // 对象f不再有效
-assert(sf.valid()); // 对象sf开始生效
-
-// 隐式转移归属权
-std::promise<std::string> p;
-// 依据std::future<std::string>类型的右值创建出std::shared_future<>对象
-std::shared_future<std::string> sf(p.get_future());
-```
-
-
-
-std::future可以根据初始化列表自动推断变量的类型，从而使`std::shared_future`更便于使用。`std::future`成员函数`share()`可以直接创建新的`std::shared_future`对象，并向它转移归属权
-
-```C++
-std::promise< std::map<SomeIndexType, SomeDataType, SomeComparator,
-    SomeAllocator>::iterator> p;
-// 根据初始化列表推断出std::shared_future的类型
-
-auto sf=p.get_future().share();
-```
-
-
 
 # 限时等待
 
