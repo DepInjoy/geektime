@@ -558,17 +558,41 @@ TaskScheduler -> PipelineTask:execute
 group PipelineTask::execute
     PipelineTask -> PipelineTask:_open
     note right of PipelineTask: 4. 执行Operator的open
-    PipelineTask -> SourceOperator:get_block
-    group SourceOperator::get_block
-        SourceOperator -> ExecNode:get_next_after_projects
-        activate ExecNode
-        ExecNode -> ExecNode:pull
-        note right of ExecNode : 5. 调用自身的获取block\n(ExecNode::pull的默认实现是get_next)
-        deactivate ExecNode        
-    end group
+    PipelineTask -> Operator:get_block
+    note right of Operator : 5. 执行Operator的get_block(相当于get_next)
     PipelineTask -> DataSinkOperator:sink
-    note right of DataSinkOperator: eos = true
+    note right of DataSinkOperator: 需要满足一定条件才调用(eos = true)
 end group
 deactivate TaskScheduler
+@enduml
+```
+
+# Operator 
+```plantuml
+@startuml
+class StatefulOperator {
+    + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
+}
+note bottom of StatefulOperator: operator can determine its output by itself\neg hash join probe operator\n自定义实现了get_block
+
+class StreamingOperator {
+
+}
+
+class SourceOperator {
+    + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
+}
+note bottom : 自定义实现了get_block,调用自身pull接口
+
+class DataSinkOperator {
+    + Status sink(RuntimeState* state, \n\tvectorized::Block* in_block,\n\tSourceState source_state)
+}
+
+interface OperatorBase{}
+
+StatefulOperator -up-|> StreamingOperator
+SourceOperator -up-|> StreamingOperator
+StreamingOperator -up-|> OperatorBase
+DataSinkOperator -up-|> OperatorBase
 @enduml
 ```
