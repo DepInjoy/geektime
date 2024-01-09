@@ -382,6 +382,69 @@ OPERATOR_CODE_GENERATOR(AnalyticSinkOperator, StreamingOperator)
 OPERATOR_CODE_GENERATOR(AnalyticSourceOperator, SourceOperator)
 ```
 
+```plantuml
+@startuml
+class StatefulOperator {
+    + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
+}
+note bottom of StatefulOperator: 可以决定自己的输出(!need_more_input_data())\n例如，hash join probe operator\n自定义实现了get_block
+
+class StreamingOperator {
+
+}
+
+class SourceOperator {
+    + bool can_read()
+    + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
+}
+note bottom : 自定义实现了get_block,调用自身pull接口
+
+class DataSinkOperator {
+    + bool can_write()
+    + Status sink(RuntimeState* state, \n\tvectorized::Block* in_block,\n\tSourceState source_state)
+}
+
+interface OperatorBase {
+    - OperatorBuilderBase* _operator_builder
+    - OperatorPtr _child
+    + Status open(RuntimeState* state) = 0
+    + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
+}
+note top : get_block是执行\nPipelineTask的主要接口
+
+class OperatorBuilderBase {
+    + virtual bool is_sink() const
+    + virtual bool is_source() const
+    + virtual OperatorPtr build_operator() = 0
+    + virtual const RowDescriptor& row_desc() = 0
+    + int32_t id()
+}
+
+class OperatorBuilder {
+    # NodeType* _node
+    + const RowDescriptor& row_desc()
+    + NodeType* exec_node() const // _node
+}
+note bottom : NodeType派生自ExecNode
+
+class DataSinkOperatorBuilder {
+    # SinkType* _sink
+}
+note bottom : SinkType派生自DataSink
+
+StatefulOperator -up-|> StreamingOperator
+SourceOperator -up-|> StreamingOperator
+StreamingOperator -up-|> OperatorBase
+DataSinkOperator -left-|> OperatorBase
+
+OperatorBuilderBase -right-o OperatorBase
+OperatorBuilder -up-|> OperatorBuilderBase : 继承
+
+DataSinkOperatorBuilder -up-|> OperatorBuilderBase
+@enduml
+```
+
+
 ### 生成PipelineTask
 `PipelineFragmentContext::_build_pipeline_tasks`接口将`Pipeline`生成`PipelineTask`。
 
@@ -567,32 +630,3 @@ deactivate TaskScheduler
 @enduml
 ```
 
-# Operator 
-```plantuml
-@startuml
-class StatefulOperator {
-    + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
-}
-note bottom of StatefulOperator: operator can determine its output by itself\neg hash join probe operator\n自定义实现了get_block
-
-class StreamingOperator {
-
-}
-
-class SourceOperator {
-    + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
-}
-note bottom : 自定义实现了get_block,调用自身pull接口
-
-class DataSinkOperator {
-    + Status sink(RuntimeState* state, \n\tvectorized::Block* in_block,\n\tSourceState source_state)
-}
-
-interface OperatorBase{}
-
-StatefulOperator -up-|> StreamingOperator
-SourceOperator -up-|> StreamingOperator
-StreamingOperator -up-|> OperatorBase
-DataSinkOperator -up-|> OperatorBase
-@enduml
-```
