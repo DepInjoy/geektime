@@ -19,7 +19,7 @@ void quick_sort(std::vector<std::pair<int, int>>& data, int l , int r, int k) {
         if (i < j) std::swap(data[i],data[j]);
     }
 
-    if (j -l + 1 > k) {
+    if (j - l + 1 > k) {
         quick_sort(data, l, j, k);
     } else {
         quick_sort(data, j + 1, r, k - (j - l + 1));
