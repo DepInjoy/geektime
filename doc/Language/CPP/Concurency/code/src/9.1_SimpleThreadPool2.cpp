@@ -1,4 +1,5 @@
 /**
+ *  编译命令
  *  g++ -o 9.1_SimpleThreadPool2 9.1_SimpleThreadPool2.cpp -pthread
 */
 #include <future>
@@ -166,7 +167,12 @@ public:
         std::packaged_task<result_type()> task(std::move(func));
         std::future<result_type> ans(task.get_future());
         queue_.push(std::move(task));
+        std::cout << "submit task to thread pool" << std::endl;
         return ans;
+    }
+
+    void shutdown() {
+        done_ = true;
     }
 private:
     void doWork() {
@@ -220,7 +226,9 @@ T ParallelAccumulate(Iterator begin, Iterator end, T init) {
     for (int i = 0; i < block_num; ++i) {
         ans += futures[i].get();
     }
-    std::cout << "sueccess with result = " << ans << std::endl;
+
+    // 确保这个函数退出
+    thread_pool.shutdown();
     return ans;
 }
 
