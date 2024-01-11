@@ -19,6 +19,7 @@ template <typename T>
 class ThreadSafeQueue {
 public:
     ThreadSafeQueue& operator=(ThreadSafeQueue&) = delete;
+    ThreadSafeQueue() = default;
     ThreadSafeQueue(const ThreadSafeQueue& other) {
         // 锁定两个互斥
         std::lock(mutex_, other.mutex_);
@@ -29,9 +30,11 @@ public:
         datas_ = other.datas_;
     }
 
-    void push(const T& item) {
-        std::lock_guard<std::mutex> lk(mutex_);
-        datas_.push_back(item);
+    void push(T&& item) {
+        {
+            std::unique_lock<std::mutex> lk(mutex_);
+            datas_.push_back(std::move(item));
+        }
         cond_.notify_one();
     }
 
@@ -40,9 +43,10 @@ public:
         if (datas_.empty()) {
             return false;
         }
-
+        
         item = std::move(datas_.front());
         datas_.pop_front();
+        return true;
     }
 
     std::shared_ptr<T> try_pop() {
@@ -105,8 +109,10 @@ private:
 
 class FunctionWrapper {
 public:
+    FunctionWrapper() = default;
+
     template<typename F>
-    FunctionWrapper(F&& f) : impl_(new ImpleType<F>(f)){}
+    FunctionWrapper(F&& f) : impl_(new ImpleType<F>(std::move(f))){}
     void operator()(void) {
         impl_->Call();
     }
@@ -145,7 +151,7 @@ public:
         const unsigned int thread_cnt = std::thread::hardware_concurrency();
         try {
             for (int i = 0; i < thread_cnt; ++i) {
-                workers_.push_back(std::this_thread(&SimpleThreadPool2::doWork, this));
+                workers_.push_back(std::thread(&SimpleThreadPool2::doWork, this));
             }
         } catch (...) {
             done_ = true;
@@ -154,12 +160,12 @@ public:
     }
 
     template<typename FunctionType>
-    std::future<std::result_of<FunctionType()>::type> submit(FunctionType func) {
+    std::future<typename std::result_of<FunctionType()>::type>
+    submit(FunctionType func) {
         typedef typename std::result_of<FunctionType()>::type result_type;
         std::packaged_task<result_type()> task(std::move(func));
         std::future<result_type> ans(task.get_future());
         queue_.push(std::move(task));
-
         return ans;
     }
 private:
@@ -200,26 +206,30 @@ T ParallelAccumulate(Iterator begin, Iterator end, T init) {
     Iterator start = begin;
     std::vector<std::future<T>> futures(block_num);
     for (int i = 0; i < block_num - 1; ++i) {
-        futures[i] = thread_pool.submit([=] {
+        futures[i] = thread_pool.submit([=]{
             return AccumulateBlock<Iterator, T>()(start, start + block_size);
         });
-        start = start + block_size;
+        std::advance(start, block_size);
     }
+
     futures[block_num - 1] = thread_pool.submit([=] {
-            return AccumulateBlock<Iterator, T>()(start, end);
-        });
+        return AccumulateBlock<Iterator, T>()(start, end);
+    });
 
     T ans = init;
     for (int i = 0; i < block_num; ++i) {
         ans += futures[i].get();
     }
-
+    std::cout << "sueccess with result = " << ans << std::endl;
     return ans;
 }
 
 int main(int argc, char* argv[]) {
-    std::vector<int> datas{1, 2, 3, 4, 5, 6};
+    std::vector<int> datas { 1, 2, 3, 4, 5, 6 };
+    std::cout << "comming, and expect sum = " <<
+        std::accumulate(datas.begin(), datas.end(), 0) << std::endl;
     int sum = ParallelAccumulate(datas.begin(), datas.end(), 0);
-    std::cout << "sum is " << sum << std::endl;
+    std::cout << "Parallel sum = " << sum << std::endl;
+
     return 0;
 }
