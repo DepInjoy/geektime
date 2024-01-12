@@ -24,8 +24,9 @@
 2. [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) [相关实现](./04_Heap/692_LC_M_top-k-frequent-words.cpp) 快排/堆+Hash表
 
 # 二分
-1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) 二分/位运算/快慢指针 [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp)
+1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp) 二分/位运算/快慢指针
 
 # Floyd 判圈算法(龟兔赛跑)
 1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) 二分/位运算/快慢指针 [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp)
+2. [141. 环形链表](https://leetcode.cn/problems/linked-list-cycle/description/) [相关实现](05_Floyd/141_LC_E_linked-list-cycle.cpp) 快慢指针
 
