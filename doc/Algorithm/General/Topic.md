@@ -12,6 +12,7 @@
 
 # 双指针
 1. [344. 反转字符串](https://leetcode.cn/problems/reverse-string/description/) 双指针 [相关实现](01_DoublePointer/344_LC_E_reverse-string.cpp)
+2. [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) [相关实现](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) 双指针/直接计算+排序
 
 # 栈
  1. [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) [相关实现](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp)     栈
