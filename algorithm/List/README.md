@@ -15,21 +15,6 @@ struct ListNode {
 ```
 
 ### 练习题
-- [LeetCode-206:反转链表](https://leetcode-cn.com/problems/reverse-linked-list/)
-  - 实现1: 虚拟出一个节点，假设对1->2->3->4进行反转，形成
-    ```
-            nullptr -> 1  -> 2 -> 3 -> 4
-               pre    cur
-                      pre    cur
-    ```
-    将pre和cur指针交换，每次pre和cur移动一步。
-
-- [LeetCode-141:环形链表](https://leetcode-cn.com/problems/linked-list-cycle/)
-  - 实现1: 将链表中的元素一一插入`set`,利用其中数据元素不可重复的特性，当插入失败则可以认为数据中有环，否则无环
-    这是看到这个题目的第一反应的实现, 空间复杂度为`O(N)`,不是一个优秀的实现
-
-  - 实现2: 通过快慢指针实现，快指针每次走两步，满指针每次走一步，转一圈两者相遇则说明存在环，否则不存在环
-    这个实现的空间复杂度为`O(1)`,难以想到，性能高。
 
 - [LeetCode-24:两两交换链表中的节点](https://leetcode-cn.com/problems/swap-nodes-in-pairs/)
     - 实现1: 如果只存在1到2个节点，则直接返回，否则，将头两个节点交互找到返回链表的head, 之后开始循环，将两两节点交互

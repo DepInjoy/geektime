@@ -29,6 +29,95 @@ int maxDepth(TreeNode* root) {
 
 
 
+[872. 叶子相似的树](https://leetcode.cn/problems/leaf-similar-trees/)
+
+```C++
+void collectLeaf(TreeNode* root, std::vector<int>& seq) {
+    if (!root->left && !root->right) seq.push_back(root->val);
+    if (root->left) collectLeaf(root->left, seq);
+    if (root->right) collectLeaf(root->right, seq);
+}
+
+bool leafSimilar(TreeNode* root1, TreeNode* root2) {
+    std::vector<int> seq1, seq2;
+    if (root1) collectLeaf(root1, seq1);
+    if (root2) collectLeaf(root2, seq2);
+    return seq1 == seq2;
+}
+```
+
+
+
+[1448. 统计二叉树中好节点的数目](https://leetcode.cn/problems/count-good-nodes-in-binary-tree/)
+
+```C++
+int countGoodNodes(TreeNode* root, int path_max) {
+    if (!root) return 0;
+
+    int ans = 0;
+    if (root->val >= path_max) {
+        path_max = root->val;
+        ++ans;
+    }
+
+    ans += countGoodNodes(root->left, path_max) +
+            countGoodNodes(root->right, path_max);
+    return ans;
+}
+
+int goodNodes(TreeNode* root) {
+    return countGoodNodes(root, INT_MIN);
+}
+```
+
+[437. 路径总和 III](https://leetcode.cn/problems/path-sum-iii/)
+
+```C++
+// 深度优先
+int rootSum(TreeNode* root, const long targetSum) {
+    if (!root) return 0;
+
+    int ans = 0;
+    if (root->val == targetSum) ++ans;
+
+    ans += rootSum(root->left, targetSum - root->val);
+    ans += rootSum(root->right, targetSum - root->val);
+    return ans;
+}
+
+int pathSum(TreeNode* root, int targetSum) {
+    if (!root) return 0;
+
+    int ans = rootSum(root, targetSum);
+    ans += pathSum(root->left, targetSum);
+    ans += pathSum(root->right, targetSum);
+    return ans;
+}
+
+// 前缀和
+std::unordered_map<long, int> prefix;
+int dfs(TreeNode* root, long cur, int targetSum) {
+    if (!root) return 0;
+
+    cur += root->val;
+    int ans = 0;
+    if (prefix.count(cur - targetSum)) {
+        ans = prefix[cur - targetSum];
+    }
+
+    ++prefix[cur];
+    ans += dfs(root->left, cur, targetSum);
+    ans += dfs(root->right, cur, targetSum);
+    --prefix[cur];
+    return ans;
+}
+
+int pathSum(TreeNode* root, int targetSum) {
+    prefix[0] = 1;
+    return dfs(root, 0, targetSum);
+}
+```
+
 
 
 [1768. 交替合并字符串](https://leetcode.cn/problems/merge-strings-alternately/)
