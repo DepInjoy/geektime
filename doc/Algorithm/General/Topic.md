@@ -7,6 +7,8 @@
 2. [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) [相关实现](./04_Heap/692_LC_M_top-k-frequent-words.cpp) 堆/快排+Hash表
 3. [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) [相关实现](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp)
 
+100 [838. 堆排序-ACW](https://www.acwing.com/problem/content/840/) [相关实现](04_Heap/838_ACW_E_heap-sort.cpp) 手写堆(优化建堆时间复杂度为O)/堆
+
 # 单调栈
 1. [496. 下一个更大元素 I](https://leetcode.cn/problems/next-greater-element-i/description/)       [相关实现](02_MonotonicStack/496_E_Next-Greater-Element-i.cpp)      单调栈
 
