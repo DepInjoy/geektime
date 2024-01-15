@@ -33,6 +33,9 @@ PlanFragmentExecutor -up-o FragmentExecState
 ```
 
 # 主流程图
+
+每个instance对应线程池的一个线程，提交给线程池中`FragmentMgr::_exec_actual`执行，含Operator的`open`, `get_next`和`close`。
+
 ```plantuml
 @startuml
 PInternalServiceImpl -> FragmentMgr:exec_plan_fragment
@@ -174,7 +177,7 @@ Status VSelectNode::get_next(RuntimeState* state, vectorized::Block* block, bool
     return pull(state, block, eos);
 }
 ```
-# Executor::close
+## Executor::close
 ```plantuml
 @startuml
 FragmentExecState -> PlanFragmentExecutor:close
@@ -237,7 +240,139 @@ Status ExecNode::close(RuntimeState* state) {
 }
 ```
 
-# 后端相关配置参数
+# 清理超时任务
+前端可以配置可选的`query_timeout`参数，在后端启动了一个线程执行`FragmentMgr::cancel_worker`来终止相关子计划。
+
+```C++
+FragmentMgr::FragmentMgr(ExecEnv* exec_env)
+        : _exec_env(exec_env), _stop_background_threads_latch(1) {
+                ......
+    // 创建线程检查timeout fragment
+    auto s = Thread::create(
+            "FragmentMgr", "cancel_timeout_plan_fragment",
+            [this]() { this->cancel_worker(); }, &_cancel_thread);
+                ......
+}
+
+void FragmentMgr::cancel_worker() {
+    do {
+        std::vector<TUniqueId> to_cancel;
+        std::vector<TUniqueId> to_cancel_queries;
+        vectorized::VecDateTimeValue now = vectorized::VecDateTimeValue::local_time();
+        {
+            std::lock_guard<std::mutex> lock(_lock);
+            for (auto& it : _fragment_map) {
+                // 1. fragment timeout, 将fragment_instance_id添加到to_cancel中
+                if (it.second->is_timeout(now)) {
+                    to_cancel.push_back(it.second->fragment_instance_id());
+                }
+            }
+
+            for (auto it = _query_ctx_map.begin(); it != _query_ctx_map.end();) {
+                if (it->second->is_timeout(now)) {
+                    it = _query_ctx_map.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+        for (auto& id : to_cancel) {
+            // 2. 执行cancel
+            cancel(id, PPlanFragmentCancelReason::TIMEOUT);
+        }
+    } while (!_stop_background_threads_latch.wait_for(std::chrono::seconds(1)));
+}
+```
+
+
+
+## 超时参数设置
+
+```thrift
+// ExecPlanFragment
+struct TExecPlanFragmentParams {
+        ......
+  // options for the query
+  8: optional TQueryOptions query_options
+        ......
+}
+
+struct TQueryOptions {
+        ......
+  14: optional i32 query_timeout = 3600
+        ......
+};
+```
+
+该参数在前端`Coordinator`的设置和初始化接口为`Coordinator::initQueryOptions`
+```java
+// ConnectContext
+public int getExecTimeout() {
+    if (executor != null && executor.isSyncLoadKindStmt()) {
+        // particular for insert stmt, we can expand other type of timeout in the same way
+        return Math.max(sessionVariable.getInsertTimeoutS(), sessionVariable.getQueryTimeoutS());
+    } else if (executor != null && executor.isAnalyzeStmt()) {
+        return sessionVariable.getAnalyzeTimeoutS();
+    } else {
+        // normal query stmt
+        // query_timeout的默认值是900s
+        return sessionVariable.getQueryTimeoutS();
+    }
+}
+
+```
+
+
+
+
+
+# 配置参数
+
+```C++
+FragmentMgr::FragmentMgr(ExecEnv* exec_env){
+    s = ThreadPoolBuilder("FragmentMgrThreadPool")
+                .set_min_threads(config::fragment_pool_thread_num_min)
+                .set_max_threads(config::fragment_pool_thread_num_max)
+                .set_max_queue_size(config::fragment_pool_queue_size)
+                .build(&_thread_pool);
+}
+```
+
+|             参数             | 类型  | 默认值 |    描述    |
+| :--------------------------: | :---: | :----: | :--------: |
+| fragment_pool_thread_num_min | int32 |   64   | 最小线程数 |
+| fragment_pool_thread_num_max | int32 |  2048  | 最大线程数 |
+|   fragment_pool_queue_size   | int32 |  4096  |            |
+
+```C++
+Status ThreadPool::do_submit(std::shared_ptr<Runnable> r, ThreadPoolToken* token) {
+    				......
+    int64_t capacity_remaining = static_cast<int64_t>(_max_threads) - _active_threads +
+                                 static_cast<int64_t>(_max_queue_size) - _total_queued_tasks;
+    if (capacity_remaining < 1) {
+        return Status::Error<SERVICE_UNAVAILABLE>(
+                "Thread pool {} is at capacity ({}/{} tasks running, {}/{} tasks queued)", _name,
+                _num_threads + _num_threads_pending_start, _max_threads, _total_queued_tasks,
+                _max_queue_size);
+    }
+    			......
+}
+```
+
+
+
+# 性能影响因素分析
+
+volcano的pull模型，在单机多核的场景下存在下面的一些问题：
+1. 无法充分利用多核计算能力，提升查询性能，多数场景下进行性能调优时需要手动设置并行度，在生产环境中几乎很难进行设定。
+2. 单机查询的每个instance对应线程池的一个线程，这会带来额外的两个问题。
+    - 线程池一旦打满。Doris的查询引擎会进入假性死锁，对后续的查询无法响应。同时有一定概率进入逻辑死锁的情况：比如所有的线程都在执行一个instance的probe任务。
+    - 阻塞的算子会占用线程资源，而阻塞的线程资源无法让渡给能够调度的instance，整体资源利用率上不去。
+3. 阻塞算子依赖操作系统的线程调度机制，线程切换开销较大(尤其在系统混布的场景中)。CPU的资源管理困难，很难做到更细粒度的资源管理，多查询的混合并发做到合理的资源调度。
+4. 大查询生成海量instance之后，线程池被打满。小查询几乎得不到调度的机会，导致混合负载下，小查询的时延较高。
+5. 在混合部署的Doris集群之间，用户间的cpu资源无法得到好的隔离，目前几乎是处于无管控状态。
+
 ```C++
 config::fragment_pool_thread_num_min
 config::fragment_pool_thread_num_max
@@ -250,3 +385,5 @@ FragmentMgr::FragmentMgr(ExecEnv* exec_env){
                 .set_max_queue_size(config::fragment_pool_queue_size)
                 .build(&_thread_pool);
 ```
+ # 参考资料
+ - 1. [DSIP-027: Support Pipeline Exec Engine](https://cwiki.apache.org/confluence/display/DORIS/DSIP-027%3A+Support+Pipeline+Exec+Engine)
