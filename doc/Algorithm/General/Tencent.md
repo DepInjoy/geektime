@@ -10,3 +10,4 @@
 10.  [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  快排/堆 + Hash表
 11. [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) [相关实现](./04_Heap/692_LC_M_top-k-frequent-words.cpp) 快排/堆+Hash表
 12. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) 二分/位运算/快慢指针 [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp)
+13. [125. 验证回文](https://leetcode.cn/problems/valid-palindrome/description) [相关实现](01_DoublePointer/125_LC_E_valid-palindrome.cpp)   双指针
