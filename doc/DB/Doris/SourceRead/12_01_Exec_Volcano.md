@@ -64,12 +64,7 @@ note left of ThreadPool: 提交的func是_exec_actual\n含Operator的Open,get_ne
         note left of PlanFragmentExecutor #FF5733: 3. open和get_next取block
         PlanFragmentExecutor --> FragmentExecState : Status
         deactivate FragmentExecState
-        alt 成功
-            FragmentExecState -[#FF5733]> PlanFragmentExecutor:close
-            activate FragmentExecState
-            note left of PlanFragmentExecutor #FF5733 : 4. 递归地调用Operator的close
-            deactivate FragmentExecState
-        else 失败
+        alt 失败
             FragmentExecState -> FragmentExecState:cancel
             activate FragmentExecState
             FragmentExecState -> PlanFragmentExecutor:cancel
@@ -79,6 +74,11 @@ note left of ThreadPool: 提交的func是_exec_actual\n含Operator的Open,get_ne
             PlanFragmentExecutor -> ResultQueueMgr:update_queue_status
             note left of ResultQueueMgr: Status::Aborted
             deactivate FragmentExecState
+        end
+        FragmentExecState -[#FF5733]> PlanFragmentExecutor:close
+        activate FragmentExecState
+        note left of PlanFragmentExecutor #FF5733 : 4. 递归地调用Operator的close
+        deactivate FragmentExecState
     end group
     FragmentExecState --> FragmentMgr : Status
     deactivate FragmentMgr
@@ -105,21 +105,30 @@ note left of ExecNode: 2. 递归地执行prepare
 `ExecNode:create_tree`参见[这里的 创建Exec树 章节](11_00_00_Exec_CreateTree.md)
 
 ## Executor::open
+
 ```plantuml
 @startuml
 FragmentExecState -> PlanFragmentExecutor:open
+activate PlanFragmentExecutor
 PlanFragmentExecutor -> PlanFragmentExecutor:open_vectorized_internal
+activate PlanFragmentExecutor
 group open_vectorized_internal
     PlanFragmentExecutor -> ExecNode:open
-    activate PlanFragmentExecutor
-    note right of PlanFragmentExecutor : 1. 从根节点_plan，递归递执行open
+    note over of ExecNode : 1. 递归递执行open
     PlanFragmentExecutor -> DataSink:open
+    loop !eos
     PlanFragmentExecutor -> PlanFragmentExecutor:get_vectorized_internal
-    note right of PlanFragmentExecutor: 2. 调用跟_plan的get_next\n每个ExecNode调用孩子的get_next实现
-    PlanFragmentExecutor -> DataSink:send
-    note left of DataSink: 取到数据
-    deactivate PlanFragmentExecutor
+    note over of PlanFragmentExecutor: 2. 递归调用get_next\n从根_plan的get_next\n每个ExecNode调用孩子的get_next实现
+    alt !eos || block.rows() > 0
+        PlanFragmentExecutor -> DataSink:send
+        note over of DataSink: send数据
+    end
+    end loop
+    PlanFragmentExecutor -> DataSink:close
 end group
+deactivate PlanFragmentExecutor
+deactivate PlanFragmentExecutor
+PlanFragmentExecutor --> FragmentExecState
 @enduml
 ```
 
@@ -127,17 +136,40 @@ end group
 ```plantuml
 @startuml
 PlanFragmentExecutor -> ExecNode:get_next_after_projects
+note over of ExecNode : 从根节点(_plan)递归地调用
 group ExecNode::get_next_after_projects
-alt _output_row_descriptor
+alt _output_row_descriptor不为空
     ExecNode -> ExecNode:get_next
+    note over of ExecNode : 递归执行get_next
+
     ExecNode -> ExecNode:do_projections
 else
-ExecNode -> ExecNode:get_next
+    ExecNode -> ExecNode:get_next
+end
 end group
+ExecNode --> PlanFragmentExecutor
 @enduml
 ```
 
 ```C++
+Status PlanFragmentExecutor::get_vectorized_internal(
+        doris::vectorized::Block* block, bool* eos) {
+    while (!_done) {
+        block->clear_column_data(_plan->row_desc().num_materialized_slots());
+        RETURN_IF_ERROR(_plan->get_next_after_projects(
+                _runtime_state.get(), block, &_done,
+                std::bind((Status(ExecNode::*)(RuntimeState*, vectorized::Block*, bool*)) &
+                        ExecNode::get_next, _plan, std::placeholders::_1,
+                        std::placeholders::_2, std::placeholders::_3)));
+
+        if (block->rows() > 0) {
+            break;
+        }
+    }
+    *eos = _done;
+    return Status::OK();
+}
+
 Status ExecNode::get_next_after_projects(
         RuntimeState* state, vectorized::Block* block, bool* eos,
         const std::function<Status(RuntimeState*, vectorized::Block*, bool*)>& func,
