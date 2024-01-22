@@ -12,9 +12,9 @@ FragmentMgr -> PipelineFragmentContext:new
 FragmentMgr -[#FF9F33]> PipelineFragmentContext:prepare
 activate PipelineFragmentContext #FF9F33
 PipelineFragmentContext -> ExecNode:create_tree
-note left of ExecNode #FF5733 : 1. 创建物理执行树\n含ExecNode的init
+note over of ExecNode #FF5733 : 1. 创建物理执行树\n含ExecNode的init
 PipelineFragmentContext -> ExecNode:prepare
-note left of ExecNode #FF5733 : 2. 从根节点(_root_plan)递归地prepare
+note over of ExecNode #FF5733 : 2. 从根节点(_root_plan)递归地prepare
 
 alt request.fragment.__isset.output_sink
     PipelineFragmentContext -[#4D81F2]> DataSink :create_data_sink
@@ -44,7 +44,14 @@ activate PipelineFragmentContext #FF9F33
 PipelineFragmentContext -> TaskScheduler:schedule_task
 note left of TaskScheduler #DAF7A6 : (3) PipelineTask提交到调度器
 TaskScheduler -> PipelineTask:execute
-note left of PipelineTask #FF5733 : 3. 含Operator的open, get_block, close
+note over of PipelineTask #FF5733 : 3. 含ExecNode的open, get_block
+
+alt task_state = PipelineTaskState::PENDING_FINISH
+TaskScheduler -> TaskScheduler:_try_close_task
+
+TaskScheduler -> PipelineTask : close
+note over of PipelineTask #FF5733 : 4. ExecNode的close
+end
 PipelineFragmentContext --> FragmentMgr
 deactivate PipelineFragmentContext
 @enduml
@@ -72,7 +79,7 @@ Status PipelineFragmentContext::prepare(
     auto* desc_tbl = _query_ctx->desc_tbl;
     _runtime_state->set_desc_tbl(desc_tbl);
 
-    // 2. 创建用于构建Pipeline的ExecNode
+    // 2. 创建用于构建Pipeline的ExecNode并执行init
     RETURN_IF_ERROR_OR_CATCH_EXCEPTION(ExecNode::create_tree(
             _runtime_state.get(), _runtime_state->obj_pool(),
             request.fragment.plan, *desc_tbl, &_root_plan));
@@ -87,7 +94,7 @@ Status PipelineFragmentContext::prepare(
         static_cast<vectorized::VExchangeNode*>(exch_node)->set_num_senders(num_senders);
     }
 
-    // 4. 调用Exec Tree所有prepare
+    // 4. 递归执行ExecNode的prepare
     RETURN_IF_ERROR(_root_plan->prepare(_runtime_state.get()));
     
     // 5. 收集ScanNode并设置scan ranges
@@ -120,7 +127,7 @@ Status PipelineFragmentContext::prepare(
     _runtime_state->set_per_fragment_instance_idx(local_params.sender_id);
     _runtime_state->set_num_per_fragment_instances(request.num_senders);
 
-    // 6. 创建DataSink并执行Sink的init和prepare
+    // 6. 创建DataSink并执行init和prepare
     if (request.fragment.__isset.output_sink) {
         RETURN_IF_ERROR_OR_CATCH_EXCEPTION(DataSink::create_data_sink(
                 _runtime_state->obj_pool(), request.fragment.output_sink,
@@ -134,8 +141,9 @@ Status PipelineFragmentContext::prepare(
     // 7.1 根据_root_plan生成_root_pipeline
     _root_pipeline = fragment_context->add_pipeline();
     RETURN_IF_ERROR(_build_pipelines(_root_plan, _root_pipeline));
+
     if (_sink) {
-        // 7.2 生成sink,并为_root_plan设置sink node
+        // 7.2 生成DataSinkOperator,并将其设置为_root_pipeline的sink
         RETURN_IF_ERROR(_create_sink(request.local_params[idx].sender_id,
                 request.fragment.output_sink, _runtime_state.get()));
     }
@@ -225,6 +233,10 @@ class ExecNode {
     + virtual Status sink(doris::RuntimeState* state,vectorized::Block* input_block, bool eos)
     + virtual Status pull(doris::RuntimeState* state, vectorized::Block* output_block, bool* eos)
 }
+
+AggregationNode -up-|> ExecNode
+HashJoinNode -up-|> VJoinNodeBase
+VJoinNodeBase -up-|> ExecNode
 @enduml
 ```
 
@@ -323,19 +335,27 @@ class OperatorBuilder {
 interface ExecNode {
     + const RowDescriptor& row_desc() const
 
-    + Status get_next_after_projects(RuntimeState* state,\n\tvectorized::Block* block, bool* eos,\n\tconst std::function<Status(RuntimeState*, \n\tvectorized::Block*, bool*)>& fn, bool clear_data = true)
+    + Status get_next_after_projects(\n\tRuntimeState* state,vectorized::Block* block, \n\tbool* eos, const std::function<Status(\n\tRuntimeState*, vectorized::Block*, bool*)>& fn, \n\tbool clear_data = true)
+}
+
+class DataSink {
+    + Status send(RuntimeState* state,\n\tvectorized::Block* block,\n\tbool eos = false)
 }
 
 OperatorBuilder -up-o Pipeline : add_operator添加元素到_operator_builders\nbuild_operators接口生成Operator\n并添加到_operators
 OperatorBase -left-> OperatorBuilder : build_operators()\n生成Operator
 
-OperatorBuilder -down-|> OperatorBuilderBase
-ExecNode -up-o OperatorBuilder
+OperatorBuilder -left-|> OperatorBuilderBase
+ExecNode -up-o OperatorBuilder : NodeType是ExecNode或DataSink的一种
+DataSink -up-o OperatorBuilder
+
+DataSinkOperator -up-|> OperatorBase
+StreamingOperator -up-|> OperatorBase
 @enduml
 ```
 
 
-`PipelineFragmentContext::_build_pipelines`实现Pipeline的拆解以及`HASH_JOIN_NODE`存在依赖的算子的Pipeline的生成。
+`PipelineFragmentContext::_build_pipelines`实现Pipeline的拆解以及`HASH JOIN`和`CROSS JOIN`存在依赖的算子的Pipeline的生成。例如：
 ```C++
 Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur_pipe) {
     auto node_type = node->type();
@@ -352,7 +372,7 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
 ```
 
 ### 阻塞算子的Pipeline拆解
-`PipelineFragmentContext::_build_pipelines`实现Pipeline的拆解。窗口，Sort，Join Build，Agg，Scan，Exchange会将他们拆解成Sink和Source0，达到阻塞逻辑和Pipeline隔离。例如Hash Join
+`PipelineFragmentContext::_build_pipelines`实现Pipeline的拆解。窗口，Sort，Join Build，Agg，Scan，Exchange会将它们拆解成Sink和Source，达到阻塞逻辑和Pipeline隔离。例如Hash Join
 ```C++
 // 存在依赖的算子
 case TPlanNodeType::HASH_JOIN_NODE: {
@@ -386,6 +406,11 @@ case TPlanNodeType::HASH_JOIN_NODE: {
     break;
 }
 ```
+<center>
+    <img src="./img/HashJoin-Pipeline.png">
+    <div>Hash Join Pipeline表示</div>
+</center>
+
 例如，窗口
 ```C++
 case TPlanNodeType::ANALYTIC_EVAL_NODE: {
@@ -436,9 +461,10 @@ case TPlanNodeType::UNION_NODE: {
     break;
 }
 ```
+
 ```C++
-// 集合运算
-// open阶段hash_table_build拉取数据
+// intersect，except 集合运算
+// open阶段hash_table_build拉取child[0]数据构建hash表
 case TPlanNodeType::INTERSECT_NODE: {
     RETURN_IF_ERROR(_build_operators_for_set_operation_node<true>(node, cur_pipe));
     break;
@@ -531,7 +557,7 @@ note right : SinkType派生自DataSink
 class StatefulOperator {
     + Status get_block(RuntimeState* state, \n\tvectorized::Block* block,\n\tSourceState& source_state)
 }
-note bottom of StatefulOperator: 自定义实现了get_block\n一行可以匹配产生多行输出的计算\n算子内部实现(!need_more_input_data())\n例如，hash join probe operator
+note bottom of StatefulOperator: 自定义实现了get_block\n一行可以匹配产生多行输出的计算\n算子内部实现(!need_more_input_data())\n例如，hash join probe operator\nVRepeatNode等
 class StreamingOperator {
     # NodeType* _node
     # bool _use_projection
