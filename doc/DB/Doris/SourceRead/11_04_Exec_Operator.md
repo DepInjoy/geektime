@@ -30,7 +30,8 @@ Status ExecNode::create_node(RuntimeState* state, ObjectPool* pool,
             ......
     // 生成ExecNode
     case TPlanNodeType::ASSERT_NUM_ROWS_NODE:
-        *node = pool->add(new vectorized::VAssertNumRowsNode(pool, tnode, descs));
+        *node = pool->add(new vectorized::VAssertNumRowsNode(
+            pool, tnode, descs));
         return Status::OK();
             ....
 }
@@ -51,12 +52,38 @@ Status PipelineFragmentContext::_build_pipelines(ExecNode* node, PipelinePtr cur
             .......
 }
 ```
+
 ```plantuml
 @startuml
-VAssertNumRowsNode -up-o AssertNumRowsOperator
+class VAssertNumRowsNode {
+    - int64_t _desired_num_rows
+    - const std::string _subquery_string
+    - TAssertion::type _assertion
+    + Status pull(RuntimeState* state,\n\tvectorized::Block* output_block, bool* eos)
+}
+
+class AssertNumRowsOperatorBuilder {
+    + OperatorPtr build_operator()
+}
+
+class AssertNumRowsOperator {
+
+}
+note right: 是一种StreamingOperator\n其中，StreamingNodeType是VAssertNumRowsNode
+
+class StreamingOperator {
+    # StreamingNodeType* _node
+    # bool _use_projection
+    + Status get_block(RuntimeState* state, vectorized::Block* block,\n\tSourceState& source_state)
+}
+note bottom : 定义了get_block接口实现从_node的pull接口拉取数据
+
+AssertNumRowsOperator -down-|> StreamingOperator : 继承
+VAssertNumRowsNode -right-o AssertNumRowsOperator
+
+AssertNumRowsOperatorBuilder -down-> AssertNumRowsOperator : PipelineFragmentContext::_build_pipeline_tasks生成Operator
 @enduml
 ```
-
 `AssertNumRowsOperatorBuilder`是`StreamingOperator`的一种，通过`VAssertNumRowsNode::pull`来获取`Block`。
 ```C++
 VAssertNumRowsNode::VAssertNumRowsNode(ObjectPool* pool,
@@ -87,6 +114,15 @@ Status VAssertNumRowsNode::pull(doris::RuntimeState* state, vectorized::Block* b
         return Status::Cancelled(......);
     }
     return Status::OK();
+}
+
+Status VAssertNumRowsNode::get_next(RuntimeState* state, Block* block, bool* eos) {
+    RETURN_IF_ERROR(child(0)->get_next_after_projects(
+            state, block, eos,std::bind((Status(ExecNode::*)
+            (RuntimeState*, vectorized::Block*, bool*)) &ExecNode::get_next,
+                _children[0], std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3)));
+    return pull(state, block, eos);
 }
 ```
 

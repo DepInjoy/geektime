@@ -1,3 +1,11 @@
+基于Doris 2.0分支调研，该版本的Pipeline是mix-pull push方式实现的，主要解决：
+1. 阻塞操作的Pipeline拆解(实现阻塞操作的异步化)
+阻塞的逻辑被拆分为不同的Pipeline进行调度，而阻塞逻辑之间的pipeline通过数据进行驱动。解决了pull模型上，阻塞算子占据线程资源，同时线程切换带来的额外开销。同时不同的Pipeline之间能够实现并发计算，相同Pipeline之间也能实现并发计算。
+
+2. PipeLine的资源管理(混合场景下CPU争抢)
+pipeline调度之后，线程资源 -> pipeline -> 查询。可以通过不同查询的资源占有量，公平的调度不同查询。让混合负载的查询能合理的进行线程资源的共享，过分占用线程资源的pipeline需要主动释放线程资源。
+
+---
 
 Pipeline调用的入口
 ```C++
@@ -475,8 +483,8 @@ case TPlanNodeType::EXCEPT_NODE: {
 }
 
 template <bool is_intersect>
-Status PipelineFragmentContext::_build_operators_for_set_operation_node(ExecNode* node,
-                                                                        PipelinePtr cur_pipe) {
+Status PipelineFragmentContext::_build_operators_for_set_operation_node(
+        ExecNode* node, PipelinePtr cur_pipe) {
     auto build_pipeline = add_pipeline();
     // 1. 0号孩子是一条Pipeline(build_pipeline)
     RETURN_IF_ERROR(_build_pipelines(node->child(0), build_pipeline));
@@ -499,6 +507,10 @@ Status PipelineFragmentContext::_build_operators_for_set_operation_node(ExecNode
     return cur_pipe->add_operator(source_builder);
 }
 ```
+<center>
+    <img src="./img/Intersect-Pipeline.png">
+    <div>Intersect Pipeline</div>
+</center>
 
 ## 生成Operator
 
@@ -582,11 +594,12 @@ note bottom : 和DataSink一一对应\n并非所有的SinkOperators都继承自�
 interface OperatorBase {
     - OperatorBuilderBase* _operator_builder
     - OperatorPtr _child
+    + Status set_child(OperatorPtr child)
     + virtual bool is_pending_finish()
     + Status open(RuntimeState* state) = 0
     + Status get_block(RuntimeState* state, vectorized::Block*\n\tblock, SourceState& source_state)
 }
-note left : get_block是执行\nPipelineTask的主要接口
+note left : 在build_operators时set_child\nget_block是执行\nPipelineTask的主要接口
 
 class EmptySourceOperator {
 
