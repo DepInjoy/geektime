@@ -75,5 +75,15 @@ cd large-repository
 git fetch --unshallow
 ```
 
+## RPC failed; result=18, HTTP code = 2008 MiB | 2.73 MiB/s
+在`git submodule update`多次报上述错误
+```
+git config http.postBuffer 24288000
+```
+在StackOverflow[2]中找到如下的解决方法：
+```
+```
+
 ## 参考资料
 1. [StackOverflow:RPC failed; curl transfer closed with outstanding read data remaining](https://stackoverflow.com/questions/38618885/error-rpc-failed-curl-transfer-closed-with-outstanding-read-data-remaining)
+2. [git bash: error: RPC failed; result = 18, HTP code = 200B | 1KiB/s](https://stackoverflow.com/questions/17683295/git-bash-error-rpc-failed-result-18-htp-code-200b-1kib-s)

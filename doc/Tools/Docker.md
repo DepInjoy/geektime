@@ -3,6 +3,7 @@
 ```shell
 docker ps
 docker container ps
+docker container list
 ```
 常用参数
 ```
