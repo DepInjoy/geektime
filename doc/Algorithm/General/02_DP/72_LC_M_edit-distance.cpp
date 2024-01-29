@@ -3,9 +3,21 @@
  * https://leetcode.cn/problems/edit-distance/
  * 
  * 状态表示dp[i][j]
- *      将word1[0-i]转换成 word2[0-j]所使用的最少操作数
+ *  - 将word1[1-i]转换成 word2[1-j]所使用的操作数
+ *  - 属性计算：min
  * 
- * dp[i-1][j] + 1 : 将i删除，那么问题变换为将
+ *  -------------------------------------------------------------------
+ *  |   删除word[i]    |     word1[i]插入   |   word[i]替换为word[j]    |
+ *  |       sub1       |        sub2       |           sub3            |
+ *  -------------------------------------------------------------------
+ *   
+ *  sub1 : dp[i-1][j] + 1
+ *  sub2 : dp[i][j-1] + 1
+ *  sub3 : dp[i-1][j-1] + (word1[i] == word2[j] ? 0 : 1)
+ * 
+ * 状态初始化
+ *      dp[i][0] = i, 将a[1~i]删除i次变成b[0]
+ *      dp[0][j] = j, 插入i次从a[0]变成b[1~j]
 */
 
 int minDistance(string word1, string word2) {
