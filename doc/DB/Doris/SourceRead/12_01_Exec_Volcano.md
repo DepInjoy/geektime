@@ -135,6 +135,7 @@ PlanFragmentExecutor --> FragmentExecState
 对于`PlanFragmentExecutor::get_vectorized_internal`
 ```plantuml
 @startuml
+loop !_done
 PlanFragmentExecutor -> ExecNode:get_next_after_projects
 note over of ExecNode : 从根节点(_plan)递归地调用
 group ExecNode::get_next_after_projects
@@ -147,6 +148,7 @@ else
     ExecNode -> ExecNode:get_next
 end
 end group
+end
 ExecNode --> PlanFragmentExecutor
 @enduml
 ```
