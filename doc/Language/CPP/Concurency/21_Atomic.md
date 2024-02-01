@@ -25,3 +25,51 @@ C++中所有与多线程相关的事项都会牵涉内存区域。如果两个�
 - <b><font color=#FFC300>利用原子操作的同步性质</font></b>，在目标内存区域(或相关内存区域)采取原子操作，强制两个线程遵从一定的访问次序。
 
 
+# 原子操作及其类别
+
+```C++
+// 原子操作有两种实现方式
+//      1. 采用互斥保护借助编译器和程序库的内部所实现
+//      2. 原子指令直接实现
+// 实现检查原子变量是否是采取原子指令实现(返回true)
+bool is_lock_free()
+ 
+void store( T desired, std::memory_order order = std::memory_order_seq_cst ) noexcept;
+void store( T desired, std::memory_order order = std::memory_order_seq_cst ) volatile noexcept;
+
+T load( std::memory_order order = std::memory_order_seq_cst ) const noexcept;
+T load( std::memory_order order = std::memory_order_seq_cst ) const volatile noexcept;
+ 
+ 
+T exchange(T desired, std::memory_order order = std::memory_order_seq_cst ) noexcept;
+T exchange(T desired, std::memory_order order = std::memory_order_seq_cst ) volatile noexcept;
+
+bool compare_exchange_weak( T& expected, T desired, std::memory_order success,
+                            std::memory_order failure ) noexcept;
+bool compare_exchange_strong( T& expected, T desired, std::memory_order success,
+                              std::memory_order failure ) noexcept;
+
+ 
+T fetch_and(T arg, std::memory_order order = std::memory_order_seq_cst ) noexcept;
+T fetch_and(T arg, std::memory_order order = std::memory_order_seq_cst ) volatile noexcept;
+
+T fetch_or( T arg, std::memory_order order = std::memory_order_seq_cst ) noexcept;
+T fetch_or( T arg, std::memory_order order = std::memory_order_seq_cst ) volatile noexcept;
+```
+
+
+
+对于原子类型上的每一种操作，都可以提供额外的参数，从枚举类`std::memory_order`取值，用于设定所需的内存次序语义（memory-ordering semantics）。操作的类别决定了内存次序所准许的取值，则默认采用最严格的内存次序，即`std::memory_order_seq_cst`。枚举类`std::memory_order`具有6个可能的值，包括
+
+1. `std::memory_order_relaxed`
+2. `std::memory_order_release`
+3. `std::memory_order_seq_cst`
+4. `std:: memory_order_acquire`
+5. `std::memory_order_consume`
+6. `std::memory_order_acq_rel`
+
+内存次序根据操作类别被划分为3类：
+
+1. 存储(`store`)操作，可选用的内存次序有`std::memory_order_relaxed`、`std::memory_order_release`或`std::memory_order_seq_cst`。
+2. 载入(`load`)操作，可选用的内存次序有`std::memory_order_relaxed`、`std::memory_order_consume`、`std::memory_order_acquire`或`std::memory_order_seq_cst`。
+3. 读-改-写(`read-modify-write`)操作，可选用内存次序`std::memory_order_relaxed``std::memory_order_consume`、`std::memory_order_acquire`、``std::memory_order_release`、`std::memory_order_acq_rel`或`std::memory_order_seq_cst`。
