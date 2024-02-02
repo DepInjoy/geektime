@@ -33,7 +33,7 @@ deactivate PipelineXFragmentContext
 FragmentMgr -[#FF9F33]> PipelineXFragmentContext:submit
 activate PipelineXFragmentContext #FF9F33
 PipelineXFragmentContext -> TaskScheduler:schedule_task\n[遍历_tasks]
-note left of TaskScheduler #FF5733 : 3. 含Operator的get_block_after_projects\n\tsink的open和sink
+note left of TaskScheduler #FF5733 : 3. 含Operator的get_block_after_projects\n\tsink的sink
 TaskScheduler --> PipelineXFragmentContext : Status
 alt status OK
     alt eos

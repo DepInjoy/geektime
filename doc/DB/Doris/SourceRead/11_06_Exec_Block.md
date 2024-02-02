@@ -1,8 +1,42 @@
+```C++
+using Container = ColumnsWithTypeAndName;
+using ColumnsWithTypeAndName = std::vector<ColumnWithTypeAndName>
+
+using IndexByName = phmap::flat_hash_map<String, size_t>;
+```
+
 ```plantuml
 @startuml
-interface IColumn {
-    + virtual int compare_at(size_t n, size_t m, const IColumn& rhs,\n\tint nan_direction_hint) const = 0
+class Block {
+    - Container data
+    - IndexByName index_by_name // Hash Map
+    - std::vector<bool> row_s
 }
+note left : Block对象的本质是由数据对象(Column), \n数据类型(DataType)和列名称(列名称字符串)\n组成的三元组(ColumnWithTypeAndName)\n\nIndexByName是Hash Map可以根据列名寻找列index
+
+struct ColumnWithTypeAndName {
+    + ColumnPtr column
+    + DataTypePtr type
+    + String name
+}
+
+interface IColumn {
+    + virtual int compare_at(size_t n, size_t m,\n\tconst IColumn& rhs,\n\tint nan_direction_hint) const = 0
+}
+
+interface IDataType {
+    + MutableColumnPtr create_column() const = 0
+}
+
+ColumnWithTypeAndName -up-o Block
+IColumn -up-o ColumnWithTypeAndName
+IDataType -up-o ColumnWithTypeAndName
+@enduml
+```
+
+```plantuml
+@startuml
+
 @enduml
 ```
 
