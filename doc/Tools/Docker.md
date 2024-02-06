@@ -18,3 +18,14 @@ docker container list
 # 从容器copy文件到本地
 sudo docker cp <docker_name>:<docker_abs_path> <local_path>
 ```
+
+根据docker name删除docker
+```shell
+docker remove <docker-name>
+```
+
+# 启动容器
+```shell
+# 以bash交互方式启动容器
+docker run -it <docker-name> /bin/bash
+```
