@@ -6,6 +6,17 @@ docker run -it --network=host --name doris-2.0 -v D:/project/docker/doris/.m2:/r
 git clone https://github.com/apache/doris.git -b branch-2.0
 ```
 
+2.1分支编译
+```shell
+# 拉取最新镜像
+docker pull apache/doris:build-env-ldb-toolchain-latest
+
+# 
+docker run -it --network=host --name doris-2.1 -v D:/project/build/doris/.m2:/root/.m2 -v D:/project/build/doris/.npm:/root/.npm -v D:/project/build/doris/doris-2.1/:/root/doris-2.1/ apache/doris:build-env-ldb-toolchain-latest
+
+
+```
+
 # 部署
 ## fe部署
 ```shell
@@ -65,6 +76,26 @@ show backends;
 ALTER SYSTEM DECOMMISSION BACKEND
     "host:heartbeat_port"[,"host:heartbeat_port"...];
 ```
+
+## 查询分析
+
+```sql
+# 打开FE的Report
+set enable_profile=true; 
+```
+之后执行对应的SQL语句之后，在FE的Web页面就可以看到对应SQL语句执行的Report信息
+
+# SQL查询
+
+## 账户管理
+
+设置用户的属性，包括分配给用户的资源、导入cluster等
+```sql
+SET PROPERTY [FOR 'user'] 'key' = 'value' [, 'key' = 'value']
+```
+
+
+## 资源管理
 
 # 客户端连接
 ## Navicat显示乱码

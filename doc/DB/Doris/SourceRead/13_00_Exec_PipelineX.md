@@ -3,8 +3,9 @@
 FragmentMgr -> PipelineXFragmentContext:new
 FragmentMgr -[#FF9F33]> PipelineXFragmentContext:prepare
 activate PipelineXFragmentContext #FF9F33
+PipelineXFragmentContext -> RuntimeState:create_unique\n[创建Global Runtime State]
 PipelineXFragmentContext -> PipelineXFragmentContext:add_pipeline\n[root_pipeline]
-note right of PipelineXFragmentContext #DAF7A6 : 1. 创建root Pipeline
+note right of PipelineXFragmentContext #DAF7A6 : 1. 创建root Pipeline(root_pipeline)
 
 PipelineXFragmentContext -> PipelineXFragmentContext:_build_pipelines
 note right of PipelineXFragmentContext #DAF7A6 : 2. 自上而下创建Operator并构建Pipeline
