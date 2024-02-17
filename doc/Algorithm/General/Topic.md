@@ -9,6 +9,9 @@
 3. [416. 分割等和子集](https://leetcode.cn/problems/partition-equal-subset-sum/description/) [相关实现](02_DP/416_LC_M_partition-equal-subset-sum.cpp)01背包问题
 4. [518. 零钱兑换 II](https://leetcode.cn/problems/coin-change-ii/description/) [相关实现](02_DP/518_LC_M_coin-change-ii.cpp) 完全背包(组合数问题)
 
+5. [72. 编辑距离](https://leetcode.cn/problems/edit-distance/) [相关实现](02_DP\72_LC_M_edit-distance.cpp) 线性DP
+6. [377. 组合总和 Ⅳ](https://leetcode.cn/problems/combination-sum-iv/description/) [相关实现]()     动态规划
+
 
 # 堆
 1. [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  堆/快排+ Hash表
@@ -39,6 +42,17 @@
 1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp) 二分/位运算/快慢指针
 
 # Floyd 判圈算法(龟兔赛跑)
+> <center>
+>    <img src=https://pic4.zhimg.com/80/v2-0aedc55f3251cc12a4e6f2d2d9a4dc03_1440w.webp>
+> </center>
+>
+> - 判断是否有环。定义两个指针p1与p2，起始时，都指向链表的起点A，p1每次移动1个长度，p2每次移动2个长度。如果p2在移到链表的尾端时，并未与p1相遇，表明链表中不存在环。如果p1与p2相遇在环上的某一点C，表明链表有环。
+>
+>- 环的长度。将指针p1固定在相遇位置C，移动p2，每次移动1个长度，并用变量cnt计数。当p2再次与p1相遇时，此时cnt的值就是环的长度。
+>- 环的起点。即图中点B，将指针p1指向链表的起始位置A，指针p2仍在位置C，指针p1与p2每次均移动一个单位，p1与p2再次相遇的位置就是环的起点位置点B。
+> 
+> 参考资料：[知乎-弗洛伊德的兔子与乌龟](https://zhuanlan.zhihu.com/p/105269431)
+
 1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) 二分/位运算/快慢指针 [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp)
 2. [141. 环形链表](https://leetcode.cn/problems/linked-list-cycle/description/) [相关实现](05_Floyd/141_LC_E_linked-list-cycle.cpp) 快慢指针
 
