@@ -1,6 +1,13 @@
 [SQLsmith:随机SQL query生成器](https://github.com/anse1/sqlsmith/tree/master?tab=readme-ov-file)程序的入口在`sqlsmith.cc`
+
 ```C++
 int main(int argc, char *argv[]) {
+    // 生成schema类,读取目标数据库中的各种元数据(metadata)
+    shared_ptr<schema> schema;
+    schema = make_shared<...>(...)
+    scope scope;
+    schema->fill_scope(scope);
+
     // 格式化输出和统计
     vector<shared_ptr<logger> > loggers;
     loggers.push_back(make_shared<impedance_feedback>());
@@ -22,11 +29,86 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+主要结构类图
+```plantuml
+@startuml
+struct scope {
+    + struct scope *parent;
+  /// available to table_ref productions
+    + vector<named_relation*> tables;
+ /// available to column_ref productions
+    + vector<named_relation*> refs;
+    + struct schema *schema;
+  /// Counters for prefixed stmt-unique identifiers
+  + shared_ptr<map<string,unsigned int> > stmt_seq
+}
+
+struct schema {
+    + std::vector<sqltype *> types;
+
+    + std::vector<table> tables;
+    + std::vector<op> operators;
+    + std::vector<routine> routines;
+    + std::vector<routine> aggregates;
+
+    + virtual std::string quote_name(const std::string &id) = 0
+    + void fill_scope(struct scope &s)
+}
+
+struct table {
+    + string schema;
+    + bool is_insertable;
+    + bool is_base_table;
+    + vector<string> constraints
+}
+note right: 包含约束(constraints)和列(column)
+
+struct relation {
+    + vector<column> cols
+    + virtual vector<column> &columns()
+}
+
+struct named_relation {
+    + string name;
+    + virtual string ident()
+}
+
+struct column {
+    + string name
+    + sqltype *type
+}
+
+struct sqltype {
+    + string name
+    + static map<string, struct sqltype*> typemap
+    + static struct sqltype *get(string s)
+}
+
+struct routine {
+    + string specific_name;
+    + string schema;
+    + vector<sqltype *> argtypes;
+    + sqltype *restype;
+    + string name
+}
+
+sqltype -o column
+column -up-o relation
+table -down-|> named_relation
+named_relation -right-|> relation
+routine -up-o schema
+table -left-o schema
+schema -up-o scope
+@enduml
+```
+
+
 SQLsmith大致包含三大模块：
 1. 抽象语法树(AST)生成器
 2. 格式化输出和统计工具
 3. 目标数据库连接器
 其工作流程就是依次调用这三个模块：首先由AST生成器产生随机的query AST，然后由格式化工具将其转化为SQL字符串，最后由数据库连接器将该SQL字符串在目标数据库上执行。
+
 
 # AST生成器
 
@@ -354,18 +436,6 @@ query_dumper -down-|> logger
 impedance_feedback -down-|> logger
 ast_logger -down-|> logger
 @enduml
-```
-
-```
-struct impedance_visitor {
-    + std::map<const char*, long> &_occured
-    + std::map<const char*, bool> found
-    + void visit(struct prod *p)
-}
-
-impedance_visitor -down-|> prod_visitor
-impedance_feedback -left--> impedance_visitor
- : visit过的AST(name)记录在found中\n析构时将found中的AST转存到_occured\n(executed和error接口传引用)
 ```
 
 # 目标数据库连接器
