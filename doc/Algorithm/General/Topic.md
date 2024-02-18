@@ -41,7 +41,7 @@
 # 二分
 1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp) 二分/位运算/快慢指针
 
-# Floyd 判圈算法(龟兔赛跑)
+# Floyd判圈算法(龟兔赛跑)
 > <center>
 >    <img src=https://pic4.zhimg.com/80/v2-0aedc55f3251cc12a4e6f2d2d9a4dc03_1440w.webp>
 > </center>
@@ -55,6 +55,8 @@
 
 1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) 二分/位运算/快慢指针 [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp)
 2. [141. 环形链表](https://leetcode.cn/problems/linked-list-cycle/description/) [相关实现](05_Floyd/141_LC_E_linked-list-cycle.cpp) 快慢指针
+3. [142. 环形链表 II](https://leetcode.cn/problems/linked-list-cycle-ii/description/) [相关实现](05_Floyd/142_LC_M_linked-list-cycle-ii.cpp) 快慢指针
+
 
 # 链表
 1. [206. 反转链表](https://leetcode.cn/problems/reverse-linked-list/description/) [相关实现](00_LinkedList/206_LC_E_ReverseLinkedList.cpp) 单链表 + 迭代
