@@ -8,7 +8,7 @@ PipelineXFragmentContext -> PipelineXFragmentContext:add_pipeline\n[root_pipelin
 note right of PipelineXFragmentContext #DAF7A6 : 1. 创建root Pipeline(root_pipeline)
 
 PipelineXFragmentContext -> PipelineXFragmentContext:_build_pipelines
-note right of PipelineXFragmentContext #DAF7A6 : 2. 自上而下创建Operator并构建Pipeline
+note right of PipelineXFragmentContext #DAF7A6 : 2. 自上而下(先序遍历)创建Operator并构建Pipeline
 note over of PipelineXFragmentContext #FF5733 : 1. Operator的init(_create_tree_helper)
 
 PipelineXFragmentContext -> PipelineXFragmentContext:_create_data_sink
@@ -49,6 +49,52 @@ PipelineXFragmentContext -[#FF9F33]-> FragmentMgr
 deactivate PipelineXFragmentContext
 @enduml
 ```
+
+```plantuml
+@startuml
+class PipelineXFragmentContext {
+    - std::map<PipelineId, std::vector<PipelineId>> 
+    - struct pipeline_parent_map _pipeline_parent_map
+    - - std::vector<std::vector<std::unique_ptr<PipelineXTask>>> _tasks
+}
+note top :  _dag通过PipelineId来管理Pipeline依赖\n_tasks是一个n*m的矩阵，在_build_pipeline_tasks中填充数据\n
+
+class PipelineFragmentContext {
+    - Pipelines _pipelines
+}
+
+struct pipeline_parent_map {
+    + std::map<int, std::vector<PipelinePtr>> _build_side_pipelines
+    + void push(int parent_node_id, PipelinePtr pipeline)
+    + void pop(PipelinePtr& cur_pipe, int parent_node_id, int child_idx)
+    + void clear()
+}
+
+class Pipeline {
+    + Status add_operator(OperatorXPtr& op)
+    + Status set_sink(DataSinkOperatorXPtr& sink)
+    + 
+
+    + void add_dependency(std::shared_ptr<Pipeline>& pipeline)
+    + void finish_one_dependency(int dep_opr, int dependency_core_id)
+    + bool has_dependency()
+
+    + Status prepare(RuntimeState* state)
+    + 
+
+    - OperatorXs operatorXs
+    - DataSinkOperatorXPtr _sink_x
+
+    - std::vector<std::pair<int, std::weak_ptr<Pipeline>>> _parents
+    - std::vector<std::pair<int, std::shared_ptr<Pipeline>>> _dependencies
+}
+
+PipelineXFragmentContext -down-|> PipelineFragmentContext
+pipeline_parent_map -left-* PipelineXFragmentContext
+Pipeline -up-o PipelineFragmentContext
+@enduml
+```
+
 
 ```plantuml
 @startuml
