@@ -5,7 +5,6 @@ SQLsmith定义了一些数据结构来表达AST并提供了接口将其转换成
     <div>SQLsmith git仓库AST示例，链接地址：https://github.com/anse1/sqlsmith/blob/master/ast.png</div>
 </center>
 <br/>
-<br/>
 
 其中`query_spec`是SELECT的语句的AST,其`out`接口将其逆转换成SQL字符串
 ```C++
@@ -23,7 +22,6 @@ void query_spec::out(std::ostream &out) {
     }
 }
 ```
-
 ---
 [SQLsmith:随机SQL query生成器](https://github.com/anse1/sqlsmith/tree/master?tab=readme-ov-file)程序的入口在`sqlsmith.cc`
 
