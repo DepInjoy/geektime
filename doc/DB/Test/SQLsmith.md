@@ -1,3 +1,30 @@
+SQLsmith定义了一些数据结构来表达AST并提供了接口将其转换成SQL字符串，从某种意义上来说，是数据库内核Parser解析的逆操作。这个得到的SQL字符串发送给数据库执行，如果执行成功则忽略，如果执行报错可以进行一些记录和统计工作。
+
+<center>
+    <img src=./img/sqlsmith-eg-ast.png />
+    <div>SQLsmith git仓库AST示例，链接地址：https://github.com/anse1/sqlsmith/blob/master/ast.png</div>
+</center>
+<br/>
+<br/>
+
+其中`query_spec`是SELECT的语句的AST,其`out`接口将其逆转换成SQL字符串
+```C++
+void query_spec::out(std::ostream &out) {
+    out << "select " << set_quantifier << " "
+        << *select_list;
+    indent(out);
+    out << *from_clause;
+    indent(out);
+    out << "where ";
+    out << *search;
+    if (limit_clause.length()) {
+        indent(out);
+        out << limit_clause;
+    }
+}
+```
+
+---
 [SQLsmith:随机SQL query生成器](https://github.com/anse1/sqlsmith/tree/master?tab=readme-ov-file)程序的入口在`sqlsmith.cc`
 
 ```C++
