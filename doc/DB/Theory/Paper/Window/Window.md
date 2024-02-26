@@ -30,6 +30,15 @@ frame_end可以是下面其一:
 ```
 `PARTITION BY`在横向上对表进行分组，`ORDER BY`决定了纵向排序的规则，表明分区中的行如何排序，分区中`ORDER BY`相等的行被认为是对等(peers)的，如果没有`ORDER BY`则分区行是无序的，没有隐式的处理顺序，分区中的所有行是对等的。通过`PARTITION BY`分组后的记录集合称为窗口(代表范围)。可以不指定`PARTITION BY`，如果不指定`PARTITION BY`则表示将整个表作为一个大的窗口来计算
 
+> If PARTITION BY is omitted, there is a single partition consisting of all query rows.
+> 也就是说，如果不指定PARTITION BY，则所有查询行看作一个分区。
+> <br/>
+> If ORDER BY is omitted, partition rows are unordered, with no processing order implied, and all partition rows are peers.
+> 也就是说，如果不指定ORDER BY，则分区行无序，不隐式处理顺序，并且所有分区行都是对等的。
+> <br/>
+> 来自：https://dev.mysql.com/doc/refman/8.0/en/window-functions-usage.html
+
+
 `window_function`可能是：
 1. 排名函数，不可以指定frame(窗口范围)。
 
