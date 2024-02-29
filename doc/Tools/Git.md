@@ -54,6 +54,20 @@ git submodule update --init --recursive
 ## 参考资料
 1. [Git工具 - 子模块](https://git-scm.com/book/zh/v2/Git-%E5%B7%A5%E5%85%B7-%E5%AD%90%E6%A8%A1%E5%9D%97)
 
+# 日常查询定位
+## 查看某个文件某行的改动历史
+使用`git blame`和`git show`命令，查看一个文件，某些行的修改记录。相关步骤:
+1. 获取修改那几行代码的commitID;
+2. 根据commitID查看那个文件的该次改动的详细情况。
+
+```shell
+git blame -L m,n <file_path>
+git show commitID
+```
+### 参考资料
+1. [git查看某个文件某些行的改动](https://blog.csdn.net/zhezhebie/article/details/82378809)
+
+
 # Git报错处理
 
 ## RPC failed; curl 56 GnuTLS recv error (-54)
