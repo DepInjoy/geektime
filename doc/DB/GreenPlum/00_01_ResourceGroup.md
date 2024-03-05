@@ -38,7 +38,7 @@ CPU_RATE_LIMIT=integer | CPUSET=tuple
 | 属性                | 描述                                                         |      |
 | ------------------- | ------------------------------------------------------------ | ---- |
 | CONCURRENCY         | 资源组允许的最大并发数，包括活动的和空闲的事务，[0, MaxConnections(90)]。 |      |
-| MEMORY_LIMIT        | 资源组可以分配MEMORY_LIMIT比例的Segment节点内存，取值范围为[0, 100]，<br/> 当MEMORY_LIMIT为0时，GreenPlum将不给资源组分配内存资源，使用资源组全局共享内存来满足所有内存请求。<br/>GP集群中所有资源组指定的MEMORY_LIMIT参数和不得超过100。 |      |
+| MEMORY_LIMIT        | 当前资源组预留(reserve)的内存资源百分比，取值范围为[0, 100]<br/> 当MEMORY_LIMIT为0时，GreenPlum将不给资源组分配内存资源，使用资源组全局共享内存来满足内存请求。<br/>GP集群中所有资源组指定的MEMORY_LIMIT参数和不得超过100。 |      |
 | MEMORY_AUDITOR      | 内存审计方式。默认，资源组使用vmtracker，外部组件使用cgroup  |      |
 | MEMORY_SHARED_QUOTA | 资源组用于运行时事务之间共享的内存资源百分比<br/>将一个资源组内的内存分为两部分：组内各语句共享部分和每个语句独占的固定部分 |      |
 | MEMORY_SPILL_RATIO  | 内存密集型事务的内存使用阈值。当事务达到此阈值时，它将溢出到磁盘。<br/>GP的Spill支持两种模式:<br/>1. Percentage模式，MEMORY_SPILL_RATIO的值不为0<br/>2. Fallback模式，由GUC参数statement_mem决定 |      |
@@ -47,8 +47,57 @@ CPU_RATE_LIMIT=integer | CPUSET=tuple
 
 SET，RESET和SHOW命令不受资源限制。
 
+# 资源组管理思想
+资源组的内存管理是基于slot的方式进行管理的，在内存分配策略上采用了禁用OverCommit的方式，在内核上会配置
+- `vm.overcommit_memory = 2`，系统默认为0，修改`/etc/sysctl.conf`进行配置
+- `vm.overcommit_ratio`默认值为0.5
 
+资源组实现了细粒度地对内存和CPU的管理。
+
+## 内存管理
+GP基于全局共享内存和slot机制对限制内存
+> 启用资源组后，将在Greenplum数据库节点，段和资源组级别管理内存使用情况。
+>
+> 用户可以使用角色资源组在事务级别管理内存。gp_resource_group_memory_limit标识要分配给每个Greenplum数据库Segment主机上的资源组的系统内存资源的最大百分比，默认0.7(70%)。
+>
+> Greenplum数据库节点上可用的内存资源在节点上的每个Segment之间进一步平均分配。当基于资源组的资源管理处于活跃状态时，分配给段主机上每个段的内存量是Greenplum数据库可用的内存乘以gp_resource_group_memory_limit服务器配置参数，并除以主机上活跃Primary Segment的数量：
+>
+> rg_perseg_mem = ( (RAM * (vm.overcommit_ratio / 100) + SWAP) *  gp_resource_group_memory_limit) / num_active_primary_segments
+>
+>用户可以在创建资源组时指定MEMORY_LIMIT值来标识预留(reserve)用于资源管理的Segment内存的百分比。用户可以为资源组的MEMORY_LIMIT的取值范围是[0, 100]。
+>
+> 在Greenplum数据库群集中定义的所有资源组指定的MEMORY_LIMIT总和不得超过100。
+>
+> 参考资料：[GreenPlum Database Document : 用资源组进行工作负载管理](https://docs-cn.greenplum.org/v6/admin_guide/workload_mgmt_resgroups.html#topic8339777)
+
+## CPU资源管理
+
+GP提供了CPUSET和CPU_RATE_LIMIT两种资源组限制来标识CPU资源分配模式，配置资源组时只能选择其中一个限制，用户可以再运行时更改CPU资源的分配方式:
+### 按核心数分配CPU资源
+> 用户可以使用CPUSET属性标识要为资源组保留的CPU核心。用户指定的CPU核心必须在系统中可用，并且不能与为其他资源组保留的任何CPU核心重叠。将CPU核心分配给CPUSET组时，需要考虑以下事项：
+>- 使用CPUSET创建的资源组仅使用指定的核心。如果组中没有正在运行的查询，则保留的核心处于空闲状态，并且其他资源组中的查询无法使用这些核心。 需要考虑最小化CPUSET组的数量以避免浪费系统CPU资源。
+>
+> - 考虑将CPU核心0不分配：在以下情况下，CPU核心0用作回退机制：
+>     - admin_group和default_group至少需要一个CPU核心。 保留所有CPU内核后，Greenplum Database会将CPU内核0分配给这些默认组。 在这种情况下，用户为其分配CPU核心0的资源组与admin_group和default_group共享核心。
+>     - 如果通过一个节点替换重新启动Greenplum数据库集群，并且节点没有足够的内核来为所有CPUSET资源组提供服务，则会自动为这些组分配CPU核心0以避免系统启动失败。
+>- 尽可能将较小的核心编号分配给资源组。 如果替换Greenplum数据库节点并且新节点的CPU核心数比原始节点少，或者备份数据库并希望在具有较少CPU核心的节点的群集上做恢复，操作可能会失败。 例如，如果用户的Greenplum数据库群集有16个核心，则分配核心1-7是最佳选择。 如果创建资源组并分配CPU核心9，则数据库恢复到8核心的节点将失败。
+>
+> 为资源组配置CPUSET时，Greenplum数据库会禁用组的CPU_RATE_LIMIT并将值设置为-1。
+
+### 按百分比分配CPU资源
+> Greenplum节点CPU百分比在Greenplum节点上的每个Segment间平均分配。 使用CPU_RATE_LIMIT配置每个资源组保留用于资源管理的段CPU的指定百分比，其取值范围是[1, 100]。Greenplum数据库群集中定义的所有资源组指定的CPU_RATE_LIMIT的总和不得超过100。
+>
+> 按百分比分配核心(资源组指定CPU_RATE_LIMIT)，Segment主机上配置的所有资源组的最大CPU资源使用量是以下值中的最小值：
+> - 非保留CPU核心数除以所有CPU核心数乘以100，和
+> - gp_resource_group_cpu_limit值。
+>
+> 配置有CPU_RATE_LIMIT的资源组的CPU资源分配是弹性的，因为Greenplum数据库可以将空闲资源组的CPU资源分配给更繁忙的资源组。在这种情况下，当该资源组接下来变为活动时，CPU资源被重新分配给先前空闲的资源组。如果多个资源组繁忙，则根据其CPU_RATE_LIMIT的比率为它们分配任何空闲资源组的CPU资源。例如，使用CPU_RATE_LIMIT为40创建的资源组将分配两倍于使用CPU_RATE_LIMIT为20创建的资源组的额外CPU资源。
+>
+> 为资源组配置CPU_RATE_LIMIT时，禁用资源组的CPUSET并将值设置为-1。
+
+# 源码解读
 
 # 参考资料
 
 1. 《Greenplum:从大数据战略到实现》
+2. [GreenPlum Database Document : 用资源组进行工作负载管理](https://docs-cn.greenplum.org/v6/admin_guide/workload_mgmt_resgroups.html#topic8339777)
