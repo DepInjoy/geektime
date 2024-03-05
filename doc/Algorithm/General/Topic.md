@@ -12,6 +12,8 @@
 5. [72. 编辑距离](https://leetcode.cn/problems/edit-distance/) [相关实现](02_DP\72_LC_M_edit-distance.cpp) 线性DP
 6. [377. 组合总和 Ⅳ](https://leetcode.cn/problems/combination-sum-iv/description/) [相关实现]()     动态规划
 
+# 贪心
+1. [905. 区间选点](https://www.acwing.com/problem/content/description/907/) [相关实现](06_Greedy/950_ACW_M_interval-point-selection.cpp) 贪心
 
 # 堆
 1. [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  堆/快排+ Hash表
