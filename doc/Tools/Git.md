@@ -1,3 +1,8 @@
+
+```shell
+# 更新Git远程分支列表
+git remote update origin --prune
+```
 # Git Tag
 
 ```shell
