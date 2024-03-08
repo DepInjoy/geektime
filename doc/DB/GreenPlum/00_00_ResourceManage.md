@@ -14,7 +14,53 @@ Greenplum目前支持对内存和CPU两种资源进行管理，同时支持两�
 
 GP通过GUC配置参数决定资源管理方式
 
-| 配置参数                   | 描述                                                         |
-| -------------------------- | ------------------------------------------------------------ |
-| ResourceScheduler          | 是否使能资源调度方案，默认为false                            |
-| Gp_resource_manager_policy | 资源调度策略，支持资源队列和资源组，默认采用资源队列<br/>1. 资源队列，RESOURCE_MANAGER_POLICY_QUEUE<br/>2. 资源组，RESOURCE_MANAGER_POLICY_GROUP |
+| 配置参数                              | 描述                                                         | 默认值  |
+| ------------------------------------- | ------------------------------------------------------------ | ------- |
+| `resource_scheduler`                  | 是否使能资源调度方案，默认为true<br/><br/>`resource_manager.c`存在一个全局参数`bool ResourceScheduler `进行表示。 | `true`  |
+| `gp_resource_manager`                 | 采用的资源管理方案，支持资源队列和资源组，默认使用资源队列。可选项`queue`，`group`<br/><br/>`resource_manager.c`存在一个全局参数`Gp_resource_manager_policy`表示资源调度策略<br/>1. 资源队列，RESOURCE_MANAGER_POLICY_QUEUE<br/>2. 资源组，RESOURCE_MANAGER_POLICY_GROUP | `queue` |
+| `runaway_detector_activation_percent` | 百分比(整数)，仅在资源管理设置为资源队列时，才生效<br/>设置触发查询终止的Greenplum数据库vmem内存的百分比。<br/>如果用于Greenplum数据库segment的vmem内存百分比超过指定值， Greenplum数据库将根据内存使用情况，从占用最大内存量的查询开始终止查询。 | 90      |
+
+
+
+GP提供了一下几个参数来配置GP允许使用的CPU和内存的比例
+
+| 配置参数                                    | 描述                                                         | 默认值 |
+| ------------------------------------------- | ------------------------------------------------------------ | ------ |
+| `gp_resource_group_memory_limit`            | 分配给 Greenplum 数据库的系统内存百分比，默认70%。           | 0.7    |
+| `gp_resource_group_cpu_limit`               | 分配给每个Greenplum数据库Segment上的资源组的系统CPU资源的最大百分比。<br/>无论资源组CPU分配模式如何，此限制都将控制Segment主机上所有资源组的最大CPU使用率。<br/>剩余的未预留CPU资源用于OS内核和Greenplum数据库辅助守护进程 | 0.9    |
+| `gp_resource_group_cpu_priority`            | postgres进程的cpu优先级                                      | 10     |
+| `gp_resource_group_cpu_ceiling_enforcement` | 是否启用CPU上限限制                                          | false  |
+
+
+
+```C++
+// GUC配置参数
+// 是否使能资源调度方案(resource_scheduler)
+bool ResourceScheduler = false;
+// 采用的资源管理方案(gp_resource_manager)
+ResourceManagerPolicy Gp_resource_manager_policy;
+
+// 全局变量，变量值更改参见resource_manager.c的InitResManager
+bool ResGroupActivated = false;
+```
+
+# 初始化资源管理
+
+```C
+/**
+ * 初始化资源管理的shared memory
+ *     通过GUC配置参数决定资源调度方式
+ * 	   1. ResourceScheduler:是否使能资源调度方案，默认为false
+ * 	   2. Gp_resource_manager_policy资源管理策略,目前支持:
+ *          2.1 RESOURCE_MANAGER_POLICY_QUEUE:资源队列
+ *          2.2 RESOURCE_MANAGER_POLICY_GROUP: 资源组
+ */
+void ResManagerShmemInit(void) {
+	if (IsResQueueEnabled() && Gp_role == GP_ROLE_DISPATCH) {
+		InitResScheduler();
+		InitResPortalIncrementHash();
+	} else if (IsResGroupEnabled() && !IsUnderPostmaster) {
+		ResGroupControlInit();
+	}
+}
+```

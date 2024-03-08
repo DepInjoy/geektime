@@ -97,6 +97,101 @@ GP提供了CPUSET和CPU_RATE_LIMIT两种资源组限制来标识CPU资源分配�
 
 # 源码解读
 
+基于最新的`6.26.x`分支进行源码解读。源码实现层面主要涉及两个文件：
+
+| 文件                                              | 职责                 |
+| ------------------------------------------------- | -------------------- |
+| `src/backend/commands/resgroupcmds.c`             | 资源组管理指令       |
+| `src/backend/utils/resgroup/resgroup.c`           | 资源组管理实现核心   |
+| `src/backend/utils/resgroup/resgroup-ops-linux.c` | Linux cgroup相关操作 |
+
+## 初始化
+
+### 内存初始化
+GP将所有资源放在一个全局的mem pool中，通过`ResGroupControl *pResGroupControl`结构来维护相关的数据信息
+- `chunkSizeInBits`一个chunk多少bit
+- `totalChunks`一共有多少chunk
+- `freeChunks`空闲chunk数量，代表全局共享内存的大小。
+- `safeChunksThreshold100`表示Safe memory，当全局共享资源小于该阈值的时候，资源组的内存使用进入red zone
+
+```c
+void InitResGroups(void) {
+					......                
+	// 1. 计算Segment上的chunk总数
+	//    计算可管理的chunk总数(totalChunks),一个chunk容量(chunkSizeInBits)
+	decideTotalChunks(&pResGroupControl->totalChunks, &pResGroupControl->chunkSizeInBits);
+	pg_atomic_write_u32(&pResGroupControl->freeChunks, pResGroupControl->totalChunks);
+	pg_atomic_write_u32(&pResGroupControl->safeChunksThreshold100,
+						pResGroupControl->totalChunks * (100 - runaway_detector_activation_percent));
+	// 2. cgroup初始化
+    ResGroupOps_Init();
+    				.......
+}
+```
+通过`decideTotalChunks`接口，GP将这些内存划分为不超过16K的chunk，之后基于Chunk进行管理。默认一个chunk是1M，默认的一个Chunk为1M大小，如果可用虚拟内存大于16GB(16K MB)，则通过增大一个Chunk的大小(依次放大为2M、4M....)，来确保Chunk的数量不超过16K。
+```C
+// Calculate the total memory chunks of the segment
+static void decideTotalChunks(int32 *totalChunks, int32 *chunkSizeInBits) {
+	int32 nsegments;
+	int32 tmptotalChunks;
+	int32 tmpchunkSizeInBits;
+
+	// 获取primary segments数
+	nsegments = Gp_role == GP_ROLE_EXECUTE ? host_segments : pResGroupControl->segmentsOnMaster;
+	/**
+	 * 结合Linux系统配置以及cgroup信息获取可管理内存, 单位MB
+	 * 	
+	 *  Linux系统 outTotalMemory = SWAP + RAM * vm.overcommitRatio / 100
+	 * 
+	 *  通过getCgMemoryInfo中获取cgroup的RAM和swap
+	 * 		cgram(MEM) : memory.limit_in_bytes
+	 * 		cgmemsw(SWAPs): memory.memsw.limit_in_bytes
+	 * 
+	 * total = Min(outTotalMemory, (cgmemsw<memsw ? cgmemsw - ram : swap) + Min(ram, cgram))
+	 * */
+	tmptotalChunks = ResGroupOps_GetTotalMemory() * gp_resource_group_memory_limit / nsegments;
+
+	// 默认一个chunk含1M
+	tmpchunkSizeInBits = BITS_IN_MB;
+	// 如果vmem > 16GB，每个chunk含的bit容量(chunkSizeInBits)增大
+	// 确保每个chunk单元的vmem不超过16K
+	while(tmptotalChunks > (16 * 1024)) {
+		tmpchunkSizeInBits++;
+		tmptotalChunks >>= 1;
+	}
+
+	*totalChunks = tmptotalChunks;
+	*chunkSizeInBits = tmpchunkSizeInBits;
+}
+```
+
+### CPU管理初始化
+Linux通过cgroup对CPU的控制，通过比例隔离资源。按每个分组里面`cpu.shares`的比率来分配cpu，比如A B C三个分组,cpu.shares分别设置为1024/1024/2048,那么他们可以使用的cpu比率为1:1:2。初始化cgroup，将postmaster和子进程加入`gpdb cgroup`。
+
+```C++
+/* Initialize the OS group */
+void ResGroupOps_Init(void) {
+    // 1. 初始化CPU设置
+    //    cfs_quota_us := parent.cfs_period_us * ncores * gp_resource_group_cpu_limit
+    //    shares := parent.shares * gp_resource_group_cpu_priority
+    initCpu();
+
+    // 2. 初始化cpuset设置
+    //    从cgroup cpuset root路径下获取到cpuset信息写入gpdb路径下
+    //    相关配置有cpuset.mems和cpuset.cpus，分别对应于
+    //    cpuset/gpdb/cpuset.mems和cpuset/gpdb/cpuset.cpus
+    initCpuSet();
+
+	/*
+	 * Put postmaster and all the children processes into the gpdb cgroup,
+	 * otherwise auxiliary processes might get too low priority when
+	 * gp_resource_group_cpu_priority is set to a large value
+	 */
+	ResGroupOps_AssignGroup(RESGROUP_ROOT_ID, NULL, PostmasterPid);
+}
+```
+
+
 # 参考资料
 
 1. 《Greenplum:从大数据战略到实现》
