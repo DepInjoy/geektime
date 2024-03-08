@@ -24,11 +24,14 @@ GP通过GUC配置参数决定资源管理方式
 
 GP提供了一下几个参数来配置GP允许使用的CPU和内存的比例
 
-| 配置参数                       | 默认值 | 描述                                                         |
-| ------------------------------ | :----: | ------------------------------------------------------------ |
-| gp_resource_group_memory_limit |  0.7   | 分配给 Greenplum 数据库的系统内存百分比，默认70%。           |
-| gp_resource_group_cpu_limit    |  0.9   | 分配给每个Greenplum数据库Segment上的资源组的系统CPU资源的最大百分比。<br/>无论资源组CPU分配模式如何，此限制都将控制Segment主机上所有资源组的最大CPU使用率。<br/>剩余的未预留CPU资源用于OS内核和Greenplum数据库辅助守护进程 |
-| gp_resource_group_cpu_priority |   10   | postgres进程的cpu优先级                                      |
+| 配置参数                                    | 描述                                                         | 默认值 |
+| ------------------------------------------- | ------------------------------------------------------------ | ------ |
+| `gp_resource_group_memory_limit`            | 分配给 Greenplum 数据库的系统内存百分比，默认70%。           | 0.7    |
+| `gp_resource_group_cpu_limit`               | 分配给每个Greenplum数据库Segment上的资源组的系统CPU资源的最大百分比。<br/>无论资源组CPU分配模式如何，此限制都将控制Segment主机上所有资源组的最大CPU使用率。<br/>剩余的未预留CPU资源用于OS内核和Greenplum数据库辅助守护进程 | 0.9    |
+| `gp_resource_group_cpu_priority`            | postgres进程的cpu优先级                                      | 10     |
+| `gp_resource_group_cpu_ceiling_enforcement` | 是否启用CPU上限限制                                          | false  |
+
+
 
 ```C++
 // GUC配置参数

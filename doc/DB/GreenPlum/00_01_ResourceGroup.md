@@ -107,8 +107,8 @@ GP提供了CPUSET和CPU_RATE_LIMIT两种资源组限制来标识CPU资源分配�
 
 ## 初始化
 
+### 内存初始化
 GP将所有资源放在一个全局的mem pool中，通过`ResGroupControl *pResGroupControl`结构来维护相关的数据信息
-
 - `chunkSizeInBits`一个chunk多少bit
 - `totalChunks`一共有多少chunk
 - `freeChunks`空闲chunk数量，代表全局共享内存的大小。
@@ -128,7 +128,6 @@ void InitResGroups(void) {
     				.......
 }
 ```
-
 通过`decideTotalChunks`接口，GP将这些内存划分为不超过16K的chunk，之后基于Chunk进行管理。默认一个chunk是1M，默认的一个Chunk为1M大小，如果可用虚拟内存大于16GB(16K MB)，则通过增大一个Chunk的大小(依次放大为2M、4M....)，来确保Chunk的数量不超过16K。
 ```C
 // Calculate the total memory chunks of the segment
@@ -166,6 +165,31 @@ static void decideTotalChunks(int32 *totalChunks, int32 *chunkSizeInBits) {
 }
 ```
 
+### CPU管理初始化
+Linux通过cgroup对CPU的控制，通过比例隔离资源。按每个分组里面`cpu.shares`的比率来分配cpu，比如A B C三个分组,cpu.shares分别设置为1024/1024/2048,那么他们可以使用的cpu比率为1:1:2。初始化cgroup，将postmaster和子进程加入`gpdb cgroup`。
+
+```C++
+/* Initialize the OS group */
+void ResGroupOps_Init(void) {
+    // 1. 初始化CPU设置
+    //    cfs_quota_us := parent.cfs_period_us * ncores * gp_resource_group_cpu_limit
+    //    shares := parent.shares * gp_resource_group_cpu_priority
+    initCpu();
+
+    // 2. 初始化cpuset设置
+    //    从cgroup cpuset root路径下获取到cpuset信息写入gpdb路径下
+    //    相关配置有cpuset.mems和cpuset.cpus，分别对应于
+    //    cpuset/gpdb/cpuset.mems和cpuset/gpdb/cpuset.cpus
+    initCpuSet();
+
+	/*
+	 * Put postmaster and all the children processes into the gpdb cgroup,
+	 * otherwise auxiliary processes might get too low priority when
+	 * gp_resource_group_cpu_priority is set to a large value
+	 */
+	ResGroupOps_AssignGroup(RESGROUP_ROOT_ID, NULL, PostmasterPid);
+}
+```
 
 
 # 参考资料
