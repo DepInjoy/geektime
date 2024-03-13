@@ -1,3 +1,16 @@
+存在的问题(动机)
+> The PipelineX execution engine is an experimental feature in Doris 2.1.0, expected to address the four major issues of the Doris pipeline engine:
+> 1. In terms of execution concurrency, Doris is currently constrained by two factors: one is the parameters set by FE, and the other is limited by the number of buckets. This concurrent strategy prevents the execution engine from fully utilizing machine resources.
+> 2. In terms of execution logic, Doris currently has some fixed additional overhead. For example, the common expression for all instances will be initialized multiple times due to independence between all instances.
+> 3. In terms of scheduling logic, the scheduler of the current pipeline will put all blocking tasks into a blocking queue, and a blocking queue scheduler will be responsible for polling and extracting executable tasks from the blocking queue and placing them in the runnable queue. Therefore, during the query execution process, a CPU core will always be occupied to do scheduling instead of execution.
+> 4. In terms of profile, currently the pipeline cannot provide users concise and clear metrics.
+
+要解决的问题(目标)
+> 1. In terms of execution concurrency, pipelineX introduces local exchange optimization to fully utilize CPU resources, and distribute data evenly across different tasks to minimize data skewing. In addition, pipelineX will no longer be constrained by the number of tablets.
+> 2. Logically, multiple pipeline tasks share all shared states of the same pipeline and eliminate additional initialization overhead, such as expressions and some const variables.
+> 3. In terms of scheduling logic, the blocking conditions of all pipeline tasks are encapsulated using Dependency, and the execution logic of the tasks is triggered by external events (such as rpc completion) to enter the runnable queue, thereby eliminating the overhead of blocking polling threads.
+> 4. Profile: Provide users with simple and easy to understand metrics
+
 ```plantuml
 @startuml
 FragmentMgr -> PipelineXFragmentContext:new
@@ -73,14 +86,12 @@ struct pipeline_parent_map {
 class Pipeline {
     + Status add_operator(OperatorXPtr& op)
     + Status set_sink(DataSinkOperatorXPtr& sink)
-    + 
 
     + void add_dependency(std::shared_ptr<Pipeline>& pipeline)
     + void finish_one_dependency(int dep_opr, int dependency_core_id)
     + bool has_dependency()
 
     + Status prepare(RuntimeState* state)
-    + 
 
     - OperatorXs operatorXs
     - DataSinkOperatorXPtr _sink_x
@@ -95,6 +106,7 @@ Pipeline -up-o PipelineFragmentContext
 @enduml
 ```
 
+# Operator
 
 ```plantuml
 @startuml
@@ -115,7 +127,7 @@ class OperatorXBase {
     # int _parallel_tasks
     # std::unique_ptr<RowDescriptor> _output_row_descriptor(nullptr)
 
-    + virtual Status setup_local_state(RuntimeState* state, LocalStateInfo& info) = 0
+    + virtual Status setup_local_state(RuntimeState* state,\n\tLocalStateInfo& info) = 0
     + virtual DependencySPtr get_dependency(QueryContext* ctx) = 0
     + virtual DataDistribution required_data_distribution() const
 
@@ -127,9 +139,29 @@ class OperatorBase {
     # OperatorXPtr _child_x = nullptr
 }
 
+class ExchangeSinkOperatorX {
+    - RuntimeState* _state
+}
+
+class DataSinkOperatorX {
+    + Status setup_local_state(RuntimeState* state, LocalSinkStateInfo& info)
+    + void get_dependency(std::vector<DependencySPtr>& dependency,\n\tQueryContext* ctx)
+    + LocalState& get_local_state(RuntimeState* state)
+}
+
+class DataSinkOperatorXBase {
+    + virtual void get_dependency(\n\tstd::vector<DependencySPtr>& dependency,\n\tQueryContext* ctx) = 0
+    + virtual Status setup_local_state(RuntimeState* state,\n\tLocalSinkStateInfo& info) = 0;
+}
+
 StreamingOperatorX -down-|> OperatorX
 OperatorX -down-|> OperatorXBase
 OperatorXBase -down-|> OperatorBase
+
+DataSinkOperatorXBase -down-|> OperatorBase
+DataSinkOperatorX -down-|> DataSinkOperatorXBase
+ExchangeSinkOperatorX -down-|> DataSinkOperatorX
+ResultSinkOperatorX -down-|> DataSinkOperatorX
 @enduml
 ```
 # 参考资料
