@@ -1,6 +1,14 @@
 [ACW算法基础课](https://www.acwing.com/activity/content/introduction/11/)
 # 基础算法
-## 快速排序
+
+| 专题     | 题目                                                         | 相关实现                                                  |
+| -------- | ------------------------------------------------------------ | --------------------------------------------------------- |
+| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)      |
+| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp) |
+|          |                                                              |                                                           |
+
+
+## 快速排序模板
 ```C++
 void quick_sort(int q[], int l, int r) {
     if (l >= r) return;
@@ -14,36 +22,7 @@ void quick_sort(int q[], int l, int r) {
     quick_sort(q, l, j), quick_sort(q, j + 1, r);
 }
 ```
-[785.快速排序](https://www.acwing.com/problem/content/description/787/)
-```C++
-// 快排
-#include <iostream>
 
-const int N = 100010 + 10;
-int data[N];
-
-void quick_sort(int data[], int l, int r) {
-    if (l >= r) return;
-    
-    int x = data[l+r >> 1], i = l - 1, j = r + 1;
-    while(i < j) {
-        while(data[++i] < x);
-        while(data[--j] > x);
-        if (i < j) std::swap(data[i], data[j]);
-    }
-    quick_sort(data, l, j), quick_sort(data, j+1, r);
-}
-
-int main() {
-    int n;
-    scanf("%d", &n);
-    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
-    
-    quick_sort(data, 0, n-1);
-    for (int i = 0; i < n; ++i) printf("%d ", data[i]);
-    return 0;
-}
-```
 
 [786.第k个数](https://www.acwing.com/problem/content/788/)
 
@@ -76,8 +55,7 @@ int main() {
 }
 ```
 
-## 归并排序
-归并排序模板
+## 归并排序模板
 ```C++
 void merge_sort(int q[], int l, int r) {
     if (l >= r) return;
@@ -95,41 +73,6 @@ void merge_sort(int q[], int l, int r) {
     while (j <= r) tmp[k ++ ] = q[j ++ ];
 
     for (i = l, j = 0; i <= r; i ++, j ++ ) q[i] = tmp[j];
-}
-```
-
-[787. 归并排序](https://www.acwing.com/problem/content/789/)
-```C++
-#include <iostream>
-
-const int N = 100010;
-int data[N], tmp[N];
-
-void merge_sort(int data[], int l, int r) {
-    if (l >= r) return;
-    
-    int mid = (l + r) >> 1;
-    merge_sort(data, l, mid);
-    merge_sort(data, mid + 1, r);
-    
-    int i = l, j = mid + 1, k = 0;
-    while (i <= mid && j <= r) {
-        if (data[i] <= data[j]) tmp[k++] = data[i++];
-        else tmp[k++] = data[j++];
-    }
-    while(i <= mid) tmp[k++] = data[i++];
-    while(j <= r) tmp[k++] = data[j++];
-    
-    for (int i = 0; i < k; ++i) data[l+i] = tmp[i];
-}
-
-int main() {
-    int n;
-    scanf("%d", &n);
-    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
-    
-    merge_sort(data, 0, n - 1);
-    for (int i = 0; i < n; ++i) printf("%d ", data[i]);
 }
 ```
 
@@ -1405,11 +1348,44 @@ int main() {
 
 
 # 搜索和图论
-| 专题   | 题目                                                         | 相关实现                                                     |
-| ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| DFS | [842. 排列数字](https://www.acwing.com/problem/content/description/844/)  | [ACW 842.排列数字实现](000_Graph/842_ACW_E_permute.cpp) |
-| BFS | [843. n-皇后问题](https://www.acwing.com/problem/content/845/) | [ACW 843. N-皇后问题](000_Graph/843_ACW_M_N-Queue.cpp) |
-|        |                                                              |  
+
+## DFS
+[842. 排列数字](https://www.acwing.com/problem/content/844/)
+> 给定一个整数 n，将数字 1∼n 排成一排，将会有很多种排列方法。现在，请你按照字典序将所有的排列方法输出
+
+```C++
+#include <vector>
+#include <iostream>
+
+void dfs(int pos, const int n, std::vector<int> &path,
+        std::vector<int>& st) {
+    if (pos == n) {
+        for (int i = 0 ; i < n; ++i) {
+            std::cout << path[i] << " ";
+        }
+        std::cout << std::endl;
+        return;
+    }
+    
+    for (int i = 1; i <= n; ++i) {
+        if (!st[i]) {
+            path[pos] = i;
+            st[i] = true;
+            dfs(pos + 1, n, path, st);
+            st[i] = false;
+        }
+    }
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    std::vector<int> path(n), st(n+1);
+    dfs(0, n, path, st);
+    return 0;
+}
+```
 
 [843. n-皇后问题](https://www.acwing.com/problem/content/845/)
 
@@ -1740,6 +1716,17 @@ int main() {
 [模拟堆](https://www.acwing.com/problem/content/841/)
 
 # 数学知识
+
+
+
+组合数计算，根据加法计数原理有
+$$
+\begin{array}{C}
+C_{a}^{b} &=& C_{a-1}^{b-1} + C_{a-1}^{b}
+\end{array}
+$$
+
+
 | 专题   | 题目                                                         | 相关实现                                                     |
 | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 快速幂 | [875. 快速幂](https://www.acwing.com/problem/content/877/)   | [ACW 875快速幂实现](10_QuickPower/875_ACW_E_quick-power.cpp) |
