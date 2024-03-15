@@ -32,12 +32,11 @@ frame_end可以是下面其一:
 
 > If PARTITION BY is omitted, there is a single partition consisting of all query rows.
 > 也就是说，如果不指定PARTITION BY，则所有查询行看作一个分区。
-> <br/>
+> 
 > If ORDER BY is omitted, partition rows are unordered, with no processing order implied, and all partition rows are peers.
 > 也就是说，如果不指定ORDER BY，则分区行无序，不隐式处理顺序，并且所有分区行都是对等的。
-> <br/>
+>
 > 来自：https://dev.mysql.com/doc/refman/8.0/en/window-functions-usage.html
-
 
 `window_function`可能是：
 1. 排名函数，不可以指定frame(窗口范围)。
@@ -84,7 +83,11 @@ frame_end可以是下面其一:
 
 3. 取值窗口函数。
 	
-	- `FIRST_VALUE()`,  `LAST_VALUE()`
+	- `FIRST_VALUE()`,  `LAST_VALUE()`分别用于当前窗口Frame的第一行/最后一行值。
+		```sql
+		FIRST_VALUE(expr) [null_treatment]
+		-- expr:		
+		```
 	- `LAG()`和`LEAD()`分别用于计算用于统计窗口内向上第n行值和窗口内向下第n行值。
 		```sql
 		LAG | LEAD(col_name, offset_opt, default_opt)
