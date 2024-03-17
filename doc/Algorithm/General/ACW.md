@@ -555,7 +555,7 @@ int main() {
 
 | 专题                                                         | 题目                                                         | 相关实现                                                     |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 背包问题：<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包<br/><br/> | <br/>[2.  01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/) | <br/>[ACW 2.  01背包问题](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包问题](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包问题 I](02_DP/4_ACW_E_multi-bag.cpp)<br/>[ACW 5. 多重背包问题 II (二进制查分优化)](doc\Algorithm\General\02_DP\4_ACW_E_multi-bag.cpp)<br/> |
+| 背包问题：<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包<br/><br/>4. 分组背包 | <br/>[2.  01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)<br/>[9. 分组背包问题](https://www.acwing.com/problem/content/9/) | <br/>[ACW 2.  01背包问题](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包问题](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包问题 I](02_DP/4_ACW_E_multi-bag.cpp)<br/>[ACW 5. 多重背包问题 II (二进制查分优化)](doc\Algorithm\General\02_DP\4_ACW_E_multi-bag.cpp)<br/>[ACW 9.分组背包问题](02_DP/09_ACW_M_group-bag.cpp) |
 |                                                              |                                                              |                                                              |
 |                                                              |                                                              |                                                              |
 
@@ -703,36 +703,12 @@ dp[i][j] = max(dp[i-1][j], dp[i-1][j-vi] + wi, .....,  dp[i-1][j-k*vi] +k*wi, dp
 
 
 ### 分组背包问题
-[9. 分组背包问题](https://www.acwing.com/problem/content/9/)
-> 有 N 组物品和一个容量是 V 的背包。每组物品有若干个，同一组内的物品最多只能选一个。每件物品的体积是 vij，价值是 wij，其中 i 是组号，j 是组内编号。求解将哪些物品装入背包，可使物品总体积不超过背包容量，且总价值最大。
 ```C++
-#include <vector>
-#include <iostream>
-
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    
-    std::vector<int> dp(n+1, 0);
-    for (int i = 0; i < m; ++i) {
-        int s;
-        scanf("%d", &s);
-        std::vector<int> v(s), w(s);
-        for (int k = 0; k < s; ++k) {
-            scanf("%d%d", &v[k], &w[k]);
-        }
-        
-        for (int j = n; j >= 0; --j) {
-            for (int k = 0; k < s; ++k) {
-                if (j >= v[k]) dp[j] = std::max(dp[j], dp[j - v[k]] + w[k]);
-            }
-        }
-        
-    }
-    std::cout << dp[n];
-    return 0;
-}
 ```
+
+
+
+
 
 ## 线性DP
 [898. 数字三角形](https://www.acwing.com/problem/content/900/)
