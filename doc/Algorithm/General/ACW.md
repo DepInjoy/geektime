@@ -553,22 +553,18 @@ int main() {
 
 # 动态规划
 
-| 专题                      | 题目                                                         | 相关实现 |
-| ------------------------- | ------------------------------------------------------------ | -------- |
-| 背包问题：<br/>01背包问题 | <br/>[2.  01背包问题](https://www.acwing.com/problem/content/2/) |          |
-|                           |                                                              |          |
-|                           |                                                              |          |
+| 专题                                                         | 题目                                                         | 相关实现                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 背包问题：<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包<br/><br/> | <br/>[2.  01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/) | <br/>[ACW 2.  01背包问题](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包问题](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包问题 I](02_DP/4_ACW_E_multi-bag.cpp)<br/>[ACW 5. 多重背包问题 II (二进制查分优化)](doc\Algorithm\General\02_DP\4_ACW_E_multi-bag.cpp)<br/> |
+|                                                              |                                                              |                                                              |
+|                                                              |                                                              |                                                              |
 
 
 
 ## 背包问题
 
 ### 01背包问题
-[2. 01背包问题](https://www.acwing.com/problem/content/2/)
-
-> 有N件物品和一个容量是V的背包。每件物品只能使用一次。第i件物品的体积是 vi，价值是 wi。求解将哪些物品装入背包，可使这些物品的总体积不超过背包容量，且总价值最大。输出最大价值。
-
-状态表示dp[i, j]
+状态表示`dp[i, j]`
 - 集合：从前i个物品中选择体积小于等于j的所有物品集合
 - 属性计算:物品价值最大值`max`
 
@@ -597,54 +593,22 @@ dp[j] = max(dp[j], dp[j-v[i]] + w[i])
 \end{array}
 $$
 
-```C++
-#include <vector>
-#include <iostream>
+可以利用滚动数组优化，从后先前，降维减少空间复杂度，实现模板
 
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    std::vector<int> v(m), w(m);
-    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
-    
-    std::vector<std::vector<int>> dp(m+1, std::vector<int>(n+1, 0));
-    for (int i = 0; i < m; ++i) {
-        for (int j = 1; j <= n; ++j) {
-            dp[i+1][j] = dp[i][j];
-            if (j >= v[i]) dp[i+1][j] = std::max(dp[i+1][j], dp[i][j-v[i]] + w[i]);
-        }
+```C++
+// m表示物品个数, n表示包的容量
+std::vector<int> dp(n + 1);
+for (int i = 0; i < m; ++i) {
+    for (int j = n; j >= v[i]; --j) {
+        dp[j] = std::max(dp[j], dp[j - v[i]] + w[i]);
     }
-    std::cout << dp[m][n];
-    return 0;
 }
 ```
-滚动数组优化，降维减少空间复杂度
-```C++
-#include <vector>
-#include <iostream>
 
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    std::vector<int> v(m), w(m);
-    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
-    
-    std::vector<int> dp(n+1, 0);
-    for (int i = 0; i < m; ++i) {
-        for (int j = n; j >= v[i]; --j) {
-            dp[j] = std::max(dp[j], dp[j-v[i]] + w[i]);
-        }
-    }
-    std::cout << dp[n];
-    return 0;
-}
-```
+
 
 ### 完全背包问题
-[3. 完全背包问题](https://www.acwing.com/problem/content/3/)
-> 有 N 种物品和一个容量是 V 的背包，每种物品都有无限件可用。第 i 种物品的体积是 vi，价值是 wi。求解将哪些物品装入背包，可使这些物品的总体积不超过背包容量，总价值最大。输出最大价值。
-
-状态表示dp[i, j]
+状态表示`dp[i, j]`
 - 集合：从前i个物品中选择提及小于等于j的所有物品集合
 - 属性计算:物品价值最大值`max`
 
@@ -685,33 +649,20 @@ dp[j] = max(dp[j], dp[j-v[i]]+w[i])
 $$
 
 ```C++
-#include <vector>
-#include <iostream>
-
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    std::vector<int> v(m), w(m);
-    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
-    
-    std::vector<int> dp(n+1, 0);
-    for (int i = 0; i < m; ++i){
-        for (int j = v[i]; j <= n; ++j) {
-            dp[j] = std::max(dp[j], dp[j-v[i]] + w[i]);
-        }
+// m表示物品数量, n表示包的体积
+std::vector<int> dp(n+1);
+for (int i = 0; i < m; ++i){
+    for (int j = v[i]; j <= n; ++j) {
+        dp[j] = std::max(dp[j], dp[j-v[i]] + w[i]);
     }
-    std::cout << dp[n];
-    return 0;
 }
 ```
 
-### 多重背包问题
-[4. 多重背包问题 I]()
-> 有N种物品和一个容量是V的背包。第i种物品最多有si件，每件体积是vi，价值是wi。求解将哪些物品装入背包，可使物品体积总和不超过背包容量，且价值总和最大。输出最大价值。
-> 
-> 0 < N; V ≤ 100; 0 < vi, wi , si ≤ 100
 
-状态表示dp[i, j]
+
+### 多重背包问题
+
+状态表示`dp[i, j]`
 - 集合：从前i个物品中选择提及小于等于j的所有物品集合
 - 属性计算:物品价值最大值`max`
 
@@ -732,31 +683,9 @@ subs: 含s个第i个物品, dp[i-1][j-s*vi] + wi*s
 dp[i][j] = max(dp[i-1][j], dp[i-1][j-vi] + wi, .....,  dp[i-1][j-k*vi] +k*wi, dp[i-1][j-s*vi] +s*wi) -- 公式1
 ```
 
-```C++
-#include <vector>
-#include <iostream>
+---
 
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-
-    std::vector<int> dp(n+1, 0);
-    for (int i = 0; i < m; ++i) {
-        int v, w, s;
-        scanf("%d%d%d", &v, &w, &s);
-        for (int j = n; j >= v; --j) {
-            for (int k = 1; k <= s && j >= k*v; ++k) {
-                dp[j] = std::max(dp[j], dp[j-k*v] + k*w);
-            }
-        }
-    }
-    std::cout << dp[n];
-    return 0;
-}
-```
-
-[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)
-> 0<N≤1000, 0<V≤2000, 0<vi,wi,si≤2000
+二进制拆分优化
 
 ```
 数字1-6可以用 1,2，3进行表示，
@@ -766,45 +695,12 @@ int main() {
 4 = 1 + 3
 5 = 2 + 3
 6 = 1 + 2 + 3
-
-因此可以将上述实现拆分为MN * (log(S)向上取整)
-
-假设K=log(S)，可以将其拆分为， 1， 2, ...., 2^k, S - 2^k个01背包问题
 ```
-```C++
-#include <vector>
-#include <iostream>
+因此可以将S进行二进制拆分，假设K=log(S)，可以将其拆分为， 1， 2, ...., 2^k, S - 2^k个01背包问题
 
-struct Good {
-    int v;
-    int w;
-};
+最终实现将复杂度调整为MN * (log(S)向上取整)
 
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    
-    std::vector<Good> goods;
-    for (int i = 0; i < m; ++i) {
-        int v, w, s;
-        scanf("%d%d%d", &v, &w, &s);
-        for (int k = 1; k <= s; k *=2) {
-            s -= k;
-            goods.push_back({k*v, k*w});
-        }
-        if (s > 0) goods.push_back({s*v, s*w});
-    }
-    
-    std::vector<int> dp(n+1, 0);
-    for (auto& iter : goods) {
-        for (int j = n; j >= iter.v; --j) {
-            dp[j] = std::max(dp[j], dp[j-iter.v] + iter.w);
-        }
-    }
-    std::cout << dp[n];
-    return 0;
-}
-```
+
 
 ### 分组背包问题
 [9. 分组背包问题](https://www.acwing.com/problem/content/9/)
@@ -1679,7 +1575,6 @@ void up(int u) {
 // O(n)建堆
 for (int i = n / 2; i; i -- ) down(i);
 ```
-
 
 [模拟堆](https://www.acwing.com/problem/content/841/)
 

@@ -1,6 +1,12 @@
 /**
  *  3. 完全背包问题
  *  https://www.acwing.com/problem/content/3/
+ * 
+ *  题目表述：
+ *  有 N 种物品和一个容量是 V 的背包，每种物品都有无限件可用。
+ *  第 i 种物品的体积是 vi，价值是 wi
+ *  求解将哪些物品装入背包，可使这些物品的总体积不超过背包容量，总价值最大
+ *  输出最大价值。
  *  
  *  状态表示dp[i, j]
  * - 集合：从前i个物品中选择提及小于等于j的所有物品集合
@@ -31,14 +37,16 @@
  * dp[j] = max(dp[j], dp[j-v[i]]+w[i])
 */
 
-#include <vector>
 #include <iostream>
+#include <vector>
 
 int main() {
     int m, n;
     scanf("%d%d", &m, &n);
     std::vector<int> v(m), w(m);
-    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
+    for (int i = 0; i < m; ++i) {
+        scanf("%d%d", &v[i], &w[i]);
+    }
     
     std::vector<int> dp(n+1);
     for (int i = 0; i < m; ++i) {
@@ -46,7 +54,7 @@ int main() {
             dp[j] = std::max(dp[j], dp[j - v[i]] + w[i]);
         }
     }
-    std::cout << dp[n];
+    std::cout << dp[n] << std::endl;
 
     return 0;
 }
