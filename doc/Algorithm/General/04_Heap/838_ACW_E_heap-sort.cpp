@@ -14,8 +14,8 @@
 
 void down(std::vector<int>& h, int i, int size) {
     int t = i;
-    if (2*i <= size && h[t] > h[2*i]) t = 2*i;
-    if (2*i+1 <= size && h[t] > h[2*i+1]) t = 2*i+1;
+    if (2*i <= size && h[2*i] < h[i]) t = 2*i;
+    if (2*i+1 <= size && h[2*i+1] < h[t]) t = 2*i+1;
     if (t != i) {
         std::swap(h[t], h[i]);
         down(h, t, size);

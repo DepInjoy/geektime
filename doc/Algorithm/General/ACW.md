@@ -5,7 +5,7 @@
 | -------- | ------------------------------------------------------------ | --------------------------------------------------------- |
 | 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)      |
 | 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp) |
-|          |                                                              |                                                           |
+| 堆排序   | [838. 堆排序](https://www.acwing.com/problem/content/840/)   | [ACW 838. 堆排序](04_Heap/838_ACW_E_heap-sort.cpp)        |
 
 
 ## 快速排序模板
@@ -1637,16 +1637,15 @@ int main() {
 
 # 数据结构
 
-| 专题 | 题目 | 相关实现 |
-| ---- | ---- | -------- |
-|      |      |          |
-|      |      |          |
-|      |      |          |
+| 专题 | 题目                                                         | 相关实现                                                     |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 堆   | [838. 堆排序](https://www.acwing.com/problem/content/840/)<br/> | [838. 堆排序](https://www.acwing.com/problem/content/840/)[ACW 838. 堆排序](04_Heap/838_ACW_E_heap-sort.cpp)<br/> |
+|      |                                                              |                                                              |
+|      |                                                              |                                                              |
 
 
 
-## 堆
-代码模板
+## 堆实现模板
 ```C++
 // h[N]存储堆中的值, h[1]是堆顶，x的左儿子是2x, 右儿子是2x + 1
 // ph[k]存储第k个插入的点在堆中的位置
@@ -1679,41 +1678,6 @@ void up(int u) {
 
 // O(n)建堆
 for (int i = n / 2; i; i -- ) down(i);
-```
-
-[838. 堆排序](https://www.acwing.com/problem/content/840/0)
-
-```C++
-#include <iostream>
-#include <vector>
-
-void down(std::vector<int>& heap, int pos, int size) {
-    int npos = pos;
-    if (2*pos <= size && heap[2*pos] < heap[npos]) npos = 2 * pos;
-    if (2*pos+1 <= size && heap[2*pos+1] < heap[npos]) npos = 2 * pos + 1;
-    if (npos != pos) {
-        std::swap(heap[pos], heap[npos]);
-        down(heap, npos, size);
-    }
-}
-
-int main() {
-    int n, m;
-    scanf("%d%d", &n, &m);
-    
-    int size = n;
-    std::vector<int> h(n+1);
-    for (int i = 1; i <= n; ++i) scanf("%d", &h[i]);
-    
-    for (int i = n/2; i > 0; --i) down(h, i, size);
-    
-    while (m--) {
-        std::cout << h[1] << " ";
-        h[1] = h[size--];
-        down(h, 1, size);
-    }
-    return 0;
-}
 ```
 
 
