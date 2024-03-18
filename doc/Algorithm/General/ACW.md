@@ -1,11 +1,12 @@
 [ACW算法基础课](https://www.acwing.com/activity/content/introduction/11/)
 # 基础算法
 
-| 专题     | 题目                                                         | 相关实现                                                  |
-| -------- | ------------------------------------------------------------ | --------------------------------------------------------- |
-| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)      |
-| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp) |
-| 堆排序   | [838. 堆排序](https://www.acwing.com/problem/content/840/)   | [ACW 838. 堆排序](04_Heap/838_ACW_E_heap-sort.cpp)        |
+| 专题     | 题目                                                         | 相关实现                                                     |
+| -------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)         |
+| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp)    |
+| 堆排序   | [838. 堆排序](https://www.acwing.com/problem/content/840/)   | [ACW 838. 堆排序](04_Heap/838_ACW_E_heap-sort.cpp)           |
+| 二分     | [789.数的范围](https://www.acwing.com/problem/content/791/)<br/>[790. 数的三次方根](https://www.acwing.com/problem/content/792/) | [ACW 789. 数的范围](05_BinarySearch/798_ACW_E_data-range.cpp)<br/>[ACW 790. 数的三次方根](05_BinarySearch/790_ACW_E_cube.cpp) |
 
 
 ## 快速排序模板
@@ -22,7 +23,6 @@ void quick_sort(int q[], int l, int r) {
     quick_sort(q, l, j), quick_sort(q, j + 1, r);
 }
 ```
-
 
 [786.第k个数](https://www.acwing.com/problem/content/788/)
 
@@ -114,8 +114,10 @@ int main() {
 }
 ```
 
-## 二分
-二分实现模板:
+
+
+## 二分模板
+
 ```C++
 bool check(int x) {/* ... */} // 检查x是否满足某种性质
 
@@ -140,65 +142,7 @@ int bsearch_2(int l, int r) {
 }
 ```
 
-[789.数的范围](https://www.acwing.com/problem/content/791/)
-```C++
-#include <iostream>
 
-const int N = 100010;
-int data[N];
-
-int main() {
-    int n, q;
-    scanf("%d%d", &n, &q);
-    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
-    
-    while (q--) {
-        int x;
-        scanf("%d", &x);
-
-        int l = 0, r = n - 1;
-        while (l < r) {
-            int mid = l + r >> 1;
-            if (data[mid] >= x) r = mid;
-            else l = mid + 1;
-        }
-
-        if (data[l] != x) {
-            std::cout << "-1 -1" << std::endl;
-            continue;
-        }
-        
-        std::cout << l << " ";
-        l = 0, r = n -1;
-        while (l < r) {
-            int mid = l + r + 1 >> 1;
-            if (data[mid] <= x) l = mid;
-            else r = mid - 1;
-        }
-        std::cout << l << std::endl;
-    }
-    return 0;
-}
-```
-
-[790. 数的三次方根](https://www.acwing.com/problem/content/792/)
-```C++
-#include <iostream>
-
-int main() {
-    double x;
-    std::cin >> x;
-    
-    double l = -10000, r = 10000;
-    while (r - l > 1e-8) {
-        double mid = (l + r)/2;
-        if (mid * mid * mid >= x) r = mid;
-        else l = mid;
-    }
-    printf("%lf", l);
-    return 0;
-}
-```
 
 
 ## 高精度
@@ -333,11 +277,15 @@ int main() {
 
 # 数据结构
 
-| 专题 | 题目 | 相关实现 |
-| ---- | ---- | -------- |
-|      |      |          |
-|      |      |          |
-|      |      |          |
+| 专题     | 题目 | 相关实现 |
+| -------- | ---- | -------- |
+| 单链表   |      |          |
+| 双链表   |      |          |
+| 单调栈   |      |          |
+| 单调队列 |      |          |
+| Trie     |      |          |
+| 堆       |      |          |
+| KMP      |      |          |
 
 
 
@@ -556,8 +504,8 @@ int main() {
 | 专题                                                         | 题目                                                         | 相关实现                                                     |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 背包问题：<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包<br/><br/>4. 分组背包 | <br/>[2.  01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)<br/>[9. 分组背包问题](https://www.acwing.com/problem/content/9/) | <br/>[ACW 2.  01背包问题](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包问题](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包问题 I](02_DP/4_ACW_E_multi-bag.cpp)<br/>[ACW 5. 多重背包问题 II (二进制查分优化)](doc\Algorithm\General\02_DP\4_ACW_E_multi-bag.cpp)<br/>[ACW 9.分组背包问题](02_DP/09_ACW_M_group-bag.cpp) |
-|                                                              |                                                              |                                                              |
-|                                                              |                                                              |                                                              |
+| 线性DP                                                       |                                                              |                                                              |
+| 区间DP                                                       |                                                              |                                                              |
 
 
 
