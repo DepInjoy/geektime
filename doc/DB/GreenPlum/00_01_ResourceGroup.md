@@ -166,31 +166,83 @@ static void decideTotalChunks(int32 *totalChunks, int32 *chunkSizeInBits) {
 ```
 
 ### CPU管理初始化
-Linux通过cgroup对CPU的控制，通过比例隔离资源。按每个分组里面`cpu.shares`的比率来分配cpu，比如A B C三个分组,cpu.shares分别设置为1024/1024/2048,那么他们可以使用的cpu比率为1:1:2。初始化cgroup，将postmaster和子进程加入`gpdb cgroup`。
+Linux CPU采用CFS调度策略，通过两种方式控制CPU：
+
+1. 配置强制上限(ceiling enforcement)，`cpu.cfs_period_us`，指定一个时间段用于重新分配cgroup对CPU资源的访问的频率，单位微秒。如果cgroup中的任务能够每1秒访问单个CPU 0.2秒，将`cpu.cfs_quota_us`设置为200000，`cpu.cfs_period_us`设置为1000000。`cpu.cfs_quota_us`参数的上限为1秒，下限为1000微秒。
+
+2. 相对的共享份额(relative sharing), `cpu.shares`，包含一个整数值，该值指定cgroup中的任务可用的CPU时间的相对份额。例如，两个将`cpu.shares`设置为100的cgroup中的任务将获得相等的CPU时间，但将`cpu.shares`为200的cgroup中的任务获得的CPU时间是将`cpu.shares`为100的两倍。`cpu.shares`的值必须大于等于2.
 
 ```C++
 /* Initialize the OS group */
 void ResGroupOps_Init(void) {
-    // 1. 初始化CPU设置
-    //    cfs_quota_us := parent.cfs_period_us * ncores * gp_resource_group_cpu_limit
+    // 1. 初始化CPU设置,linux cgroup通过强制上限(cfs_quota_us)和相对份额(shares)控制CPU
+    //    cfs_quota_us := parent.cfs_quota_us * gp_resource_group_cpu_limit
+    //				(parant cgroup限制)
+    //	  cfs_quota_us := parent.cfs_period_us * ncores * gp_resource_group_cpu_limit
+    // 				(parant cgroup有限制)
     //    shares := parent.shares * gp_resource_group_cpu_priority
     initCpu();
 
     // 2. 初始化cpuset设置
-    //    从cgroup cpuset root路径下获取到cpuset信息写入gpdb路径下
-    //    相关配置有cpuset.mems和cpuset.cpus，分别对应于
-    //    cpuset/gpdb/cpuset.mems和cpuset/gpdb/cpuset.cpus
+    //    将parent cpuset的mems和cpus写入gpdb cpuset中
+	//	  cpu核心1保留在gpdb根路径下并检查权限
     initCpuSet();
 
-	/*
-	 * Put postmaster and all the children processes into the gpdb cgroup,
-	 * otherwise auxiliary processes might get too low priority when
-	 * gp_resource_group_cpu_priority is set to a large value
-	 */
+	// 3. 将postmaster以及子进程放入gpdb cgroup(进程号写入相应cgroup.procs路劲下)
 	ResGroupOps_AssignGroup(RESGROUP_ROOT_ID, NULL, PostmasterPid);
 }
 ```
 
+```C++
+static void initCpu(void) {
+	ResGroupCompType comp = RESGROUP_COMP_TYPE_CPU;
+	int64		cfs_quota_us;
+	int64		shares;
+
+	if (parent_cfs_quota_us <= 0LL) {
+		/* 
+		 * 若parent cgroup unlimited,用system_cfs_quota_us进行计算
+		 * system_cfs_quota_us = parent.cfs_period_us * ncores
+		 * gpdb将parent.cfs_period_us设置为100000(100ms), 参见getCfsPeriodUs接口
+		 *
+		 * cfs_quota_us := parent.cfs_period_us * ncores * gp_resource_group_cpu_limit
+		 */
+		cfs_quota_us = system_cfs_quota_us * gp_resource_group_cpu_limit;
+	} else {
+		/*
+		 * 若parent cgroup is limited
+		 * cfs_quota_us := parent.cfs_quota_us * gp_resource_group_cpu_limit
+		 */
+		cfs_quota_us = parent_cfs_quota_us * gp_resource_group_cpu_limit;
+	}
+	writeInt64(RESGROUP_ROOT_ID, BASETYPE_GPDB, comp, "cpu.cfs_quota_us", cfs_quota_us);
+
+	// shares := parent.shares * gp_resource_group_cpu_priority
+	shares = readInt64(RESGROUP_ROOT_ID, BASETYPE_PARENT, comp, "cpu.shares");
+	shares = shares * gp_resource_group_cpu_priority;
+	writeInt64(RESGROUP_ROOT_ID, BASETYPE_GPDB, comp, "cpu.shares", shares);
+}
+```
+
+```C++
+static void initCpuSet(void) {
+	ResGroupCompType comp = RESGROUP_COMP_TYPE_CPUSET;
+	char buffer[MaxCpuSetLength];
+
+	if (!gp_resource_group_enable_cgroup_cpuset)
+		return;
+
+	// 1. 将parent cpuset的mems和cpus写入gpdb cpuset中
+	readStr(RESGROUP_ROOT_ID, BASETYPE_PARENT, comp, "cpuset.mems", buffer, sizeof(buffer));
+	writeStr(RESGROUP_ROOT_ID, BASETYPE_GPDB, comp, "cpuset.mems", buffer);
+
+	readStr(RESGROUP_ROOT_ID, BASETYPE_PARENT, comp, "cpuset.cpus",buffer, sizeof(buffer));
+	writeStr(RESGROUP_ROOT_ID, BASETYPE_GPDB, comp, "cpuset.cpus", buffer);
+
+	// 2. cpu核心1保留在gpdb根路径下并检查权限
+	createDefaultCpuSetGroup();
+}
+```
 
 # 参考资料
 
