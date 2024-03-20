@@ -97,6 +97,41 @@ SET PROPERTY [FOR 'user'] 'key' = 'value' [, 'key' = 'value']
 
 ## 资源管理
 
+## catalog
+`catalogs()`表函数，生成catalogs临时表，可以查看当前doris中的创建的catalogs信息，该函数用于from子句中。
+```sql
+desc function catalogs();
+select * from catalogs();
+```
+
+### 属性设置
+
+设置指定数据目录的属性，仅管理员使用。
+```sql
+-- 重命名数据目录
+ALTER CATALOG catalog_name RENAME new_catalog_name;
+
+-- 设置数据库目录属性
+ALTER CATALOG catalog_name SET PROPERTIES (
+    'key1' = 'value1' [, 'key' = 'value2']
+); 
+```
+
+# SHOW
+
+```sql
+-- 显示已存在的数据目录(catalog)
+SHOW CATALOGS [LIKE]
+
+-- 查看当前DB下的表
+-- LIKE可按照表名进行模糊查询，可选，不指定是查看DB下所有表
+SHOW [FULL] TABLES [LIKE]
+SHOW TABLES FROM <catalog_name>.<db_name>
+
+-- 查看指定表的列信息，也适用于外部数据源
+SHOW [FULL] COLUMNS FROM tbl;
+```
+
 # 客户端连接
 ## Navicat显示乱码
 > 由于系统本身编码(命令行chcp)中为936(GBK)而不是65001(UTF8)造成
