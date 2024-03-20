@@ -1,12 +1,11 @@
 [ACW算法基础课](https://www.acwing.com/activity/content/introduction/11/)
 # 基础算法
 
-| 专题     | 题目                                                         | 相关实现                                                     |
-| -------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)         |
-| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp)    |
-| 堆排序   | [838. 堆排序](https://www.acwing.com/problem/content/840/)   | [ACW 838. 堆排序](04_Heap/838_ACW_E_heap-sort.cpp)           |
-| 二分     | [789.数的范围](https://www.acwing.com/problem/content/791/)<br/>[790. 数的三次方根](https://www.acwing.com/problem/content/792/) | [ACW 789. 数的范围](05_BinarySearch/798_ACW_E_data-range.cpp)<br/>[ACW 790. 数的三次方根](05_BinarySearch/790_ACW_E_cube.cpp) |
+| 专题     | 题目                                                         | 相关实现                                                  |
+| -------- | ------------------------------------------------------------ | --------------------------------------------------------- |
+| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)      |
+| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp) |
+|          |                                                              |                                                           |
 
 
 ## 快速排序模板
@@ -23,6 +22,7 @@ void quick_sort(int q[], int l, int r) {
     quick_sort(q, l, j), quick_sort(q, j + 1, r);
 }
 ```
+
 
 [786.第k个数](https://www.acwing.com/problem/content/788/)
 
@@ -114,10 +114,8 @@ int main() {
 }
 ```
 
-
-
-## 二分模板
-
+## 二分
+二分实现模板:
 ```C++
 bool check(int x) {/* ... */} // 检查x是否满足某种性质
 
@@ -142,7 +140,65 @@ int bsearch_2(int l, int r) {
 }
 ```
 
+[789.数的范围](https://www.acwing.com/problem/content/791/)
+```C++
+#include <iostream>
 
+const int N = 100010;
+int data[N];
+
+int main() {
+    int n, q;
+    scanf("%d%d", &n, &q);
+    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
+    
+    while (q--) {
+        int x;
+        scanf("%d", &x);
+
+        int l = 0, r = n - 1;
+        while (l < r) {
+            int mid = l + r >> 1;
+            if (data[mid] >= x) r = mid;
+            else l = mid + 1;
+        }
+
+        if (data[l] != x) {
+            std::cout << "-1 -1" << std::endl;
+            continue;
+        }
+        
+        std::cout << l << " ";
+        l = 0, r = n -1;
+        while (l < r) {
+            int mid = l + r + 1 >> 1;
+            if (data[mid] <= x) l = mid;
+            else r = mid - 1;
+        }
+        std::cout << l << std::endl;
+    }
+    return 0;
+}
+```
+
+[790. 数的三次方根](https://www.acwing.com/problem/content/792/)
+```C++
+#include <iostream>
+
+int main() {
+    double x;
+    std::cin >> x;
+    
+    double l = -10000, r = 10000;
+    while (r - l > 1e-8) {
+        double mid = (l + r)/2;
+        if (mid * mid * mid >= x) r = mid;
+        else l = mid;
+    }
+    printf("%lf", l);
+    return 0;
+}
+```
 
 
 ## 高精度
@@ -277,15 +333,11 @@ int main() {
 
 # 数据结构
 
-| 专题     | 题目 | 相关实现 |
-| -------- | ---- | -------- |
-| 单链表   |      |          |
-| 双链表   |      |          |
-| 单调栈   |      |          |
-| 单调队列 |      |          |
-| Trie     |      |          |
-| 堆       |      |          |
-| KMP      |      |          |
+| 专题                 | 题目                                                         | 相关实现                                                     |
+| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/) | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
+|                      |                                                              |                                                              |
+|                      |                                                              |                                                              |
 
 
 
@@ -501,18 +553,13 @@ int main() {
 
 # 动态规划
 
-| 专题                                                         | 题目                                                         | 相关实现                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 背包问题：<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包<br/><br/>4. 分组背包 | <br/>[2.  01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)<br/>[9. 分组背包问题](https://www.acwing.com/problem/content/9/) | <br/>[ACW 2.  01背包问题](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包问题](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包问题 I](02_DP/4_ACW_E_multi-bag.cpp)<br/>[ACW 5. 多重背包问题 II (二进制查分优化)](doc\Algorithm\General\02_DP\4_ACW_E_multi-bag.cpp)<br/>[ACW 9.分组背包问题](02_DP/09_ACW_M_group-bag.cpp) |
-| 线性DP                                                       |                                                              |                                                              |
-| 区间DP                                                       |                                                              |                                                              |
-
-
-
 ## 背包问题
 
 ### 01背包问题
-状态表示`dp[i, j]`
+[2. 01背包问题](https://www.acwing.com/problem/content/2/)
+> 有N件物品和一个容量是V的背包。每件物品只能使用一次。第i件物品的体积是 vi，价值是 wi。求解将哪些物品装入背包，可使这些物品的总体积不超过背包容量，且总价值最大。输出最大价值。
+
+状态表示dp[i, j]
 - 集合：从前i个物品中选择体积小于等于j的所有物品集合
 - 属性计算:物品价值最大值`max`
 
@@ -541,22 +588,54 @@ dp[j] = max(dp[j], dp[j-v[i]] + w[i])
 \end{array}
 $$
 
-可以利用滚动数组优化，从后先前，降维减少空间复杂度，实现模板
-
 ```C++
-// m表示物品个数, n表示包的容量
-std::vector<int> dp(n + 1);
-for (int i = 0; i < m; ++i) {
-    for (int j = n; j >= v[i]; --j) {
-        dp[j] = std::max(dp[j], dp[j - v[i]] + w[i]);
+#include <vector>
+#include <iostream>
+
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+    std::vector<int> v(m), w(m);
+    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
+    
+    std::vector<std::vector<int>> dp(m+1, std::vector<int>(n+1, 0));
+    for (int i = 0; i < m; ++i) {
+        for (int j = 1; j <= n; ++j) {
+            dp[i+1][j] = dp[i][j];
+            if (j >= v[i]) dp[i+1][j] = std::max(dp[i+1][j], dp[i][j-v[i]] + w[i]);
+        }
     }
+    std::cout << dp[m][n];
+    return 0;
+}
+```
+滚动数组优化，降维减少空间复杂度
+```C++
+#include <vector>
+#include <iostream>
+
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+    std::vector<int> v(m), w(m);
+    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
+    
+    std::vector<int> dp(n+1, 0);
+    for (int i = 0; i < m; ++i) {
+        for (int j = n; j >= v[i]; --j) {
+            dp[j] = std::max(dp[j], dp[j-v[i]] + w[i]);
+        }
+    }
+    std::cout << dp[n];
+    return 0;
 }
 ```
 
-
-
 ### 完全背包问题
-状态表示`dp[i, j]`
+[3. 完全背包问题](https://www.acwing.com/problem/content/3/)
+> 有 N 种物品和一个容量是 V 的背包，每种物品都有无限件可用。第 i 种物品的体积是 vi，价值是 wi。求解将哪些物品装入背包，可使这些物品的总体积不超过背包容量，总价值最大。输出最大价值。
+
+状态表示dp[i, j]
 - 集合：从前i个物品中选择提及小于等于j的所有物品集合
 - 属性计算:物品价值最大值`max`
 
@@ -597,20 +676,33 @@ dp[j] = max(dp[j], dp[j-v[i]]+w[i])
 $$
 
 ```C++
-// m表示物品数量, n表示包的体积
-std::vector<int> dp(n+1);
-for (int i = 0; i < m; ++i){
-    for (int j = v[i]; j <= n; ++j) {
-        dp[j] = std::max(dp[j], dp[j-v[i]] + w[i]);
+#include <vector>
+#include <iostream>
+
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+    std::vector<int> v(m), w(m);
+    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
+    
+    std::vector<int> dp(n+1, 0);
+    for (int i = 0; i < m; ++i){
+        for (int j = v[i]; j <= n; ++j) {
+            dp[j] = std::max(dp[j], dp[j-v[i]] + w[i]);
+        }
     }
+    std::cout << dp[n];
+    return 0;
 }
 ```
 
-
-
 ### 多重背包问题
+[4. 多重背包问题 I]()
+> 有N种物品和一个容量是V的背包。第i种物品最多有si件，每件体积是vi，价值是wi。求解将哪些物品装入背包，可使物品体积总和不超过背包容量，且价值总和最大。输出最大价值。
+> 
+> 0 < N; V ≤ 100; 0 < vi, wi , si ≤ 100
 
-状态表示`dp[i, j]`
+状态表示dp[i, j]
 - 集合：从前i个物品中选择提及小于等于j的所有物品集合
 - 属性计算:物品价值最大值`max`
 
@@ -631,9 +723,31 @@ subs: 含s个第i个物品, dp[i-1][j-s*vi] + wi*s
 dp[i][j] = max(dp[i-1][j], dp[i-1][j-vi] + wi, .....,  dp[i-1][j-k*vi] +k*wi, dp[i-1][j-s*vi] +s*wi) -- 公式1
 ```
 
----
+```C++
+#include <vector>
+#include <iostream>
 
-二进制拆分优化
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+
+    std::vector<int> dp(n+1, 0);
+    for (int i = 0; i < m; ++i) {
+        int v, w, s;
+        scanf("%d%d%d", &v, &w, &s);
+        for (int j = n; j >= v; --j) {
+            for (int k = 1; k <= s && j >= k*v; ++k) {
+                dp[j] = std::max(dp[j], dp[j-k*v] + k*w);
+            }
+        }
+    }
+    std::cout << dp[n];
+    return 0;
+}
+```
+
+[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)
+> 0<N≤1000, 0<V≤2000, 0<vi,wi,si≤2000
 
 ```
 数字1-6可以用 1,2，3进行表示，
@@ -643,20 +757,77 @@ dp[i][j] = max(dp[i-1][j], dp[i-1][j-vi] + wi, .....,  dp[i-1][j-k*vi] +k*wi, dp
 4 = 1 + 3
 5 = 2 + 3
 6 = 1 + 2 + 3
+
+因此可以将上述实现拆分为MN * (log(S)向上取整)
+
+假设K=log(S)，可以将其拆分为， 1， 2, ...., 2^k, S - 2^k个01背包问题
 ```
-因此可以将S进行二进制拆分，假设K=log(S)，可以将其拆分为， 1， 2, ...., 2^k, S - 2^k个01背包问题
+```C++
+#include <vector>
+#include <iostream>
 
-最终实现将复杂度调整为MN * (log(S)向上取整)
+struct Good {
+    int v;
+    int w;
+};
 
-
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+    
+    std::vector<Good> goods;
+    for (int i = 0; i < m; ++i) {
+        int v, w, s;
+        scanf("%d%d%d", &v, &w, &s);
+        for (int k = 1; k <= s; k *=2) {
+            s -= k;
+            goods.push_back({k*v, k*w});
+        }
+        if (s > 0) goods.push_back({s*v, s*w});
+    }
+    
+    std::vector<int> dp(n+1, 0);
+    for (auto& iter : goods) {
+        for (int j = n; j >= iter.v; --j) {
+            dp[j] = std::max(dp[j], dp[j-iter.v] + iter.w);
+        }
+    }
+    std::cout << dp[n];
+    return 0;
+}
+```
 
 ### 分组背包问题
+[9. 分组背包问题](https://www.acwing.com/problem/content/9/)
+> 有 N 组物品和一个容量是 V 的背包。每组物品有若干个，同一组内的物品最多只能选一个。每件物品的体积是 vij，价值是 wij，其中 i 是组号，j 是组内编号。求解将哪些物品装入背包，可使物品总体积不超过背包容量，且总价值最大。
 ```C++
+#include <vector>
+#include <iostream>
+
+int main() {
+    int m, n;
+    scanf("%d%d", &m, &n);
+    
+    std::vector<int> dp(n+1, 0);
+    for (int i = 0; i < m; ++i) {
+        int s;
+        scanf("%d", &s);
+        std::vector<int> v(s), w(s);
+        for (int k = 0; k < s; ++k) {
+            scanf("%d%d", &v[k], &w[k]);
+        }
+        
+        for (int j = n; j >= 0; --j) {
+            for (int k = 0; k < s; ++k) {
+                if (j >= v[k]) dp[j] = std::max(dp[j], dp[j - v[k]] + w[k]);
+            }
+        }
+        
+    }
+    std::cout << dp[n];
+    return 0;
+}
 ```
-
-
-
-
 
 ## 线性DP
 [898. 数字三角形](https://www.acwing.com/problem/content/900/)
@@ -1186,16 +1357,45 @@ int main() {
 
 # 搜索和图论
 
-| 专题 | 题目                                                         | 相关实现                                                  |
-| ---- | ------------------------------------------------------------ | --------------------------------------------------------- |
-| DFS  | [842. 排列数字](https://www.acwing.com/problem/content/844/)<br/>[843. n-皇后问题](https://www.acwing.com/problem/content/845/) | [ACW 842. 排列数字](000_Graph/842_ACW_E_permute.cpp)<br/> |
-| BFS  | [844. 走迷宫](https://www.acwing.com/problem/content/846/)<br/> | [ACW 844. 走迷宫](000_Graph/844_ACW_E_walk-maze.cpp)<br/> |
-|      |                                                              |                                                           |
-
-
-
 ## DFS
+[842. 排列数字](https://www.acwing.com/problem/content/844/)
+> 给定一个整数 n，将数字 1∼n 排成一排，将会有很多种排列方法。现在，请你按照字典序将所有的排列方法输出
 
+```C++
+#include <vector>
+#include <iostream>
+
+void dfs(int pos, const int n, std::vector<int> &path,
+        std::vector<int>& st) {
+    if (pos == n) {
+        for (int i = 0 ; i < n; ++i) {
+            std::cout << path[i] << " ";
+        }
+        std::cout << std::endl;
+        return;
+    }
+    
+    for (int i = 1; i <= n; ++i) {
+        if (!st[i]) {
+            path[pos] = i;
+            st[i] = true;
+            dfs(pos + 1, n, path, st);
+            st[i] = false;
+        }
+    }
+}
+
+int main() {
+    int n;
+    scanf("%d", &n);
+    
+    std::vector<int> path(n), st(n+1);
+    dfs(0, n, path, st);
+    return 0;
+}
+```
+
+[843. n-皇后问题](https://www.acwing.com/problem/content/845/)
 
 [n-皇后问题(按行枚举或按每个元素枚举)](https://www.acwing.com/solution/content/2820/) 这个解析不错
 
@@ -1301,17 +1501,10 @@ int main() {
 }
 ```
 
-
+## BFS
+[844. 走迷宫](acwing.com/problem/content/846/)
 
 # 基础
-
-| 专题   | 题目 | 相关实现 |
-| ------ | ---- | -------- |
-| 离散化 |      |          |
-|        |      |          |
-|        |      |          |
-
-
 
 
 ##  离散化
@@ -1457,15 +1650,8 @@ int main() {
 
 # 数据结构
 
-| 专题 | 题目                                                         | 相关实现                                                     |
-| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 堆   | [838. 堆排序](https://www.acwing.com/problem/content/840/)<br/> | [838. 堆排序](https://www.acwing.com/problem/content/840/)[ACW 838. 堆排序](04_Heap/838_ACW_E_heap-sort.cpp)<br/> |
-|      |                                                              |                                                              |
-|      |                                                              |                                                              |
-
-
-
-## 堆实现模板
+## 堆
+代码模板
 ```C++
 // h[N]存储堆中的值, h[1]是堆顶，x的左儿子是2x, 右儿子是2x + 1
 // ph[k]存储第k个插入的点在堆中的位置
@@ -1499,6 +1685,41 @@ void up(int u) {
 // O(n)建堆
 for (int i = n / 2; i; i -- ) down(i);
 ```
+
+[838. 堆排序](https://www.acwing.com/problem/content/840/0)
+```C++
+#include <iostream>
+#include <vector>
+
+void down(std::vector<int>& heap, int pos, int size) {
+    int npos = pos;
+    if (2*pos <= size && heap[2*pos] < heap[npos]) npos = 2 * pos;
+    if (2*pos+1 <= size && heap[2*pos+1] < heap[npos]) npos = 2 * pos + 1;
+    if (npos != pos) {
+        std::swap(heap[pos], heap[npos]);
+        down(heap, npos, size);
+    }
+}
+
+int main() {
+    int n, m;
+    scanf("%d%d", &n, &m);
+    
+    int size = n;
+    std::vector<int> h(n+1);
+    for (int i = 1; i <= n; ++i) scanf("%d", &h[i]);
+    
+    for (int i = n/2; i > 0; --i) down(h, i, size);
+    
+    while (m--) {
+        std::cout << h[1] << " ";
+        h[1] = h[size--];
+        down(h, 1, size);
+    }
+    return 0;
+}
+```
+
 
 [模拟堆](https://www.acwing.com/problem/content/841/)
 
