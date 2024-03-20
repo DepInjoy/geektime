@@ -335,7 +335,7 @@ int main() {
 
 | 专题                 | 题目                                                         | 相关实现                                                     |
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/) | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
+| Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/> | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
 |                      |                                                              |                                                              |
 |                      |                                                              |                                                              |
 
@@ -464,20 +464,20 @@ for (int i = 1, j = 0; i <= n; i ++ ) {
 
 ```
 
-## Trie
+## Trie模板
 
 ```C++
-int son[N][26], cnt[N], idx;
 // 0号点既是根节点，又是空节点
 // son[][]存储树中每个节点的子节点
 // cnt[]存储以每个节点结尾的单词数量
+int son[N][26], cnt[N], idx;
 
 // 插入一个字符串
 void insert(char *str) {
     int p = 0;
     for (int i = 0; str[i]; i ++ ) {
         int u = str[i] - 'a';
-        if (!son[p][u]) son[p][u] = ++ idx;
+        if (!son[p][u]) son[p][u] = ++idx;
         p = son[p][u];
     }
     cnt[p] ++ ;
@@ -493,18 +493,6 @@ int query(char *str) {
     }
     return cnt[p];
 }
-```
-
-[835.Trie字符串统计](https://www.acwing.com/problem/content/837/)
-
-```C++
-```
-
-
-
-[143.最大异或对](https://www.acwing.com/problem/content/145/)
-
-```C++
 ```
 
 
