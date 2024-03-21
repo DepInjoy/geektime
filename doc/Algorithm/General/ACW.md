@@ -1,11 +1,13 @@
 [ACW算法基础课](https://www.acwing.com/activity/content/introduction/11/)
 # 基础算法
 
-| 专题     | 题目                                                         | 相关实现                                                  |
-| -------- | ------------------------------------------------------------ | --------------------------------------------------------- |
-| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)      |
-| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp) |
-|          |                                                              |                                                           |
+| 专题     | 题目                                                         | 相关实现                                                     |
+| -------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)         |
+| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp)    |
+| 二分     | [789.数的范围](https://www.acwing.com/problem/content/791/)<br/>[790. 数的三次方根](https://www.acwing.com/problem/content/792/) | [ACW 789.数的范围](05_BinarySearch/798_ACW_E_data-range.cpp)<br/>[ACW 790. 数的三次方根](05_BinarySearch/790_ACW_E_cube.cpp) |
+| 双指针   | [799.最长连续不重复子序列](https://www.acwing.com/problem/content/801/) |                                                              |
+|          |                                                              |                                                              |
 
 
 ## 快速排序模板
@@ -114,8 +116,10 @@ int main() {
 }
 ```
 
-## 二分
-二分实现模板:
+
+
+## 二分模板
+
 ```C++
 bool check(int x) {/* ... */} // 检查x是否满足某种性质
 
@@ -140,79 +144,22 @@ int bsearch_2(int l, int r) {
 }
 ```
 
-[789.数的范围](https://www.acwing.com/problem/content/791/)
-```C++
-#include <iostream>
 
-const int N = 100010;
-int data[N];
-
-int main() {
-    int n, q;
-    scanf("%d%d", &n, &q);
-    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
-    
-    while (q--) {
-        int x;
-        scanf("%d", &x);
-
-        int l = 0, r = n - 1;
-        while (l < r) {
-            int mid = l + r >> 1;
-            if (data[mid] >= x) r = mid;
-            else l = mid + 1;
-        }
-
-        if (data[l] != x) {
-            std::cout << "-1 -1" << std::endl;
-            continue;
-        }
-        
-        std::cout << l << " ";
-        l = 0, r = n -1;
-        while (l < r) {
-            int mid = l + r + 1 >> 1;
-            if (data[mid] <= x) l = mid;
-            else r = mid - 1;
-        }
-        std::cout << l << std::endl;
-    }
-    return 0;
-}
-```
-
-[790. 数的三次方根](https://www.acwing.com/problem/content/792/)
-```C++
-#include <iostream>
-
-int main() {
-    double x;
-    std::cin >> x;
-    
-    double l = -10000, r = 10000;
-    while (r - l > 1e-8) {
-        double mid = (l + r)/2;
-        if (mid * mid * mid >= x) r = mid;
-        else l = mid;
-    }
-    printf("%lf", l);
-    return 0;
-}
-```
 
 
 ## 高精度
 
 ## 前缀和与差分
 
-## 双指针算法
-```C++
-or (int i = 0, j = 0; i < n; i ++ )
-{
-    while (j < i && check(i, j)) j ++ ;
 
+
+## 双指针模板
+```C++
+for (int i = 0, j = 0; i < n; i++){
+    while (j < i && check(i, j)) j++;
     // 具体问题的逻辑
 }
+
 常见问题分类：
     (1) 对于一个序列，用两个指针维护一段区间
     (2) 对于两个序列，维护某种次序，比如归并排序中合并两个有序序列的操作
@@ -293,7 +240,7 @@ int main() {
 
 
 
-## 位运算
+## 常用位运算
 
 ```C++
 // 求n的第k位数字
@@ -335,6 +282,9 @@ int main() {
 
 | 专题                 | 题目                                                         | 相关实现                                                     |
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 单调栈               |                                                              |                                                              |
+| 单调队列             |                                                              |                                                              |
+| 堆                   |                                                              |                                                              |
 | Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/> | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
 |                      |                                                              |                                                              |
 |                      |                                                              |                                                              |
@@ -351,7 +301,7 @@ int main() {
 
 
 
-## 单调栈
+## 单调栈模板
 常见模型：找出每个数左边离它最近的比它大/小的数
 ```C++
 int tt = 0;
@@ -390,7 +340,7 @@ int main() {
 
 
 
-## 单调队列
+## 单调队列模板
 常见模型：找出滑动窗口中的最大值/最小值
 ```C++
 int hh = 0, tt = -1;
@@ -540,6 +490,14 @@ int main() {
 ## 哈希表
 
 # 动态规划
+
+| 专题                                                         | 题目                                                         | 相关实现                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 背包问题<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包问题<br/><br/>4. 分组背包问题 | <br/>[2. 01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)<br/>[9. 分组背包问题](https://www.acwing.com/problem/content/9/) | <br/>[ACW 2. 01背包实现](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包实现](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包问题](02_DP/04_ACW_E_multi-bag.cpp)<br/><br/>[ACW 9. 分组背包问题](02_DP/09_ACW_M_group-bag.cpp) |
+|                                                              | \*                                                           |                                                              |
+|                                                              |                                                              |                                                              |
+
+
 
 ## 背包问题
 
@@ -1293,8 +1251,6 @@ sub1:从i行j列向上滑所有的路径, dp[i][j-1] + 1
 sub2:从i行j列向下滑所有的路径, dp[i][j+1] + 1
 sub3:从i行j列向左滑所有的路径, dp[i-1][j] + 1
 sub4:从i行j列向右滑所有的路径, dp[i+1][j] + 1
-
-
 ```
 
 ```C++

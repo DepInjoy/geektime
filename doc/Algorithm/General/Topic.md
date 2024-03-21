@@ -42,6 +42,8 @@
 
 # 二分
 1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp) 二分/位运算/快慢指针
+2. [69. x 的平方根](https://leetcode.cn/problems/sqrtx/description/) [相关实现](05_BinarySearch/69_LC_E_sqrtx.cpp) 二分实现
+
 
 # Floyd判圈算法(龟兔赛跑)
 > <center>
