@@ -38,7 +38,7 @@ CPU_RATE_LIMIT=integer | CPUSET=tuple
 | 属性                | 描述                                                         |      |
 | ------------------- | ------------------------------------------------------------ | ---- |
 | CONCURRENCY         | 资源组允许的最大并发数，包括活动的和空闲的事务，[0, MaxConnections(90)]。 |      |
-| MEMORY_LIMIT        | 当前资源组预留(reserve)的内存资源百分比，取值范围为[0, 100]<br/> 当MEMORY_LIMIT为0时，GreenPlum将不给资源组分配内存资源，使用资源组全局共享内存来满足内存请求。<br/>GP集群中所有资源组指定的MEMORY_LIMIT参数和不得超过100。 |      |
+| MEMORY_LIMIT        | 当前资源组预留(reserve)的内存资源百分比，取值范围为[0, 100]<br/>当MEMORY_LIMIT为0时，GreenPlum将不给资源组分配内存资源，使用资源组全局共享内存来满足内存请求。<br/>GP集群中所有资源组指定的MEMORY_LIMIT参数和不得超过100。 |      |
 | MEMORY_AUDITOR      | 内存审计方式。默认，资源组使用vmtracker，外部组件使用cgroup  |      |
 | MEMORY_SHARED_QUOTA | 资源组用于运行时事务之间共享的内存资源百分比<br/>将一个资源组内的内存分为两部分：组内各语句共享部分和每个语句独占的固定部分 |      |
 | MEMORY_SPILL_RATIO  | 内存密集型事务的内存使用阈值。当事务达到此阈值时，它将溢出到磁盘。<br/>GP的Spill支持两种模式:<br/>1. Percentage模式，MEMORY_SPILL_RATIO的值不为0<br/>2. Fallback模式，由GUC参数statement_mem决定 |      |
@@ -46,6 +46,43 @@ CPU_RATE_LIMIT=integer | CPUSET=tuple
 | CPUSET              | 资源组保留的CPU核                                            |      |
 
 SET，RESET和SHOW命令不受资源限制。
+
+
+
+`group_attribute`在Greenplum中采用`ResGroupCaps`表达
+
+```C
+typedef int32 ResGroupCap;
+typedef struct ResGroupCaps {
+	ResGroupCap		__unknown;			/* placeholder, do not use it */
+	ResGroupCap		concurrency;
+	ResGroupCap		cpuRateLimit;
+	ResGroupCap		memLimit;
+	ResGroupCap		memSharedQuota;
+	ResGroupCap		memSpillRatio;
+    // 内存审计方式
+	ResGroupCap		memAuditor;
+	char		    cpuset[MaxCpuSetLength];
+} ResGroupCaps;
+```
+
+
+
+资源组管理指令实现相关接口，不进行详细的解读。
+
+```C
+// src/backend/commands/resgroupcmds.c
+
+// CREATE RESOURCE GROUP
+// 调用AllocResGroupEntry实现真实地创建资源组
+void CreateResourceGroup(CreateResourceGroupStmt *stmt)
+
+// DROP RESOURCE GROUP
+void DropResourceGroup(DropResourceGroupStmt *stmt)
+
+// ALTER RESOURCE GROUP
+void AlterResourceGroup(AlterResourceGroupStmt *stmt)
+```
 
 # 资源组管理思想
 资源组的内存管理是基于slot的方式进行管理的，在内存分配策略上采用了禁用OverCommit的方式，在内核上会配置
@@ -105,16 +142,97 @@ GP提供了CPUSET和CPU_RATE_LIMIT两种资源组限制来标识CPU资源分配�
 | `src/backend/utils/resgroup/resgroup.c`           | 资源组管理实现核心   |
 | `src/backend/utils/resgroup/resgroup-ops-linux.c` | Linux cgroup相关操作 |
 
+
+
+## 数据结构
+
+资源组支持的属性表达
+
+```C
+typedef int32 ResGroupCap;
+
+typedef struct ResGroupCaps {
+	ResGroupCap		__unknown;			/* placeholder, do not use it */
+	ResGroupCap		concurrency;
+	ResGroupCap		cpuRateLimit;
+	ResGroupCap		memLimit;
+	ResGroupCap		memSharedQuota;
+	ResGroupCap		memSpillRatio;
+    // 内存审计方式
+	ResGroupCap		memAuditor;
+	char		    cpuset[MaxCpuSetLength];
+} ResGroupCaps;
+```
+
+资源组信息表达
+
+```C
+struct ResGroupData {
+	Oid			groupId;			/* Id for this group */
+
+	/*
+	 * memGap is calculated as:
+	 * 	(memory limit (before alter) - memory expected (after alter))
+	 *
+	 * It stands for how many memory (in chunks) this group should
+	 * give back to MEM POOL.
+	 */
+	int32       memGap;
+	
+
+    // pResGroupControl->totalChunks * caps->memLimit / 100
+    // see groupGetMemExpected API
+	int32		memExpected;		/* expected memory chunks according to current caps */
+    // see groupRebalanceQuota, 根据预留chunks和资源组属性更新计算
+	int32		memQuotaGranted;	/* memory chunks for quota part */
+	int32		memSharedGranted;	/* memory chunks for shared part */
+
+	volatile int32	memQuotaUsed;	/* memory chunks assigned to all the running slots */
+
+	/*
+	 * memory usage of this group, should always equal to the
+	 * sum of session memory(session_state->sessionVmem) that
+	 * belongs to this group
+	 */
+	volatile int32	memUsage;
+	volatile int32	memSharedUsage;
+
+	volatile int			nRunning;		/* number of running trans */
+	volatile int	nRunningBypassed;		/* number of running trans in bypass mode */
+	int			totalExecuted;	/* total number of executed trans */
+	int			totalQueued;	/* total number of queued trans	*/
+	Interval	totalQueuedTime;/* total queue time */
+	PROC_QUEUE	waitProcs;		/* list of PGPROC objects waiting on this group */
+
+
+     // 根据资源组内存审计方式属性绑定内存操作相关接口
+     // see bindGroupOperation API
+	const ResGroupMemOperations *groupMemOps;
+
+    // true表示当前资源组已删除,还没提交
+	bool		lockedForDrop;
+	// 资源组属性
+	ResGroupCaps	caps;		/* capabilities of this group */
+};
+```
+
+
+
+```C
+/* GP对于每个查询都会开启一个事务,记录一个事务对应的资源组信息
+ * 由decideResGroup进行数据赋值
+ */
+struct ResGroupInfo {
+	ResGroupData	*group;
+	Oid				groupId;
+};
+```
+
+
+
 ## 初始化
 
-### 内存初始化
-GP将所有资源放在一个全局的mem pool中，通过`ResGroupControl *pResGroupControl`结构来维护相关的数据信息
-- `chunkSizeInBits`一个chunk多少bit
-- `totalChunks`一共有多少chunk
-- `freeChunks`空闲chunk数量，代表全局共享内存的大小。
-- `safeChunksThreshold100`表示Safe memory，当全局共享资源小于该阈值的时候，资源组的内存使用进入red zone
-
-```c
+```C++
 void InitResGroups(void) {
 					......                
 	// 1. 计算Segment上的chunk总数
@@ -128,6 +246,16 @@ void InitResGroups(void) {
     				.......
 }
 ```
+
+
+
+### 内存初始化
+GP将所有资源放在一个全局的mem pool中，通过`ResGroupControl *pResGroupControl`结构来维护相关的数据信息
+- `chunkSizeInBits`：一个chunk多少bit
+- `totalChunks`：一共有多少chunk
+- `freeChunks`：空闲chunk数量，代表全局共享内存的大小。
+- `safeChunksThreshold100`：表示Safe memory，当全局共享资源小于该阈值的时候，资源组的内存使用进入red zone
+
 通过`decideTotalChunks`接口，GP将这些内存划分为不超过16K的chunk，之后基于Chunk进行管理。默认一个chunk是1M，默认的一个Chunk为1M大小，如果可用虚拟内存大于16GB(16K MB)，则通过增大一个Chunk的大小(依次放大为2M、4M....)，来确保Chunk的数量不超过16K。
 ```C
 // Calculate the total memory chunks of the segment
@@ -140,7 +268,7 @@ static void decideTotalChunks(int32 *totalChunks, int32 *chunkSizeInBits) {
 	nsegments = Gp_role == GP_ROLE_EXECUTE ? host_segments : pResGroupControl->segmentsOnMaster;
 	/**
 	 * 结合Linux系统配置以及cgroup信息获取可管理内存, 单位MB
-	 * 	
+	 * 
 	 *  Linux系统 outTotalMemory = SWAP + RAM * vm.overcommitRatio / 100
 	 * 
 	 *  通过getCgMemoryInfo中获取cgroup的RAM和swap
@@ -149,11 +277,12 @@ static void decideTotalChunks(int32 *totalChunks, int32 *chunkSizeInBits) {
 	 * 
 	 * total = Min(outTotalMemory, (cgmemsw<memsw ? cgmemsw - ram : swap) + Min(ram, cgram))
 	 * */
-	tmptotalChunks = ResGroupOps_GetTotalMemory() * gp_resource_group_memory_limit / nsegments;
+	tmptotalChunks = ResGroupOps_GetTotalMemory() /*单位:MB*/
+        	* gp_resource_group_memory_limit / nsegments;
 
 	// 默认一个chunk含1M
 	tmpchunkSizeInBits = BITS_IN_MB;
-	// 如果vmem > 16GB，每个chunk含的bit容量(chunkSizeInBits)增大
+	// 如果vmem > 16GB(16 K MB)，每个chunk含的bit容量(chunkSizeInBits)增大
 	// 确保每个chunk单元的vmem不超过16K
 	while(tmptotalChunks > (16 * 1024)) {
 		tmpchunkSizeInBits++;
@@ -165,10 +294,13 @@ static void decideTotalChunks(int32 *totalChunks, int32 *chunkSizeInBits) {
 }
 ```
 
+
+
 ### CPU管理初始化
+
 Linux CPU采用CFS调度策略，通过两种方式控制CPU：
 
-1. 配置强制上限(ceiling enforcement)，`cpu.cfs_period_us`，指定一个时间段用于重新分配cgroup对CPU资源的访问的频率，单位微秒。如果cgroup中的任务能够每1秒访问单个CPU 0.2秒，将`cpu.cfs_quota_us`设置为200000，`cpu.cfs_period_us`设置为1000000。`cpu.cfs_quota_us`参数的上限为1秒，下限为1000微秒。
+1. 配置上限限制(ceiling enforcement)，`cpu.cfs_period_us`，指定一个时间段用于重新分配cgroup对CPU资源的访问的频率，单位微秒。如果cgroup中的任务能够每1秒访问单个CPU 0.2秒，将`cpu.cfs_quota_us`设置为200000，`cpu.cfs_period_us`设置为1000000。`cpu.cfs_quota_us`参数的上限为1秒，下限为1000微秒。
 
 2. 相对的共享份额(relative sharing), `cpu.shares`，包含一个整数值，该值指定cgroup中的任务可用的CPU时间的相对份额。例如，两个将`cpu.shares`设置为100的cgroup中的任务将获得相等的CPU时间，但将`cpu.shares`为200的cgroup中的任务获得的CPU时间是将`cpu.shares`为100的两倍。`cpu.shares`的值必须大于等于2.
 
@@ -243,6 +375,135 @@ static void initCpuSet(void) {
 	createDefaultCpuSetGroup();
 }
 ```
+
+## 创建资源组
+
+```C
+/*
+ * 创建资源组(resource group)，初始化资源组参数
+ *
+ * 1. 通过groupGetMemExpected(caps)计算memExpected = totalChunks * caps->memLimit
+ * 2. 通过mempoolReserve计算从freeChunks中尽可能多地reserve memExpected的资源
+ * 3. 通过groupRebalanceQuota计算reserved的chunks计算memQuotaGranted和memSharedGranted
+ * 4. 通过bindGroupOperation根据内存审计方式绑定内存操作的接口函数
+ */
+static ResGroupData * createGroup(Oid groupId, const ResGroupCaps *caps) {
+	ResGroupData	*group;
+	int32			chunks;
+			......
+	group = groupHashNew(groupId);
+	// initialize a shared memory process queue
+	ProcQueueInit(&group->waitProcs);
+			......
+    // group->memExpected = pResGroupControl->totalChunks * caps->memLimit / 100
+	group->memExpected = groupGetMemExpected(caps);
+
+	// 从freeChunks中尽可能多地reserve memExpected的资源
+    // 更新pResGroupControl的freeChunks和safeChunksThreshold100
+	chunks = mempoolReserve(groupId, group->memExpected);
+    
+	// 根据reserved的chunks以及资源组属性,更新memQuotaGranted和memSharedGranted
+	groupRebalanceQuota(group, chunks, caps);
+  
+	// 根据内存审计方式绑定groupMemOps相关接口
+	bindGroupOperation(group);
+
+	return group;
+}
+```
+
+```C
+/*
+ * @param 	chunks:	表示实际希望获得chunk数
+ * @return 	reserved 本次预留的chunk,可能小于期望的chunks数
+ */
+static int32 mempoolReserve(Oid groupId, int32 chunks) {
+	int32 reserved = 0;
+
+	while (true) {
+		int32 oldFreeChunks = pg_atomic_read_u32(&pResGroupControl->freeChunks);
+         // 此次预留的chunk数，也是实际获取的chunk数，可能会小于希望获取的chunks
+		reserved = Min(Max(0, oldFreeChunks), chunks);
+		int32 newFreeChunks = oldFreeChunks - reserved;
+		if (reserved == 0) break;
+		if (pg_atomic_compare_exchange_u32(&pResGroupControl->freeChunks,
+                   (uint32 *) &oldFreeChunks, (uint32) newFreeChunks))
+			break;
+	}
+
+    // 更新safeChunksThreshold100
+	if (reserved != 0) {
+		uint32 safeChunksThreshold100 = (uint32) pg_atomic_read_u32(&pResGroupControl->safeChunksThreshold100);
+		int safeChunksDelta100 = reserved * (100 - runaway_detector_activation_percent);
+		pg_atomic_sub_fetch_u32(&pResGroupControl->safeChunksThreshold100, safeChunksDelta100);
+	}
+
+	return reserved;
+}
+```
+
+
+
+```C++
+// 根据reserved的chunks以及资源组属性,更新memQuotaGranted和memSharedGranted
+static void groupRebalanceQuota(ResGroupData *group, int32 chunks,
+                                const ResGroupCaps *caps) {
+    // 1. 根据资源组属性计算group expected memory quota
+	int32 memQuotaGranted = groupGetMemQuotaExpected(caps);
+	// 2. expected memory quta和资源资已有的mem quota差值
+	int32 delta = memQuotaGranted - group->memQuotaGranted;
+	if (delta >= 0) {
+		delta = Min(chunks, delta);
+		// 3. 更新memory chunks for quota
+		group->memQuotaGranted += delta;
+         // 预留的chunks除去quota part,给share
+		chunks -= delta;
+	}
+	// 4. 更新memory chunks for shared
+	group->memSharedGranted += chunks;
+}
+```
+
+
+
+## 内存申请和释放
+
+### 内存申请
+
+在`ResGroupData`结构中通过`nRunning`记录了正在运行的事务数量，每成功获取一个slot，`nRunning++`。` `ResGroupCap`记录着资源组属性配置信息，其中`concurrency`记录着并发度的上限。总体上来说，并发度的控制是运行事务数量和quota已使用量相关因素综合作用的结果。
+
+这里忽略一些异常和锁的相关处理逻辑来了解主实现
+
+```C
+```
+
+
+
+# 属性(cap)到ResGroupData计算
+
+```C++
+// Get total expected memory quota of a group in chunks
+static int32 groupGetMemExpected(const ResGroupCaps *caps) {
+	return pResGroupControl->totalChunks * caps->memLimit / 100;
+}
+
+// Get per-group expected memory quota in chunks
+static int32 groupGetMemQuotaExpected(const ResGroupCaps *caps) {
+	if (caps->concurrency > 0)
+		return slotGetMemQuotaExpected(caps) * caps->concurrency;
+	else
+		return groupGetMemExpected(caps) * (100 - caps->memSharedQuota) / 100;
+}
+
+// Get per-slot expected memory quota in chunks
+static int32 slotGetMemQuotaExpected(const ResGroupCaps *caps) {
+	// pResGroupControl->totalChunks * caps->memLimit / 100;
+	return groupGetMemExpected(caps) * (100 - caps->memSharedQuota) / 100
+        	/ caps->concurrency;
+}
+```
+
+
 
 # 参考资料
 

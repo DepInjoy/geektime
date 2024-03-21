@@ -64,3 +64,14 @@ void ResManagerShmemInit(void) {
 	}
 }
 ```
+
+```C++
+InitPostgres // postinit.c
+	InitResManager {	// resource_manager.c
+    	if () {
+            InitResGroups
+        }
+	}
+
+```
+
