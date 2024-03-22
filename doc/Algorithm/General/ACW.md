@@ -1,4 +1,5 @@
 [ACW算法基础课](https://www.acwing.com/activity/content/introduction/11/)
+
 # 基础算法
 
 | 专题     | 题目                                                         | 相关实现                                                     |
@@ -282,11 +283,11 @@ int main() {
 
 | 专题                 | 题目                                                         | 相关实现                                                     |
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 单调栈               |                                                              |                                                              |
-| 单调队列             |                                                              |                                                              |
+| 单调栈               | [830. 单调栈](https://www.acwing.com/problem/content/832/)   | [ACW 830. 单调栈](02_MonotonicStack/830_ACW_E_monotonic-stack.cpp) |
+| 单调队列             | [154. 滑动窗口](https://www.acwing.com/problem/content/description/156/) | [ACW 154. 滑动窗口](06_SlidWindow/154_ACW_E_sliding-window.cpp) |
 | 堆                   |                                                              |                                                              |
 | Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/> | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
-|                      |                                                              |                                                              |
+| 并查集               | [836. 合并集合](https://www.acwing.com/problem/content/838/)<br/>[837. 连通块中点的数量](https://www.acwing.com/problem/content/839/)<br/> | [ACW 836 合并集合](01_01_UnionFind/836_ACW_E_union-set.cpp)<br/>[ACW 837. 连通块中点的数量](01_01_UnionFind/837_ACW_E_number-points-in-connected-block.cpp) |
 |                      |                                                              |                                                              |
 
 
@@ -306,35 +307,8 @@ int main() {
 ```C++
 int tt = 0;
 for (int i = 1; i <= n; i ++ ) {
-    while (tt && check(stk[tt], i)) tt -- ;
+    while (tt && check(stk[tt], i)) tt--;
     stk[++tt] = i;
-}
-```
-
-[830.单调栈](https://www.acwing.com/problem/content/832/)
-
-```C++
-#include <iostream>
-
-const int N = 100010;
-int stk[N], tt;
-
-int main() {
-    int n;
-    scanf("%d", &n);
-    
-    while(n--) {
-        int x;
-        scanf("%d", &x);
-        while(tt && stk[tt] >= x) --tt;
-        if (tt) {
-            std::cout << stk[tt] << " ";
-        } else {
-            std::cout << "-1 ";
-        }
-        stk[++tt] = x; 
-    }
-    return 0;
 }
 ```
 
@@ -446,7 +420,55 @@ int query(char *str) {
 ```
 
 
-## 并查集
+
+## 并查集模板
+
+1. 朴素并查集
+
+```C++
+int p[N]; //存储每个点的祖宗节点
+// 返回x的祖宗节点
+int find(int x) {
+    if (p[x] != x) p[x] = find(p[x]);
+    return p[x];
+}
+
+// 初始化，假定节点编号是1~n
+for (int i = 1; i <= n; i ++ ) p[i] = i;
+
+// 合并a和b所在的两个集合
+p[find(a)] = find(b);
+```
+
+2. 维护size的并查集
+
+```C++
+// p[]存储每个点的祖宗节点
+// size[]只有祖宗节点的有意义，表示祖宗节点所在集合中的点的数量
+int p[N], size[N];
+
+// 返回x的祖宗节点
+int find(int x) {
+    if (p[x] != x) p[x] = find(p[x]);
+    return p[x];
+}
+
+// 初始化，假定节点编号是1~n
+for (int i = 1; i <= n; i++ ) {
+    p[i] = i, size[i] = 1;
+}
+
+// 合并a和b所在的两个集合：
+size[find(b)] += size[find(a)];
+p[find(a)] = find(b);
+```
+
+3. 维护
+
+```C++
+```
+
+
 
 ## 堆
 [838. 堆排序](https://www.acwing.com/problem/content/840/)
@@ -493,7 +515,7 @@ int main() {
 
 | 专题                                                         | 题目                                                         | 相关实现                                                     |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 背包问题<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包问题<br/><br/>4. 分组背包问题 | <br/>[2. 01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)<br/>[9. 分组背包问题](https://www.acwing.com/problem/content/9/) | <br/>[ACW 2. 01背包实现](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包实现](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包问题](02_DP/04_ACW_E_multi-bag.cpp)<br/><br/>[ACW 9. 分组背包问题](02_DP/09_ACW_M_group-bag.cpp) |
+| 背包问题<br/>1. 01背包问题<br/>2. 完全背包问题<br/>3. 多重背包问题<br/><br/>4. 分组背包问题 | <br/>[2. 01背包问题](https://www.acwing.com/problem/content/2/)<br/>[3. 完全背包问题](https://www.acwing.com/problem/content/3/)<br/>[4. 多重背包问题 I](https://www.acwing.com/problem/content/4/)<br/>[5. 多重背包问题 II](https://www.acwing.com/problem/content/5/)<br/>[9. 分组背包问题](https://www.acwing.com/problem/content/9/) | <br/>[ACW 2. 01背包实现](02_DP/02_ACW_E_01-bag.cpp)<br/>[ACW 3. 完全背包实现](02_DP/03_ACW_E_full-bag.cpp)<br/>[ACW 4. 多重背包实现](02_DP/04_ACW_E_multi-bag.cpp)<br/><br/>[ACW 9. 分组背包实现](02_DP/09_ACW_M_group-bag.cpp) |
 |                                                              | \*                                                           |                                                              |
 |                                                              |                                                              |                                                              |
 
