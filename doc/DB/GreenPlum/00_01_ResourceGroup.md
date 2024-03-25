@@ -82,6 +82,8 @@ typedef struct ResGroupCaps {
 
 资源组管理指令实现相关接口，不进行详细的解读。
 
+语法解析：`src\backend\parser\gram.y`
+
 ```C
 // src/backend/commands/resgroupcmds.c
 
@@ -246,6 +248,20 @@ group_cpu_shares = parent_cpu_shares * 0.3
 
 
 
+# 配置和使用
+
+| 参数                                             | 参数意义                                                     | 默认值 |
+| ------------------------------------------------ | ------------------------------------------------------------ | ------ |
+| `gp_resource_group_bypass`                       | 查询使用资源不受资源组限制                                   | false  |
+| `gp_resource_group_memory_limit`                 | 分配给 Greenplum 数据库的系统内存百分比，默认70%。           | 0.7    |
+| `gp_resource_group_cpu_limit`                    | 分配给每个Greenplum数据库Segment上的资源组的系统CPU资源的最大百分比。<br/>无论资源组CPU分配模式如何，此限制都将控制Segment主机上所有资源组的最大CPU使用率。<br/>剩余的未预留CPU资源用于OS内核和Greenplum数据库辅助守护进程 | 0.9    |
+| `gp_resource_group_cpu_priority`                 | postgres进程的cpu优先级                                      | 10     |
+| `gp_resource_group_cpu_ceiling_enforcement`      | 是否启用CPU上限限制                                          | false  |
+| `gp_resource_group_enable_recalculate_query_mem` | 使能QE上资源组重新计算query_mem<br/>如果master和segment上硬件配置不同，GP建议将其设置为true | false  |
+| `gp_resource_group_queuing_timeout`              | 事务在资源队列上排队等待的时间，单位ms                       |        |
+
+
+
 # 源码解读
 
 基于最新的`6.26.x`分支进行源码解读。源码实现层面主要涉及两个文件：
@@ -317,7 +333,8 @@ struct ResGroupData {
 	int			totalExecuted;	/* total number of executed trans */
 	int			totalQueued;	/* total number of queued trans	*/
 	Interval	totalQueuedTime;/* total queue time */
-	PROC_QUEUE	waitProcs;		/* list of PGPROC objects waiting on this group */
+    // 当前资源组中等待的进程队列
+	PROC_QUEUE	waitProcs;
 
 
      // 根据资源组内存审计方式属性绑定内存操作相关接口
@@ -340,6 +357,40 @@ struct ResGroupData {
 struct ResGroupInfo {
 	ResGroupData	*group;
 	Oid				groupId;
+};
+```
+
+
+
+```C++
+struct ResGroupControl {
+    // segment节点mem总chunk数
+	int32			totalChunks;
+    // 每个chunk中的位数(默认20,即1M 1 >> 20)
+    int32			chunkSizeInBits;
+    // master上primary segment数量,在InitResGroups时初始化
+	int 			segmentsOnMaster;
+ 	// 资源组最大数量(MaxResourceGroups=100),在InitResGroups时初始化
+	int				nGroups;
+	// 资源组数据是否从系统中加载完成,在InitResGroups进行加载并设置为true
+	bool			loaded;
+
+    // Safe memory threshold,如果剩余的全局shared mem低于此阈值
+    // 资源组的内存使用进入red zone
+	pg_atomic_uint32 safeChunksThreshold100;
+
+    // 没有分配给资源组的mem chunk数,资源组优先使用share mem
+    // 当share mem不够用时,使用这部分内存,参见mempoolAutoReserve
+	pg_atomic_uint32 freeChunks;
+
+    // slotpoolInit接口初始化slot pool
+    // 最多RESGROUP_MAX_SLOTS=MaxConnections=90个ResGroupSlotData
+	ResGroupSlotData	*slots;		/* slot pool shared by all resource groups */
+    // shared slot pool, head of the free list
+	ResGroupSlotData	*freeSlot;
+
+	HTAB			*htbl;
+	ResGroupData	groups[1];
 };
 ```
 
@@ -582,9 +633,32 @@ static void groupRebalanceQuota(ResGroupData *group, int32 chunks,
 
 
 
-## 内存申请和释放
+## 申请和释放slot
 
-### 内存申请
+```C++
+// master上, QD在事务刚开始时被分配给资源组(resource group) 
+// 并从资源组中获取一个slot
+AssignResGroupOnMaster
+    decideResGroup(&groupInfo);
+    slot = groupAcquireSlot 	// 获取slot
+	sessionSetSlot(slot);		// MySessionState->resGroupSlot
+    self->caps = slot->caps; 	// 初始化当前进程资源队列属性
+	ResGroupOps_AssignGroup  	// 将当前进程添加到cgroup
+```
+
+
+
+```C++
+// 提交事务
+CommitTransaction()
+    UnassignResGroup 	// 事务结束时,释放资源组的slot
+    	groupReleaseSlot(group, slot, false);		// 释放slot
+	    sessionResetSlot();
+```
+
+
+
+### 申请slot
 
 在`ResGroupData`结构中通过`nRunning`记录了正在运行的事务数量，每成功获取一个slot，`nRunning++`。`ResGroupCap`记录着资源组属性配置信息，其中`concurrency`记录着并发度的上限。总体上来说，并发度的控制是运行事务数量和quota已使用量相关因素综合作用的结果。
 
@@ -599,16 +673,19 @@ static ResGroupSlotData *groupAcquireSlot(ResGroupInfo *pGroupInfo, bool isMoveQ
 			......
 	if (!group->lockedForDrop) {
 		/**
-		 * 1. 尝试获取slot, 以下情况会出现获取slot失败：
-		 * 		1). 在运行中的事务数量(group->nRunning)>资源组的并发度(caps->concurrency)
+		 * 1. 尝试获取resource group slot
+		 * 	  1.1. 尝试预留mem quota, 以下情况会出现获取slot失败：
+		 * 		1). 在运行中的事务数量(group->nRunning)>=资源组的并发度(caps->concurrency)
 		 * 		2). 从group中reserve slot失败，详见groupReserveMemQuota实现
 		 * 
-		 * 		如果slot获取成功, 则从shared slot pool中申请slot, 详见slotpoolAllocSlot
-        */
+		 *    1.2. 若mem quota预留成功, 则从shared slot pool(pResGroupControl->freeSlot)中申请slot
+		 *		   GP在初始化时,通过slotpoolInit接口初始化slot pool
+		 *         最多RESGROUP_MAX_SLOTS=MaxConnections=90个ResGroupSlotData
+		 *       参见slotpoolAllocSlot
+          */
 		slot = groupGetSlot(group);
-
 		if (slot != NULL) {
-			// 1.1 获取slot成功,执行中的trans自增1
+			// 获取slot成功,执行中的trans自增1
 			group->totalExecuted++;
 			pgstat_report_resgroup(0, group->groupId);
 			return slot;
@@ -620,16 +697,102 @@ static ResGroupSlotData *groupAcquireSlot(ResGroupInfo *pGroupInfo, bool isMoveQ
 
 	if (!group->lockedForDrop) group->totalQueued++;
 
-	waitOnGroup(group, isMoveQuery);
+	// 1.3 等待gp_resource_group_queuing_timeout(单位Ms)来获取slot,超时则cancle查询
+    //      wakeupSlots来唤醒资源组中排队等待slot,给MyProc->resSlot赋值
+    waitOnGroup(group, isMoveQuery);
 	if (MyProc->resSlot == NULL) return NULL;
 
 	slot = (ResGroupSlotData *) MyProc->resSlot;
 	MyProc->resSlot = NULL;
 	addTotalQueueDuration(group);
 	group->totalExecuted++;
-	LWLockRelease(ResGroupLock);
 	pgstat_report_resgroup(0, group->groupId);
 	return slot;
+}
+```
+
+
+
+```C++
+static ResGroupSlotData * groupGetSlot(ResGroupData *group) {
+	ResGroupCaps* caps = &group->caps;
+	// 1. 运行中的事务数量>=资源组的并发度,获取失败
+	if (group->nRunning >= caps->concurrency) return NULL;
+
+	// 2. 从资源组预留的mem quota中尝试预留slot
+	//    优先从资源组shared mem, 若失败,再从global shared mem(freechunk)中获取
+	int32 slotMemQuota = groupReserveMemQuota(group);
+	if (slotMemQuota < 0) return NULL;
+
+	// 3. 从pResGroupControl->freeSlot(shared slot pool)中获取一个slot
+	ResGroupSlotData* slot = slotpoolAllocSlot();
+
+	// 4. 初始化slot信息
+	initSlot(slot, group, slotMemQuota);
+
+	// 5. 事务获取slot成功，运行中事务数自增1
+	group->nRunning++;
+	return slot;
+}
+```
+
+```C++
+// Reserve memory quota for a slot in group.
+static int32 groupReserveMemQuota(ResGroupData *group) {
+	ResGroupCaps* caps = &group->caps;
+	mempoolAutoReserve(group, caps);
+
+	/* Calculate the expected per slot quota */
+	int32 slotMemQuota = slotGetMemQuotaExpected(caps);
+
+	if (group->memQuotaUsed + slotMemQuota > group->memQuotaGranted) {
+		/* No enough memory quota available, give up */
+		return -1;
+	}
+	group->memQuotaUsed += slotMemQuota;
+	return slotMemQuota;
+}
+
+// Try to acquire enough quota & shared quota for current group from MEM POOL
+static int32 mempoolAutoReserve(ResGroupData *group, const ResGroupCaps *caps) {
+    // 先用资源组固定和share的内存
+	int32 currentMemStocks = group->memSharedGranted + group->memQuotaGranted;
+	int32 neededMemStocks = group->memExpected - currentMemStocks;
+	int32 chunks = 0;
+	if (neededMemStocks > 0) { // 资源组固定和share的内存不够,从全局共享内存(freechunk)中申请
+		chunks = mempoolReserve(group->groupId, neededMemStocks);
+		groupRebalanceQuota(group, chunks, caps);
+	}
+	return chunks;
+}
+```
+
+
+
+### 释放slot
+
+```C++
+// Release the resource group slot
+// Call this function at the end of the transaction.
+static void groupReleaseSlot(ResGroupData *group, ResGroupSlotData *slot, bool isMoveQuery) {
+	groupPutSlot(group, slot);
+	if (IS_QUERY_DISPATCHER())
+        // 唤醒在等待slot资源的进程获取slot
+		wakeupSlots(group, true);
+}
+
+static void groupPutSlot(ResGroupData *group, ResGroupSlotData *slot) {
+	// 1. 将slot的memory quota归还给group
+    //    即group->memQuotaUsed -= slot->memQuota
+	groupReleaseMemQuota(group, slot);
+
+	// 2. 将slot加入到pResGroupControl->freeSlot队列
+	slotpoolFreeSlot(slot);
+	group->nRunning--;
+
+	// 3. release the overused memory quota
+	int32 released = mempoolAutoRelease(group);
+	if (released > 0) notifyGroupsOnMem(group->groupId);
 }
 ```
 
