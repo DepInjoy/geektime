@@ -58,6 +58,7 @@ frame_end可以是下面其一:
 	    ```
 	
 	- `PERCENT_RANK()`,
+	
 2. 聚集函数，可以指定窗口范围(Frame)。
 	- `AVG()`, `COUNT()`, `SUM()`, `MAX()`, `MIN()`
 	
@@ -88,15 +89,34 @@ frame_end可以是下面其一:
 		FIRST_VALUE(expr) [null_treatment]
 		-- expr:		
 		```
-	- `LAG()`和`LEAD()`分别用于计算用于统计窗口内向上第n行值和窗口内向下第n行值。
-		```sql
-		LAG | LEAD(col_name, offset_opt, default_opt)
-		-- offset_opt:			偏移的offset
-		-- default_opt:			超出记录窗口时的默认值
-		```
 
+		> The results of the FIRST_VALUE function depends on the ordering of the data. The results are nondeterministic in the following cases:
+		> - When no ORDER BY clause is specified and a partition contains two different values for an expression
+		> - When the expression evaluates to different values that correspond to the same value in the ORDER BY list.
+		> 来自：https://docs.aws.amazon.com/redshift/latest/dg/r_WF_first_value.html
+
+		> 也就是说，FIRST_VALUE函数的结果取决于数据的顺序。在以下情况下，结果是不确定的:
+		> - 未指定ORDER BY且一个分区有表达式有两个不同的值。
+		> - ORDER BY列表中值相同，表达式计算值不同。例如，下面是一个分区的数据，ORDER BY的列是一致的，按照ORDER BY排序，expr的输出顺序可能是`1, 2, 3`, 或`2, 1, 3`,或`3, 1, 2`，那么`FIRST_VALUE(expr)`的输出结果不固定。
+		>
+		> | expr | ORDER BY表达式值 |
+		> | :--: | :--------------: |
+		> |  1   |        1         |
+		> |  2   |        1         |
+		> |  3   |        1         |
+
+
+
+- `LAG()`和`LEAD()`分别用于计算用于统计窗口内向上第n行值和窗口内向下第n行值。
+
+  ```sql
+  	LAG | LEAD(col_name, offset_opt, default_opt)
+  	-- offset_opt:			偏移的offset
+  	-- default_opt:			超出记录窗口时的默认值
+  ```
 
 # 参考资料
+
 1. [知乎:SQL 窗口函数的优化和执行](https://zhuanlan.zhihu.com/p/80051518)
 2. [Drill:SQL Window Functions Introduction](https://drill.apache.org/docs/sql-window-functions-introduction/)
 3. [MySQL:Window Function Concepts and Syntax](https://dev.mysql.com/doc/refman/8.0/en/window-functions-usage.html)

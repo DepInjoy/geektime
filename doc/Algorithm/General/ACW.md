@@ -285,10 +285,9 @@ int main() {
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 单调栈               | [830. 单调栈](https://www.acwing.com/problem/content/832/)   | [ACW 830. 单调栈](02_MonotonicStack/830_ACW_E_monotonic-stack.cpp) |
 | 单调队列             | [154. 滑动窗口](https://www.acwing.com/problem/content/description/156/) | [ACW 154. 滑动窗口](06_SlidWindow/154_ACW_E_sliding-window.cpp) |
-| 堆                   |                                                              |                                                              |
-| Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/> | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
+| 堆                   | [模拟堆](https://www.acwing.com/problem/content/841/)                                                             |                                                              |
+| Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/>[143.最大异或对](https://www.acwing.com/problem/content/145/) | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
 | 并查集               | [836. 合并集合](https://www.acwing.com/problem/content/838/)<br/>[837. 连通块中点的数量](https://www.acwing.com/problem/content/839/)<br/> | [ACW 836 合并集合](01_01_UnionFind/836_ACW_E_union-set.cpp)<br/>[ACW 837. 连通块中点的数量](01_01_UnionFind/837_ACW_E_number-points-in-connected-block.cpp) |
-|                      |                                                              |                                                              |
 
 
 
@@ -475,6 +474,7 @@ int main() {
 ```
 
 [模拟堆](https://www.acwing.com/problem/content/841/)
+
 ```C++
 
 ```

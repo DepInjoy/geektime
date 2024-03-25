@@ -356,6 +356,7 @@ Status VAnalyticEvalNode::_consumed_block_and_init_partition(
 
     // 2.3 
     *next_partition = _init_next_partition(found_partition_end);
+
     // 为_result_window_columns根据agg_function返回类型创建column
     RETURN_IF_ERROR(_init_result_columns());
     return Status::OK();

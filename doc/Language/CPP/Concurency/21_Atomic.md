@@ -60,7 +60,21 @@ C++中所有与多线程相关的事项都会牵涉内存区域。如果两个�
 //      2. 原子指令直接实现
 // 实现检查原子变量是否是采取原子指令实现(返回true)
 bool is_lock_free()
- 
+```
+
+原子操作的关键用途是取代需要互斥的同步方式，假如原子操作本身也在内部使用了互斥，就很可能无法达到所期望的性能提升，而更好的做法是采用基于互斥的方式，该方式更加直观且不易出错。
+
+C++程序库专门为此提供了一组宏:
+```C++
+ATOMIC_BOOL_LOCK_FREE
+ATOMIC_CHAR_LOCK_FREE、ATOMIC_CHAR16_T_LOCK_FREE
+ATOMIC_CHAR32_T_LOCK_FREE、ATOMIC_WCHAR_T_LOCK_FREE
+ATOMIC_SHORT_LOCK_FREE、ATOMIC_INT_LOCK_FREE
+ATOMIC_LONG_LOCK_FREE、ATOMIC_LLONG_LOCK_FREE和ATOMIC_POINTER_LOCK_FREE
+```
+实现由不同整数类型特化而成的各种原子类型，在编译期判定其是否属于无锁数据结构。从C++17开始，全部原子类型都含有一个静态常量表达式成员变量(static constexpr member variable)，形如`X::is_always_lock_free`，功能与那些宏相同：考察编译生成的一个特定版本的程序，当且仅当在所有支持该程序运行的硬件上，原子类型X全都以无锁结构形式实现，该成员变量的值才为true。
+
+```C++
 void store( T desired, std::memory_order order = std::memory_order_seq_cst ) noexcept;
 void store( T desired, std::memory_order order = std::memory_order_seq_cst ) volatile noexcept;
 
@@ -102,6 +116,11 @@ T fetch_or( T arg, std::memory_order order = std::memory_order_seq_cst ) volatil
 2. 载入(`load`)操作，可选用的内存次序有`std::memory_order_relaxed`、`std::memory_order_consume`、`std::memory_order_acquire`或`std::memory_order_seq_cst`。
 3. 读-改-写(`read-modify-write`)操作，可选用内存次序`std::memory_order_relaxed``std::memory_order_consume`、`std::memory_order_acquire`、``std::memory_order_release`、`std::memory_order_acq_rel`或`std::memory_order_seq_cst`。
 
+## 操作std::atomic_flag
+`std::atomic_flag`原子类型不提供`is_lock_free()`成员函数，是简单的布尔标志，必须采取无锁操作。只要利用这种简单的无锁布尔标志，我们就能实现一个简易的锁，进而基于该锁实现其他所有原子类型。这里说简单，确实如此：类型`std::atomic_flag`的对象在初始化时清零，可通过成员函数`test_and_set()`查值并设置成立，或由`clear()`清零，只有这两个操作。
+```C++
+
+```
 # 同步操作和强制次序
 
 ## 依据原子对象的当前值决定是否保存新值

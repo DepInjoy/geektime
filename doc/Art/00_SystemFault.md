@@ -103,6 +103,8 @@
 3. [内存问题难定位，那是因为你没用ASAN](http://www.ckzixun.com/jishuzixun/3633.html)
 4. [定位多线程内存越界问题实践总结](https://www.cnblogs.com/sky-heaven/p/9242120.html)
 
+# tcmalloc死锁
+
 # 参考资料
 
 1. [极客时间：系统出现故障怎么办？](https://time.geekbang.com/column/article/267760?screen=full)
