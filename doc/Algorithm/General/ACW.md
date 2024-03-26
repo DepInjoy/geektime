@@ -285,7 +285,7 @@ int main() {
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 单调栈               | [830. 单调栈](https://www.acwing.com/problem/content/832/)   | [ACW 830. 单调栈](02_MonotonicStack/830_ACW_E_monotonic-stack.cpp) |
 | 单调队列             | [154. 滑动窗口](https://www.acwing.com/problem/content/description/156/) | [ACW 154. 滑动窗口](06_SlidWindow/154_ACW_E_sliding-window.cpp) |
-| 堆                   | [模拟堆](https://www.acwing.com/problem/content/841/)                                                             |                                                              |
+| 堆                   | [838. 堆排序](https://www.acwing.com/problem/content/840/)<br/>[839 模拟堆](https://www.acwing.com/problem/content/841/) | [ACW 838. 堆排序](04_Heap\838_ACW_E_heap-sort.cpp)<br/>[ACW 839 模拟堆](04_Heap/839_ACW_E_mock-heap.cpp) |
 | Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/>[143.最大异或对](https://www.acwing.com/problem/content/145/) | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
 | 并查集               | [836. 合并集合](https://www.acwing.com/problem/content/838/)<br/>[837. 连通块中点的数量](https://www.acwing.com/problem/content/839/)<br/> | [ACW 836 合并集合](01_01_UnionFind/836_ACW_E_union-set.cpp)<br/>[ACW 837. 连通块中点的数量](01_01_UnionFind/837_ACW_E_number-points-in-connected-block.cpp) |
 
@@ -438,46 +438,44 @@ p[find(a)] = find(b);
 
 
 
-## 堆
-[838. 堆排序](https://www.acwing.com/problem/content/840/)
+## 堆模板
+
 ```C++
-#include <iostream>
+// h[N]存储堆中的值,下标从1开始, h[1]是堆顶，x的左儿子是2x, 右儿子是2x + 1
+// ph[k]存储第k个插入的点在堆中的位置
+// hp[k]存储堆中下标是k的点是第几个插入的
+int h[N], ph[N], hp[N], size;
 
-const int N = 100010;
-int h[N], size;
+// 交换两个点，及其映射关系
+void heap_swap(int a, int b) {
+    swap(ph[hp[a]],ph[hp[b]]);
+    swap(hp[a], hp[b]);
+    swap(h[a], h[b]);
+}
 
-void down(int i) {
-    int t = i;
-    if (2*i <= size && h[2*i] < h[t]) t = 2 * i;
-    if (2*i+1 <= size && h[2*i+1] < h[t]) t = 2 * i + 1;
-    if (t != i) {
-        std::swap(h[t], h[i]);
+void down(int u) {
+    int t = u;
+    if (u * 2 <= size && h[u * 2] < h[t]) t = u * 2;
+    if (u * 2 + 1 <= size && h[u * 2 + 1] < h[t]) t = u * 2 + 1;
+    if (u != t) {
+        heap_swap(u, t);
         down(t);
     }
 }
 
-int main() {
-    int m;
-    scanf("%d%d", &size, &m);
-    for(int i = 1; i <= size; ++i) scanf("%d", &h[i]);
-    
-    // 自底向上建堆O(N)
-    for (int i = size/2; i; --i) down(i);
-
-    while(m--) {
-        printf("%d ", h[1]);
-        h[1] = h[size--];
-        down(1);
+void up(int u) {
+    while (u / 2 && h[u] < h[u / 2]) {
+        heap_swap(u, u / 2);
+        u >>= 1;
     }
-    return 0;
 }
+
+// 自底向上建堆，时间复杂度O(N)
+for (int i = n / 2; i; i -- ) down(i);
 ```
 
-[模拟堆](https://www.acwing.com/problem/content/841/)
 
-```C++
 
-```
 ## 哈希表
 
 # 动态规划
