@@ -287,7 +287,7 @@ int main() {
 | 单调队列             | [154. 滑动窗口](https://www.acwing.com/problem/content/description/156/) | [ACW 154. 滑动窗口](06_SlidWindow/154_ACW_E_sliding-window.cpp) |
 | 堆                   | [838. 堆排序](https://www.acwing.com/problem/content/840/)<br/>[839 模拟堆](https://www.acwing.com/problem/content/841/) | [ACW 838. 堆排序](04_Heap\838_ACW_E_heap-sort.cpp)<br/>[ACW 839 模拟堆](04_Heap/839_ACW_E_mock-heap.cpp) |
 | Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/>[143.最大异或对](https://www.acwing.com/problem/content/145/) | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
-| 并查集               | [836. 合并集合](https://www.acwing.com/problem/content/838/)<br/>[837. 连通块中点的数量](https://www.acwing.com/problem/content/839/)<br/> | [ACW 836 合并集合](01_01_UnionFind/836_ACW_E_union-set.cpp)<br/>[ACW 837. 连通块中点的数量](01_01_UnionFind/837_ACW_E_number-points-in-connected-block.cpp) |
+| 并查集               | [836. 合并集合](https://www.acwing.com/problem/content/838/)<br/>[837. 连通块中点的数量](https://www.acwing.com/problem/content/839/)<br/> [240. 食物链](https://www.acwing.com/problem/content/242/)| [ACW 836 合并集合](01_01_UnionFind/836_ACW_E_union-set.cpp)<br/>[ACW 837. 连通块中点的数量](01_01_UnionFind/837_ACW_E_number-points-in-connected-block.cpp)<br/>[ACW 240. 食物链](01_01_UnionFind/242_ACW_M_food-chain.cpp) |
 
 
 
@@ -431,15 +431,35 @@ size[find(b)] += size[find(a)];
 p[find(a)] = find(b);
 ```
 
-3. 维护
-
+3. 维护到祖宗节点距离的并查集
 ```C++
+int p[N], d[N];
+//p[]存储每个点的祖宗节点, d[x]存储x到p[x]的距离
+
+// 返回x的祖宗节点
+int find(int x) {
+    if (p[x] != x) {
+        int u = find(p[x]);
+        d[x] += d[p[x]];
+        p[x] = u;
+    }
+    return p[x];
+}
+
+// 初始化，假定节点编号是1~n
+for (int i = 1; i <= n; i ++ ) {
+    p[i] = i;
+    d[i] = 0;
+}
+
+// 合并a和b所在的两个集合：
+p[find(a)] = find(b);
+d[find(a)] = distance; // 根据具体问题，初始化find(a)的偏移量
 ```
 
 
 
 ## 堆模板
-
 ```C++
 // h[N]存储堆中的值,下标从1开始, h[1]是堆顶，x的左儿子是2x, 右儿子是2x + 1
 // ph[k]存储第k个插入的点在堆中的位置
