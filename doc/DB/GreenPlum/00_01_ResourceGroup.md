@@ -150,7 +150,7 @@ GP提供了CPUSET和CPU_RATE_LIMIT两种资源组限制来标识CPU资源分配�
 
 ## 资源队列示例
 
-对于一个支持混合负载的数据产品而言，系统中的长查询和短查询会不定期出现，很多用户的一个痛点是，当系统中运行着一个长查询时，这个语句有可能占用太多的系统CPU或者内存等资源，造成短查询无法获得哪怕很小部分的资源，表现为运行很慢、执行时间变长，Greenplum结合资源组就能避免这一问题。
+对于一个支持混合负载的数据产品而言，系统中的长查询和短查询会不定期出现，很多用户的一个痛点是，当系统中运行着一个长查询时，这个语句有可能占用太多的系统CPU或者内存等资源，造成短查询无法获得哪怕很小部分的资源，表现为运行很慢、执行时间变长，Greenplum结合资源组可以避免这一问题。
 
 ```sql
 create resource group rg1 with (concurrency=3, cpu_rate_limit=50, memory_limit=30);
@@ -208,18 +208,17 @@ pre_segment_mem = (RAM * (vm.overcommit_ratio / 100) + SWAP)
 group_expected_mem = pre_segment_mem * 0.6
 ```
 
-该资源组的`memory_shared_quota`为50，意味着其总内存的50%是共享内存，其他50%是预留的固定内存。语句开始执行后，会优先使用属于自己的这部分固定内存，之后使用组内共享的部分，最后才使用全局共享的部分。
-
+该资源组的`memory_shared_quota`为50，意味着其总内存的50%是共享内存，其他50%是预留的固定内存。
 ```
 group_quota_expected_mem = group_expected_mem * (1 - 0.5)
 group_shared_expected_mem = group_expected_mem - group_quota_expected_mem
 ```
 
 `CONCURRENCY=8`表示并发度为8，共有8个预留的固定内存slot。
-
 ```C++
 slot_quota_expected_mem = group_quota_expected_mem / concurrency
 ```
+每条运行的语句将会独占一部分固定内存，如`Transaction slot#1`。<b><font color=#FF5733>语句开始执行后，会优先使用属于自己的固定内存，之后使用组内共享的部分，最后才使用全局共享的部分。</font></b>
 
 `memory_spill_ratio`不为0，GP按照下面的公式计算分配给事务的内存
 
@@ -227,7 +226,14 @@ slot_quota_expected_mem = group_quota_expected_mem / concurrency
 query_mem = (pre_segment_mem * memory_limit) * memory_spill_ratio / concurrency
 ```
 
+`memory_spill_ratio`配置会影响单个语句的内存使用量。对于`rg_sample`资源组的`memory_spill_ratio`设为30，意味着当语句开始执行时，会计算该语句可以使用的内存量，并为其分配30%作为初始用量。当语句的执行计划生成后，会根据这个配置在不同的算子（例如表扫描算子或者排序算子）之间进行内存分配。默认，普通的操作只需要分配100KB的内存，对于哈希关联或者排序这样非常需要内存的操作，会平均分配其余内存。在执行哈希关联或者排序时，如果内存使用量超过为其分配的内存，那么该算子的运行开始利用外部文件来存储部分中间结果，从而缓解对内存的使用，这个过程称为spill。
 
+<center>
+	<img src="./img/pg-rg-mem-usage-level.png">
+	<div>内存资源在不同粒度逐级分配</div>
+</center>
+<br/>
+<br/>
 
 对于CPU的限制，将`gp_resource_group_cpu_limit`的CPU核心给节点使用，剩余的`1-gp_resource_group_cpu_limit`核心给系统后台和GP的其他辅助进程使用
 
@@ -244,21 +250,46 @@ group_cpu_shares = parent_cpu_shares * 0.3
 
 数据会更新到资源组cpu子系统的`cpu.shares`中。
 
----
-
-
-
 # 配置和使用
 
 | 参数                                             | 参数意义                                                     | 默认值 |
 | ------------------------------------------------ | ------------------------------------------------------------ | ------ |
 | `gp_resource_group_bypass`                       | 查询使用资源不受资源组限制                                   | false  |
 | `gp_resource_group_memory_limit`                 | 分配给 Greenplum 数据库的系统内存百分比，默认70%。           | 0.7    |
+| `gp_resource_group_enable_cgroup_cpuset`         | 是否使能CPU_SET，默认是False                                 | false  |
+| `gp_resource_group_enable_cgroup_memory`         |                                                              |        |
+| `gp_resource_group_enable_cgroup_swap`           |                                                              |        |
 | `gp_resource_group_cpu_limit`                    | 分配给每个Greenplum数据库Segment上的资源组的系统CPU资源的最大百分比。<br/>无论资源组CPU分配模式如何，此限制都将控制Segment主机上所有资源组的最大CPU使用率。<br/>剩余的未预留CPU资源用于OS内核和Greenplum数据库辅助守护进程 | 0.9    |
 | `gp_resource_group_cpu_priority`                 | postgres进程的cpu优先级                                      | 10     |
 | `gp_resource_group_cpu_ceiling_enforcement`      | 是否启用CPU上限限制                                          | false  |
 | `gp_resource_group_enable_recalculate_query_mem` | 使能QE上资源组重新计算query_mem<br/>如果master和segment上硬件配置不同，GP建议将其设置为true | false  |
 | `gp_resource_group_queuing_timeout`              | 事务在资源队列上排队等待的时间，单位ms                       |        |
+| `memory_spill_ratio`                             | 影响单个语句的内存使用量，影响Greenplum分配给查询运算符内存量。<br/>当 memory_spill_ratio大于0时，表示分配给查询运算符的资源组内存的百分比。如果并发很高，即使memory_spill_ratio设置为最大值100，此内存量也可能很小。<br/>如果memory_spill_ratio=0，Greenplum 数据库使用 statement_mem 设置来确定要分配的查询运算符内存的初始量。 |        |
+| `statement_mem`                                  | 如果memory_spill_ratio=0，GP分配给查询的内存量               | 128M   |
+| `gp_resgroup_memory_policy`                      | 控制所有查询算子的内存申请及使用，GP支持资源组使用eager-free和auto内存分配两种策略,默认为Auto。<br/>1.None策略，内存管理和Greenplum数据库4.1之前的版本一样。<br/>2. auto策略，GP使用资源组内存限制在算子之间分配内存，为非内存密集型算子分配固定大小内存并将剩余内存分配给内存密集型算子。<br/>3. eager-free策略，GP会把已经完成处理的算子释放的内存重新分配给后续算子，从而在算子之间更优地分配内存。<br/>分布算法Eager_free 利用不是所有的操作符都同时执行完成（GP 4.2和之后的版本）。查询计划被分成几个阶段，Greenplum 数据库在该阶段执行结束时马上释放分配给前一个阶段的内存，然后将释放的内存分配给新阶段。<br/>(原文: In Greenplum Database 4.2 and later, the distribution algorithm eager_free takes advantage of the fact that not all operators execute at the same time. The query plan is divided into stages and Greenplum Database eagerly frees memory allocated to a previous stage at the end of that stage's execution, then allocates the eagerly freed memory to the new stage.) |        |
+| `gp_resgroup_memory_policy_auto_fixed_mem`       | AUTO策略中非内存密集型运算符保留的固定内存量                 |        |
+| `gp_vmem_limit_per_query`                        | 每个Segment每个语句的最大允许内存，0表示不限制               |        |
+| `gp_segworker_relative_priority`                 | segworkers相对于postmaster的优先级                           |        |
+
+
+
+## 资源组分配
+
+可以在`CREATE ROLE`和`ALTER ROLE`将角色分配给Resource Group。
+
+```sql
+-- 创建角色时分配资源组，需要CREATEROLE权限或superuser
+CREATE ROLE name WITH RESOURCE GROUP group_name
+```
+
+将group_name资源组分配给新创建的角色，该角色也需要遵循Resource Group在并发事务、内存和CPU的配置下执行。一个Resource Group可以对应1到多个角色。如果没有为新角色指定Resource Group，则会自动为该角色分配默认资源组，为SUPERUSER角色分配admin_group，为非管理员角色分配 default_group。可以将`admin_group`资源组分配给具有SUPERUSER属性的任何角色，可以将`default_group`资源组分配给任何角色。不能将为外部组件创建的资源组分配给角色。
+
+
+
+```sql
+-- 修改角色,将资源组分配给相应角色
+ALTER ROLE name RESOURCE GROUP {group_name | NONE}
+```
 
 
 
@@ -544,6 +575,21 @@ static void initCpuSet(void) {
 
 ## 创建资源组
 
+在`src\include\catalog\pg_resgroup.h`，借助[BKI命令](https://docs.huihoo.com/postgresql/9.0/bki-commands.html)在创建默认的admin_group和default_group。
+
+```C++
+// 通过BKI创建默认资源组
+DATA(insert OID = 6437 ( default_group, 0 ));
+DATA(insert OID = 6438 ( admin_group, 0 ));
+
+#define DEFAULTRESGROUP_OID 	6437
+#define ADMINRESGROUP_OID 	6438
+```
+
+
+
+` createGroup`创建资源组接口实现
+
 ```C
 /*
  * 创建资源组(resource group)，初始化资源组参数
@@ -633,7 +679,9 @@ static void groupRebalanceQuota(ResGroupData *group, int32 chunks,
 
 
 
-## 申请和释放slot
+## 并发度控制
+
+申请和释放slot,在事务开始时申请slot，在事务结束时释放slot。
 
 ```C++
 // master上, QD在事务刚开始时被分配给资源组(resource group) 
@@ -642,6 +690,8 @@ AssignResGroupOnMaster
     decideResGroup(&groupInfo);
     slot = groupAcquireSlot 	// 获取slot
 	sessionSetSlot(slot);		// MySessionState->resGroupSlot
+    selfAttachResGroup(resgroup, resgroupslot)
+        groupIncMemUsage(group, slot, self->memUsage);
     self->caps = slot->caps; 	// 初始化当前进程资源队列属性
 	ResGroupOps_AssignGroup  	// 将当前进程添加到cgroup
 ```
@@ -835,6 +885,129 @@ static int32 slotGetMemQuotaExpected(const ResGroupCaps *caps) {
 	return groupGetMemExpected(caps) * (100 - caps->memSharedQuota) / 100
         	/ caps->concurrency;
 }
+
+// Get per-slot expected memory spill in chunks
+static int32 slotGetMemSpill(const ResGroupCaps *caps) {
+	if (memory_spill_ratio != RESGROUP_FALLBACK_MEMORY_SPILL_RATIO) {
+		/* memSpill is in percentage mode */
+		return groupGetMemSpillTotal(caps) / caps->concurrency;
+	} else {
+		// memSpill is in fallback mode, it is an absolute value
+		return groupGetMemSpillTotal(caps);
+	}
+}
+```
+
+
+
+## 内存限制
+
+```C++
+static int32 groupIncMemUsage(ResGroupData *group, ResGroupSlotData *slot,
+                              int32 chunks) {
+    
+}
+```
+
+
+
+ ## 内存审计
+
+| 参数                                    | 参数意义                                                     | 默认值 |
+| --------------------------------------- | ------------------------------------------------------------ | ------ |
+| `gp_vmem_protect_limit`                 | 单个Segment的所有活动postgres进程在任何给定时刻能够消耗的内存量 | 8192M  |
+| `gp_vmem_limit_per_query`               |                                                              |        |
+| `gp_vmem_protect_segworker_cache_limit` | Max virtual memory limit (in MB) for a segworker to be cachable | 500M   |
+| `runaway_detector_activation_percent`   |                                                              | 90%    |
+
+
+
+相关实现位于`src\backend\utils\mmgr\vmem_tracker.c`
+
+```C++
+// Operations of memory for resource groups with vmtracker memory auditor.
+static const ResGroupMemOperations resgroup_memory_operations_vmtracker = {
+	.group_mem_on_create	= NULL,
+	.group_mem_on_alter		= groupMemOnAlterForVmtracker,
+	.group_mem_on_drop		= groupMemOnDropForVmtracker,
+	.group_mem_on_notify	= groupMemOnNotifyForVmtracker,
+	.group_mem_on_dump		= groupMemOnDumpForVmtracker,
+};
+
+// Operations of memory for resource groups with cgroup memory auditor.
+static const ResGroupMemOperations resgroup_memory_operations_cgroup = {
+	.group_mem_on_create	= NULL,
+	.group_mem_on_alter		= groupMemOnAlterForCgroup,
+	.group_mem_on_drop		= groupMemOnDropForCgroup,
+	.group_mem_on_notify	= groupMemOnNotifyForCgroup,
+	.group_mem_on_dump		= groupMemOnDumpForCgroup,
+};
+```
+
+```C++
+// Bind operation to resource group according to memory auditor.
+static void bindGroupOperation(ResGroupData *group) {
+	if (group->caps.memAuditor == RESGROUP_MEMORY_AUDITOR_VMTRACKER)
+		group->groupMemOps = &resgroup_memory_operations_vmtracker;
+	else if (group->caps.memAuditor == RESGROUP_MEMORY_AUDITOR_CGROUP)
+		group->groupMemOps = &resgroup_memory_operations_cgroup;
+}
+```
+
+
+
+
+
+```c
+/**
+ * 	gp_vmem_protect_limit => vmemChunksQuota
+ * 	maxChunksPerQuery => gp_vmem_limit_per_query to chunk
+ *  redZoneChunks = gp_vmem_protect_limit * runaway_detector_activation_percent to chunk
+ *  segmentVmemChunks初始化0
+*/
+void VmemTracker_ShmemInit()
+```
+
+在`InitResManager`将startup mem注册到vmTracker
+
+```c
+/*
+ * Register the startup memory to vmem tracker.
+ *
+ * The startup memory will always be tracked, but an OOM error will be raised
+ * if the memory usage exceeds the limits.
+ * 
+ * 更新数据
+ * 	1. startupChunks
+ * 	2. startupBytes
+ * 	3. trackedBytes += startupBytes;
+ *	4. trackedVmemChunks += startupChunks;
+ */
+MemoryAllocationStatus VmemTracker_RegisterStartupMemory(int64 bytes)
+```
+
+
+
+```c
+/*
+ * Reserve newly_requested bytes from the vmem system.
+ *
+ * For performance reason, this method only reserves in chunk units and if the new
+ * request can be met from previous chunk reservation, it does not try to reserve a new
+ * chunk.
+ */
+MemoryAllocationStatus VmemTracker_ReserveVmem(int64 newlyRequestedBytes)
+```
+
+
+
+## 内存管理策略
+
+`src\backend\utils\resource_manager\memquota.c`
+
+```C++
+void PolicyAutoAssignOperatorMemoryKB(PlannedStmt *stmt, uint64 memAvailableBytes)
+void PolicyEagerFreeAssignOperatorMemoryKB(PlannedStmt *stmt, uint64 memAvailableBytes)
 ```
 
 
