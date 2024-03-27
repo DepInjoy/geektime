@@ -57,7 +57,7 @@ CPU_RATE_LIMIT=integer | CPUSET=tuple
 | CPU_RATE_LIMIT      | 资源组的可用的CPU使用率，取值范围[0, 100]。                  |      |
 | CPUSET              | 资源组保留的CPU核                                            |      |
 
-SET，RESET和SHOW命令不受资源限制。
+SET，RESET和SHOW命令不受资源限制，资源组的配置信息存在`gp_toolkit.gp_resgroup_config`系统视图中
 
 
 
@@ -895,6 +895,75 @@ static int32 slotGetMemSpill(const ResGroupCaps *caps) {
 		// memSpill is in fallback mode, it is an absolute value
 		return groupGetMemSpillTotal(caps);
 	}
+}
+```
+
+
+
+## CPU管理
+
+GP的资源组对于CPU的限制借助Linux的cgroup的cpu和cpuset子系统进行CPU限制，cgroup采用层级形式进行组织，cgroup上的子节点cgroup是父节点cgroup的孩子，继承父cgroup的特定的属性。
+
+### 加入cgroup的子系统
+
+GP在开启事务时将相应的pid写入cgroup子系统的`cgroup.procs`文件，从而实现进程组中进程接受资源控制的目的。
+
+```c
+/*
+ * Assign a process to the OS group. A process can only be assigned to one OS group
+ * if it's already running under other OS group then it'll be moved out that OS group.
+ * pid is the process id.
+ */
+void ResGroupOps_AssignGroup(Oid group, ResGroupCaps *caps, int pid) {
+    bool oldViaCpuset = oldCaps.cpuRateLimit == CPU_RATE_LIMIT_DISABLED;
+    bool curViaCpuset = caps ? caps->cpuRateLimit == CPU_RATE_LIMIT_DISABLED : false;
+        
+            .......
+
+    writeInt64(group, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPU, "cgroup.procs", pid);
+    writeInt64(group, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPUACCT, "cgroup.procs", pid);
+
+    if (gp_resource_group_enable_cgroup_cpuset) {
+        if (caps == NULL || !curViaCpuset) {
+            /* add pid to default group */
+            writeInt64(DEFAULT_CPUSET_GROUP_ID, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPUSET, "cgroup.procs", pid);
+        } else {
+            writeInt64(group, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPUSET, "cgroup.procs", pid);
+        }
+    }
+			.......
+}
+```
+
+
+
+在事务提交对资源组的修改(ResGroupAlterOnCommit),根据`callbackCtx->limittype`为`RESGROUP_LIMIT_TYPE_CPU`或者`RESGROUP_LIMIT_TYPE_CPUSET`来决定是按照核心数或者百分比来管理CPU核心。
+
+### 按照核心数分配核心
+
+```c
+void ResGroupOps_SetCpuSet(Oid group, const char *cpuset) {
+    ResGroupCompType comp = RESGROUP_COMP_TYPE_CPUSET;
+
+    if (!gp_resource_group_enable_cgroup_cpuset)
+        return ;
+
+    writeStr(group, BASETYPE_GPDB, comp, "cpuset.cpus", cpuset);
+}
+```
+
+
+
+### 按照百分比管理核心数
+
+```c
+// Set the cpu rate limit for the OS group.
+// cpu_rate_limit should be within [0, 100].
+void ResGroupOps_SetCpuRateLimit(Oid group, int cpu_rate_limit) {
+    ResGroupCompType comp = RESGROUP_COMP_TYPE_CPU;
+    /* group.shares := gpdb.shares * cpu_rate_limit */
+    int64 shares = readInt64(RESGROUP_ROOT_ID, BASETYPE_GPDB, comp, "cpu.shares");
+    writeInt64(group, BASETYPE_GPDB, comp, "cpu.shares", shares * cpu_rate_limit / 100);
 }
 ```
 
