@@ -12,8 +12,20 @@ GreenPlum采用无共享(Share-Nothing)的MPP(Massively Parallel Processing)架�
 
 
 QD(Query Dispatcher、查询调度器)：Master 节点上负责处理用户查询请求的进程称为 QD(PostgreSQL 中称之为 Backend 进程)。 QD 收到用户发来的 SQL 请求后，进行解析、重写和优化，将优化后的并行计划分发给每个 segment 上执行，并将最终结果返回给用户。此外还负责整个 SQL 语句涉及到的所有的 QE 进程间的通讯控制和协调，譬如某个 QE 执行时出现错误时，QD 负责收集错误详细信息，并取消所有其他 QEs。QD 的入口是`exec_simple_query()`。
+```C
+// src/backend/tcop/postgres.c
+static void exec_simple_query(const char *query_string)
+```
 
 QE(Query Executor、查询执行器)：Segment 上负责执行 QD 分发来的查询任务的进程称为 QE。Segment 实例运行的也是一个 PostgreSQL，所以对于 QE 而言，QD 是一个 PostgreSQL 的客户端，通过 PostgreSQL 标准的 libpq 协议进行通讯(GP对其做了增强)。对于 QD 而言，QE 是负责执行查询请求的PostgreSQL Backend 进程。通常 QE 执行整个查询的一部分(称为 Slice)。QE 的入口是`exec_mpp_query()`。
+```C
+// src/backend/tcop/postgres.c
+static void exec_mpp_query(const char *query_string,
+			   const char * serializedQuerytree, int serializedQuerytreelen,
+			   const char * serializedPlantree, int serializedPlantreelen,
+			   const char * serializedParams, int serializedParamslen,
+			   const char * serializedQueryDispatchDesc, int serializedQueryDispatchDesclen)
+```
 
 Slice：为了提高查询执行并行度和效率，Greenplum 把一个完整的分布式查询计划从下到上分成多个 Slice，每个 Slice 负责计划的一部分。划分 slice 的边界为 Motion，每遇到 Motion 则将Motion切成发送方和接收方，得到两颗子树。每个slice由一个QE进程处理。上面例子中一共有三个 slice。
 
