@@ -103,7 +103,11 @@ void AlterResourceGroup(AlterResourceGroupStmt *stmt)
 - `vm.overcommit_memory = 2`，系统默认为0，修改`/etc/sysctl.conf`进行配置
 - `vm.overcommit_ratio`默认值为0.5
 
-资源组实现了细粒度地对内存和CPU的管理。
+资源组实现了细粒度地对内存和CPU的管理。Linux的cgroup的`memsw`启用需要内核参数配合，下面两种当时选择其一：
+
+- 内核配置中`CONFIG_MEMCG_SWAP_ENABLED=on`
+
+- `swapaccount=1`in kernel cmdline.
 
 ## 内存管理
 GP基于全局共享内存和slot机制对限制内存
@@ -904,6 +908,13 @@ static int32 slotGetMemSpill(const ResGroupCaps *caps) {
 
 GP的资源组对于CPU的限制借助Linux的cgroup的cpu和cpuset子系统进行CPU限制，cgroup采用层级形式进行组织，cgroup上的子节点cgroup是父节点cgroup的孩子，继承父cgroup的特定的属性。
 
+```C
+// 探测cgroup的挂载点
+static bool detectCgroupMountPoint(void)
+```
+
+
+
 ### 加入cgroup的子系统
 
 GP在开启事务时将相应的pid写入cgroup子系统的`cgroup.procs`文件，从而实现进程组中进程接受资源控制的目的。
@@ -919,20 +930,36 @@ void ResGroupOps_AssignGroup(Oid group, ResGroupCaps *caps, int pid) {
     bool curViaCpuset = caps ? caps->cpuRateLimit == CPU_RATE_LIMIT_DISABLED : false;
         
             .......
-
+    // 调用buildPath->buildPathSafe来决定要写入的cgroup文件的路径
     writeInt64(group, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPU, "cgroup.procs", pid);
     writeInt64(group, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPUACCT, "cgroup.procs", pid);
 
     if (gp_resource_group_enable_cgroup_cpuset) {
         if (caps == NULL || !curViaCpuset) {
             /* add pid to default group */
-            writeInt64(DEFAULT_CPUSET_GROUP_ID, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPUSET, "cgroup.procs", pid);
+            writeInt64(DEFAULT_CPUSET_GROUP_ID, BASETYPE_GPDB,
+                       RESGROUP_COMP_TYPE_CPUSET, "cgroup.procs", pid);
         } else {
             writeInt64(group, BASETYPE_GPDB, RESGROUP_COMP_TYPE_CPUSET, "cgroup.procs", pid);
         }
     }
 			.......
 }
+```
+
+```C
+/*
+ * Build path string with parameters.
+ * Return NULL if the path buffer is not large enough, errno will also be set.
+ *
+ * Examples (path and pathsize are omitted):
+ * - buildPath(ROOT, PARENT, CPU, ""     ): /sys/fs/cgroup/cpu
+ * - buildPath(ROOT, PARENT, CPU, "tasks"): /sys/fs/cgroup/cpu/tasks
+ * - buildPath(ROOT, GPDB  , CPU, "tasks"): /sys/fs/cgroup/cpu/gpdb/tasks
+ * - buildPath(6437, GPDB  , CPU, "tasks"): /sys/fs/cgroup/cpu/gpdb/6437/tasks
+ */
+static char * buildPathSafe(Oid group, BaseType base, ResGroupCompType comp,
+                            const char *prop, char *path, size_t pathsize)
 ```
 
 
