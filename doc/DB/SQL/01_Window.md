@@ -39,7 +39,7 @@ frame_end可以是下面其一:
 > 来自：https://dev.mysql.com/doc/refman/8.0/en/window-functions-usage.html
 
 `window_function`可能是：
-1. 排名函数，不可以指定frame(窗口范围)。
+1. 排名函数，不可以指定frame(窗口范围)，MySql要求必须指定Order by。
 
 	- `RANK`函数：计算排序时，如果存在相同位次的记录，则会跳过之后的位次。例如，有 3 条记录排在第 1 位时：1 位、1 位、1 位、4 位……
 	
