@@ -4,11 +4,11 @@
 
 | 专题     | 题目                                                         | 相关实现                                                     |
 | -------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)         |
-| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp)    |
+| 快排     | [785.快速排序](https://www.acwing.com/problem/content/description/787/)<br/>[786.第k个数](https://www.acwing.com/problem/content/788/) | [ACW 785.快速排序](07_Sort/785_ACW_E_quick_sort.cpp)<br/>[ACW 786.第k个数](07_Sort/786_ACW_E_kth-data.cpp) |
+| 归并排序 | [787. 归并排序](https://www.acwing.com/problem/content/789/)<br/>[788. 逆序对的数量](https://www.acwing.com/problem/content/790/) | [ACW 787. 归并排序实现](07_Sort/787_ACW_E_merge_sort.cpp)<br/>[ACW 788. 逆序对的数量](07_Sort/788_ACW_E_number-pairs-in-reverse-order.cpp) |
 | 二分     | [789.数的范围](https://www.acwing.com/problem/content/791/)<br/>[790. 数的三次方根](https://www.acwing.com/problem/content/792/) | [ACW 789.数的范围](05_BinarySearch/798_ACW_E_data-range.cpp)<br/>[ACW 790. 数的三次方根](05_BinarySearch/790_ACW_E_cube.cpp) |
-| 双指针   | [799.最长连续不重复子序列](https://www.acwing.com/problem/content/801/) |                                                              |
-|          |                                                              |                                                              |
+| 双指针   | [799.最长连续不重复子序列](https://www.acwing.com/problem/content/801/)<br/>[800.数组元素的目标和](https://www.acwing.com/problem/content/802/)<br/>[2816.判断子序列](https://www.acwing.com/problem/content/2818/) | [ACW 799.最长连续不重复子序列](01_DoublePointer/799_ACW_E_longest-continuous-non-repeating-subsequence.cpp)<br/>[ACW 800.数组元素的目标和](01_DoublePointer/800_ACW_E_target-sum-array-elements.cpp)<br/>[ACW 2816.判断子序列](01_DoublePointer/2816_ACW_E_determine-subsequence.cpp) |
+| 位运算   | [801. 二进制中1的个数](https://www.acwing.com/problem/content/803/) | [ACW 801. 二进制中1的个数](00_09_BitOp/ACW_801_E_number-of-1-in-binary.cpp) |
 
 
 ## 快速排序模板
@@ -27,36 +27,6 @@ void quick_sort(int q[], int l, int r) {
 ```
 
 
-[786.第k个数](https://www.acwing.com/problem/content/788/)
-
-```C++
-#include <iostream>
-
-const int N = 100010;
-int data[N];
-
-int quick_select(int data[], int l, int r, int k) {
-    if (l == r) return data[l];
-    
-    int x = data[l + r >> 1], i = l -1, j = r + 1;
-    while (i < j) {
-        while(data[++i] < x);
-        while(data[--j] > x);
-        if (i < j) std::swap(data[i], data[j]);
-    }
-    
-    if (j - l + 1 >= k) return quick_select(data, l, j, k);
-    return quick_select(data, j + 1, r, k - (j - l + 1));
-}
-
-int main() {
-    int n, k;
-    scanf("%d%d", &n, &k);
-    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
-    
-    std::cout << quick_select(data, 0, n - 1, k);
-}
-```
 
 ## 归并排序模板
 ```C++
@@ -76,44 +46,6 @@ void merge_sort(int q[], int l, int r) {
     while (j <= r) tmp[k ++ ] = q[j ++ ];
 
     for (i = l, j = 0; i <= r; i ++, j ++ ) q[i] = tmp[j];
-}
-```
-
-[AcWing 788. 逆序对的数量](https://www.acwing.com/problem/content/790/)
-```C++
-#include <iostream>
-
-const int N = 100010;
-int data[N], tmp[N];
-
-long long merge_sort(int data[], int l ,int r) {
-    if (l >= r) return 0;
-    
-    int mid = (l + r) >> 1;
-    long long ans = merge_sort(data, l, mid) + merge_sort(data, mid + 1, r);
-    
-    int i = l, j = mid + 1, k = 0;
-    while (i <= mid && j <= r) {
-        if (data[i] <= data[j]) tmp[k++] = data[i++];
-        else {
-            tmp[k++] = data[j++];
-            ans += mid - i + 1;
-        }
-    }
-    while (i <= mid) tmp[k++] = data[i++];
-    while (j <= r) tmp[k++] = data[j++];
-    
-    for (i = l, j = 0; i <= r; ++i, ++j) data[i] = tmp[j];
-    return ans;
-}
-
-int main() {
-    int n = 0;
-    scanf("%d", &n);
-    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
-    
-    std::cout << merge_sort(data, 0, n-1) << std::endl;
-    return 0;
 }
 ```
 
@@ -166,79 +98,6 @@ for (int i = 0, j = 0; i < n; i++){
     (2) 对于两个序列，维护某种次序，比如归并排序中合并两个有序序列的操作
 ```
 
-[799.最长连续不重复子序列](https://www.acwing.com/problem/content/801/)
-
-```C++
-#include <iostream>
-
-const int N = 100010;
-int data[N], cnt[N];
-
-int main() {
-    int n;
-    scanf("%d", &n);
-    for (int i = 0; i < n; ++i) scanf("%d", &data[i]);
-
-    int ans = 0;
-    for (int i = 0, j = 0; i < n; ++i) {
-        ++cnt[data[i]];
-        while (cnt[data[i]] > 1) --cnt[data[j++]];
-        ans = std::max(ans, i - j + 1);
-    }
-    std::cout << ans;
-    return 0;
-}
-```
-
-
-
-[800.数组元素的目标和](https://www.acwing.com/problem/content/802/)
-
-```C++
-#include <iostream>
-
-const int N = 100010;
-int a[N], b[N];
-
-int main() {
-    int m, n, x;
-    scanf("%d%d%d", &m, &n, &x);
-    for (int i = 0; i < m; ++i) scanf("%d", &a[i]);
-    for (int i = 0; i < n; ++i) scanf("%d", &b[i]);
-    
-    for (int i = 0, j = n - 1; i < m; ++i) {
-        while(a[i] + b[j] > x) --j;
-        if (a[i] + b[j] == x) {
-            std::cout << i << " " << j;
-        }
-    }
-    return 0;
-}
-```
-
-[2816.判断子序列](https://www.acwing.com/problem/content/2818/)
-
-```C++
-#include <iostream>
-
-const int N = 100010;
-int a[N], b[N];
-
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    for (int i = 0; i < m; ++i) scanf("%d", &a[i]);
-    for (int i = 0; i < n; ++i) scanf("%d", &b[i]);
-    
-    int i = 0, j = 0;
-    for (; i < n; ++i) {
-        if (j < m && a[j] == b[i]) j++;
-    }
-    std::cout << ((j == m) ? "Yes" : "No");
-    return 0;
-}
-```
-
 
 
 ## 常用位运算
@@ -251,29 +110,7 @@ n >> k & 1
 lowbit(n) = n & -n
 ```
 
-[801. 二进制中1的个数](https://www.acwing.com/problem/content/803/)
-```C++
-#include <iostream>
 
-int lowbit(int n) {
-   return n & (~n + 1); 
-}
-
-int main() {
-    int n;
-    scanf("%d", &n);
-    
-    while (n--) {
-        int val;
-        scanf("%d", &val);
-        
-        int ans = 0;
-        while (val) val -= lowbit(val), ++ans;
-        printf("%d ", ans);
-    }
-    return 0;
-}
-```
 
 ## 离散化
 
