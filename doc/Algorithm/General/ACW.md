@@ -124,17 +124,8 @@ lowbit(n) = n & -n
 | 单调队列             | [154. 滑动窗口](https://www.acwing.com/problem/content/description/156/) | [ACW 154. 滑动窗口](06_SlidWindow/154_ACW_E_sliding-window.cpp) |
 | 堆                   | [838. 堆排序](https://www.acwing.com/problem/content/840/)<br/>[839 模拟堆](https://www.acwing.com/problem/content/841/) | [ACW 838. 堆排序](04_Heap\838_ACW_E_heap-sort.cpp)<br/>[ACW 839 模拟堆](04_Heap/839_ACW_E_mock-heap.cpp) |
 | Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/>[143.最大异或对](https://www.acwing.com/problem/content/145/) | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |
-| 并查集               | [836. 合并集合](https://www.acwing.com/problem/content/838/)<br/>[837. 连通块中点的数量](https://www.acwing.com/problem/content/839/)<br/> [240. 食物链](https://www.acwing.com/problem/content/242/)| [ACW 836 合并集合](01_01_UnionFind/836_ACW_E_union-set.cpp)<br/>[ACW 837. 连通块中点的数量](01_01_UnionFind/837_ACW_E_number-points-in-connected-block.cpp)<br/>[ACW 240. 食物链](01_01_UnionFind/242_ACW_M_food-chain.cpp) |
-
-
-
-## 单链表
-
-## 双链表
-
-## 栈
-
-## 队列
+| 并查集               | [836. 合并集合](https://www.acwing.com/problem/content/838/)<br/>[837. 连通块中点的数量](https://www.acwing.com/problem/content/839/)<br/> [240. 食物链](https://www.acwing.com/problem/content/242/) | [ACW 836 合并集合](01_01_UnionFind/836_ACW_E_union-set.cpp)<br/>[ACW 837. 连通块中点的数量](01_01_UnionFind/837_ACW_E_number-points-in-connected-block.cpp)<br/>[ACW 240. 食物链](01_01_UnionFind/242_ACW_M_food-chain.cpp) |
+| KMP                  | [831. KMP字符串](https://www.acwing.com/problem/content/833/) | [ACW 831. KMP字符串](01_03_KMP/831_ACW_E_KMP.cpp)            |
 
 
 
@@ -162,8 +153,9 @@ for (int i = 0; i < n; i ++ ) {
 ```
 
 
-## KMP
-实现模板
+
+## KMP模板
+
 ```C++
 // s[]是长文本，p[]是模式串，n是s的长度，m是p的长度
 
@@ -183,14 +175,6 @@ for (int i = 1, j = 0; i <= n; i ++ ) {
         // 匹配成功后的逻辑
     }
 }
-```
-[831. KMP字符串](https://www.acwing.com/problem/content/833/)
-> 给定一个字符串S,以及一个模式串P所有字符串中只包含大小写英文字母以及阿拉伯数字。
-> 模式串 P在字符串 S中多次作为子串出现。
-> 求出模式串P在字符串 S中所有出现的位置的起始下标。
-
-```C++
-
 ```
 
 ## Trie模板
@@ -330,10 +314,6 @@ void up(int u) {
 // 自底向上建堆，时间复杂度O(N)
 for (int i = n / 2; i; i -- ) down(i);
 ```
-
-
-
-## 哈希表
 
 # 动态规划
 
