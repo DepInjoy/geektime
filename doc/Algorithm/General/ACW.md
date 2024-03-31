@@ -1155,8 +1155,12 @@ int main() {
 | -------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | DFS     | [842.排列数字](https://www.acwing.com/problem/content/description/844/)<br/>[843.n-皇后问题](https://www.acwing.com/problem/content/845/) | [ACW 842.排列数字](000_Graph/842_ACW_E_permute.cpp)<br/>[ACW 843.n-皇后问题](000_Graph/843_ACW_M_N-Queue.cpp)         |
 | BFS |  |  |
-| 树与图的深度优先遍历 | [846. 树的重心](https://www.acwing.com/problem/content/848/) | [ACW 846. 树的重心](000_Graph/ACW_846_E_center-of-tree.cpp) |
+| 树与图的深度优先遍历 | [846. 树的重心](https://www.acwing.com/problem/content/848/) | [ACW 846. 树的重心](000_Graph/846_ACW_E_center-of-tree.cpp) |
 | 树与图的广度优先遍历 | [847. 图中点的层次](https://www.acwing.com/problem/content/849/) | [ACW 847. 图中点的层次](000_Graph/847_ACW_E_level-of-graph.cpp) |
+| 拓扑排序 | [848.有向图的拓扑序列](https://www.acwing.com/problem/content/850/) | [ACW 848.有向图的拓扑序列](000_Graph/848_ACW_E_dag-topological-order.cpp) |
+| Dijkstra | [849. Dijkstra求最短路 I](https://www.acwing.com/problem/content/851/)<br/>[850.Dijkstra求最短路 II](https://www.acwing.com/problem/content/852/) | [ACW 849. Dijkstra求最短路 I](000_Graph\849_ACW_E_dijkstra-i.cpp)<br/>[ACW 850.Dijkstra求最短路 II](000_Graph/850_ACW_E_dijkstra-ii.cpp) |
+
+
 
 
 
@@ -1224,13 +1228,105 @@ while (q.size()) {
 
 
 
-## DFS
+## 拓扑序模板
 
-## BFS
+时间复杂度`O(n+m)`，`n` 表示点数，`m`表示变边。
+
+```C++
+bool topsort() {
+    int hh = 0, tt = -1;
+    // d[i]存储点i的入度
+    for (int i = 1; i <= n; i ++ )
+        if (!d[i]) q[ ++ tt] = i;
+
+    while (hh <= tt) {
+        int t = q[hh ++ ];
+        for (int i = h[t]; i != -1; i = ne[i]) {
+            int j = e[i];
+            if (-- d[j] == 0)
+                q[ ++ tt] = j;
+        }
+    }
+
+    // 如果所有点都入队了，说明存在拓扑序列；否则不存在拓扑序列。
+    return tt == n - 1;
+}
+```
+
+## dijkstra算法
+
+### 朴素dijkstra算法模板题
+时间复杂是 `O(n^2+m)`，`n`表示点数，`m`表示边数.
+
+```C++
+int g[N][N];  // 存储每条边
+int dist[N];  // 存储1号点到每个点的最短距离
+bool st[N];   // 存储每个点的最短路是否已经确定
+
+// 求1号点到n号点的最短路，如果不存在则返回-1
+int dijkstra() {
+    memset(dist, 0x3f, sizeof dist);
+    dist[1] = 0;
+
+    for (int i = 0; i < n - 1; i ++ ) {
+        int t = -1;     // 在还未确定最短路的点中，寻找距离最小的点
+        for (int j = 1; j <= n; j ++ )
+            if (!st[j] && (t == -1 || dist[t] > dist[j]))
+                t = j;
+
+        // 用t更新其他点的距离
+        for (int j = 1; j <= n; j ++ )
+            dist[j] = min(dist[j], dist[t] + g[t][j]);
+
+        st[t] = true;
+    }
+
+    if (dist[n] == 0x3f3f3f3f) return -1;
+    return dist[n];
+}
+```
 
 
 
-[844. 走迷宫](acwing.com/problem/content/846/)
+### 堆优化版dijkstra
+
+时间复杂度`O(mlogn)`, `n`表示点数，`m`表示边数
+
+```C++
+typedef pair<int, int> PII;
+
+int n;      // 点的数量
+int h[N], w[N], e[N], ne[N], idx;       // 邻接表存储所有边
+int dist[N];        // 存储所有点到1号点的距离
+bool st[N];     // 存储每个点的最短距离是否已确定
+
+// 求1号点到n号点的最短距离，如果不存在，则返回-1
+int dijkstra() {
+    memset(dist, 0x3f, sizeof dist);
+    dist[1] = 0;
+    priority_queue<PII, vector<PII>, greater<PII>> heap;
+    heap.push({0, 1});      // first存储距离，second存储节点编号
+
+    while (heap.size()) {
+        auto t = heap.top();
+        heap.pop();
+
+        int ver = t.second, distance = t.first;
+        if (st[ver]) continue;
+        st[ver] = true;
+        for (int i = h[ver]; i != -1; i = ne[i]) {
+            int j = e[i];
+            if (dist[j] > distance + w[i]) {
+                dist[j] = distance + w[i];
+                heap.push({dist[j], j});
+            }
+        }
+    }
+
+    if (dist[n] == 0x3f3f3f3f) return -1;
+    return dist[n];
+}
+```
 
 # 基础
 
