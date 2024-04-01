@@ -140,13 +140,14 @@ executor-right--o VAnalyticEvalNode
 
 ## 计算函数
 窗口函数相关的生成函数在`be/src/vec/aggregate_functions/aggregate_function_window.cpp`
-## 聚集函数
+### 聚集函数
 ```C++
 // be/src/vec/aggregate_functions/aggregate_function_sum.cpp
 void register_aggregate_function_sum(AggregateFunctionSimpleFactory& factory) {
     factory.register_function_both("sum", creator_with_type::creator<AggregateFunctionSumSimple>);
 }
 ```
+
 ### 值函数
 ```C++
 void register_aggregate_function_window_lead_lag_first_last(
@@ -169,7 +170,7 @@ void register_aggregate_function_window_rank(AggregateFunctionSimpleFactory& fac
 }
 ```
 
-## 接口实现
+## 生命周期API
 
 这里[记录了一些窗口定义中成员](11_04_00_Exec_Operator_Analytic.md)，辅助理解代码。
 
