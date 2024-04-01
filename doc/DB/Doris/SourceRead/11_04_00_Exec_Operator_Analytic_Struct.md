@@ -57,7 +57,6 @@ private:
     BlockRowPos _order_by_start;
     BlockRowPos _order_by_end;
 
-    // 
     // 参见VAnalyticEvalNode::_init_next_partition
     BlockRowPos _partition_by_start;
     BlockRowPos _partition_by_end;

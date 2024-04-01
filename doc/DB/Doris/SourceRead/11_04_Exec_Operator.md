@@ -19,6 +19,7 @@ public AnalyticEvalNode {
 ```
 
 ## 数据结构
+前端采用`AnalyticEvalNode`表达窗口，转化为`TAnalyticNode` Thrift结构发送给后端来执行，后端由`VAnalyticEvalNode`算子执行窗口计算。
 
 ```plantuml
 @startuml
@@ -43,7 +44,7 @@ class TAnalyticNode {
     + doris::TExpr partition_by_eq;
     + doris::TExpr order_by_eq;
 }
-note bottom: 前端发送过来计划的Thrift结构
+note bottom: 前端发送过来Thrift结构的窗口
 
 class TAnalyticWindow {
     - TAnalyticWindowType::type type
@@ -71,7 +72,7 @@ struct SortColumnDescription {
     + int nulls_direction; \n\t// 1 - NULLs and NaNs are greater, -1 - less.
 }
 
-TAnalyticWindow -up-o VAnalyticEvalNode : 保存TAnalyticNode::window
+TAnalyticWindow -up-o VAnalyticEvalNode : Frame信息\n保存TAnalyticNode::window
 AggFnEvaluator -up-o VAnalyticEvalNode : 计算函数
 
 SortColumnDescription -up-o AggFnEvaluator
@@ -79,6 +80,7 @@ TAnalyticNode -left-- VAnalyticEvalNode : 前端toThrift接口映射成Thrift结
 @enduml
 ```
 
+后端执行主要数据结构：
 ```plantuml
 @startuml
 class VAnalyticEvalNode {
@@ -117,7 +119,7 @@ struct executor {
     + vectorized_get_result insert_result
     + vectorized_closer close
 }
-note bottom:get_next分Partition,Row和Range\n在构造函数为其设置不同函数\n\n在prepare进行executor设置insert_result和execute\n分别为_insert_result_infoh和_execute_for_win_func
+note bottom:get_next根据_fn_scope\n(划分为Partition, Row和Range三种类型)\n在构造函数为其设置不同函数\n\n在prepare进行executor设置insert_result和execute\n分别为_insert_result_info和_execute_for_win_func
 
 interface IAggregateFunction {
     + size_t align_of_data() const = 0
@@ -127,51 +129,34 @@ interface IAggregateFunction {
 }
 note bottom : 窗口函数通过add_range_single_place计算
 
-VAnalyticEvalNode -left-|> ExecNode
+VAnalyticEvalNode -right-|> ExecNode
 
 AggFnEvaluator -up-o VAnalyticEvalNode
 IAggregateFunction -up-> AggFnEvaluator
 IAggregateFunction -right--> AggregateFunctionSimpleFactory : 生成窗口执行函数
-executor-left--> VAnalyticEvalNode
+executor-right--o VAnalyticEvalNode
 @enduml
 ```
 
+## 计算函数
 窗口函数相关的生成函数在`be/src/vec/aggregate_functions/aggregate_function_window.cpp`
-
-### 值函数
-
-```plantuml
-@startuml
-class AggregateFunctionSimpleFactory {
-    - AggregateFunctions aggregate_functions;
-    - AggregateFunctions nullable_aggregate_functions;
-    - std::unordered_map<std::string, std::string> function_alias;
-    + void register_function_both(const std::string& name,\n\tconst Creator& creator)
+## 聚集函数
+```C++
+// be/src/vec/aggregate_functions/aggregate_function_sum.cpp
+void register_aggregate_function_sum(AggregateFunctionSimpleFactory& factory) {
+    factory.register_function_both("sum", creator_with_type::creator<AggregateFunctionSumSimple>);
 }
-
-struct LeadLagData {
-    + void set_value_from_default()
-    + void check_default(const IColumn* column)
-}
-
-struct WindowFunctionLagImpl {
-    + void add_range_single_place(\n\tint64_t partition_start,\n\tint64_t partition_end, \n\tint64_t frame_start,\n\tint64_t frame_end,\n\tconst IColumn** columns)
-}
-
-WindowFunctionLastImpl -up-o AggregateFunctionSimpleFactory
-WindowFunctionFirstImpl -up-o AggregateFunctionSimpleFactory
-WindowFunctionLagImpl -up-o AggregateFunctionSimpleFactory
-WindowFunctionLeadImpl -up-o AggregateFunctionSimpleFactory
-
-
-WindowFunctionLeadImpl -down-|> LeadLagData
-WindowFunctionLagImpl -down-|> LeadLagData
-WindowFunctionLastImpl -down-|> FirstLastData
-WindowFunctionFirstImpl -down-|> FirstLastData
-@enduml
 ```
-
-
+### 值函数
+```C++
+void register_aggregate_function_window_lead_lag_first_last(
+        AggregateFunctionSimpleFactory& factory) {
+    factory.register_function_both("lead", create_aggregate_function_window_lead);
+    factory.register_function_both("lag", create_aggregate_function_window_lag);
+    factory.register_function_both("first_value", create_aggregate_function_window_first);
+    factory.register_function_both("last_value", create_aggregate_function_window_last);
+}
+```
 
 ### TopN函数
 
@@ -182,15 +167,6 @@ void register_aggregate_function_window_rank(AggregateFunctionSimpleFactory& fac
     factory.register_function("row_number", creator_without_type::creator<WindowFunctionRowNumber>);
     factory.register_function("ntile", creator_without_type::creator<WindowFunctionNTile>);
 }
-```
-
-```plantuml
-@startuml
-WindowFunctionDenseRank -up-o AggregateFunctionSimpleFactory
-WindowFunctionRank -up-o AggregateFunctionSimpleFactory
-WindowFunctionRowNumber -up-o AggregateFunctionSimpleFactory
-WindowFunctionNTile -up-o AggregateFunctionSimpleFactory
-@enduml
 ```
 
 ## 接口实现
