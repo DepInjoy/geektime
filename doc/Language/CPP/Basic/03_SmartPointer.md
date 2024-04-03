@@ -68,4 +68,4 @@ int*p2 = new(nothrow) int;
        father->son_.reset();
    ```
 
-   
+参考资料[循环引用中的shared_ptr和weak_ptr](https://zhuanlan.zhihu.com/p/355812360)
