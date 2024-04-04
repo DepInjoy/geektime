@@ -95,6 +95,8 @@
 | 状态模式     | 当一个对象的内在状态改变时允许改变其行为，看起来像是改变了其类 |            | 当控制一个对象状态转换的条件表达式过于复杂时的情况<br/>把状态的判断逻辑转移到表示不同状态的一系列类当中，可以把复杂的判断逻辑简化 |
 | 适配器模式   | 将一个类的接口转换成客户希望的另外一个接口                   |            | 希望复用一些现存的类，但是接口又与复用环境要求不一致的情况   |
 | 备忘录模式   | 在不破坏封装性的前提下，捕获一个对象的内部状态，并在该对象之外保存这个状态 |            | 适用于功能比较复杂的，但需要维护或记录属性历史的类，或者需要保存的属性只是众多属性中的一小部分时，Originator可以根据保存的Memento信息还原到前一状态 |
+| 组合模式     | 将对象组合成树形结构以表示‘部分-整体’的层次结构<br/>组合模式使得用户对单个对象和组合对象的使用具有一致性 |            |                                                              |
+| 迭代器模式   | 提供一种方法顺序访问一个聚合对象中各个元素，而又不暴露该对象的内部表示 |            | 需要访问一个聚集对象，而且不管这些对象是什么都需要遍历<br/>对聚集有多种方式遍历时 |
 
 
 
@@ -439,8 +441,85 @@ Memento（。Caretaker（
 > “我感觉可能最大的作用还是在<b><font color=FA8072>当角色的状态改变的时候，有可能这个状态无效，这时候就可以使用暂时存储起来的备忘录将状态复原</font></b>[DP]
 
 ## 组合模式
+组合模式(Composite)，将对象组合成树形结构以表示‘部分-整体’的层次结构。组合模式使得用户对单个对象和组合对象的使用具有一致性[DP]。组合模式让客户可以一致地使用组合结构和单个对象。
+
+```plantuml
+@startuml
+class Component {
+    + Add (in c : Component)
+    + Remove(in c : Component)
+    + Display(in depth : int)
+}
+note top : 组合中的对象声明接口\n在适当情况下，实现所有类共有接口的默认行为\n声明一个接口用于访问和管理Component的子部件
+
+class Leaf {
+     + Display(in depth : int)
+}
+note bottom : 在组合中表示叶节点对象\n叶节点没有子节点
+
+class Composite {
+    + Add (in c : Component)
+    + Remove(in c : Component)
+    + Display(in depth : int)
+}
+note bottom : 定义有枝节点行为, 用来存储子部件\n在Component接口中实现与子部件有关的操作\n比如增加Add和删除Remove。
+
+Client -right--> Component
+Leaf -up-|> Component
+Composite -up-|> Component
+@enduml
+```
+### 透明方式和安全方式
+> 为什么Leaf类当中也有Add和Remove，树叶不是不可以再长分枝吗？”
+> “是的，这种方式叫做透明方式，也就是说在Component中声明所有用来管理子对象的方法，其中包括Add、Remove等。这样实现Component接口的所有子类都具备了Add和Remove。这样做的好处就是叶节点和枝节点对于外界没有区别，它们具备完全一致的行为接口。但问题也很明显，因为Leaf类本身不具备Add()、Remove()方法的功能，所以实现它是没有意义的。”
+>
+> “那么如果我不希望做这样的无用功呢？也就是Leaf类当中不用Add和Remove方法，可以吗？”
+> “当然是可以，那么就需要安全方式，也就是在Component接口中不去声明Add和Remove方法，那么子类的Leaf也就不需要去实现它，而是在Composite声明所有用来管理子类对象的方法，这样做就不会出现刚才提到的问题，不过由于不够透明，所以树叶和树枝类将不具有相同的接口，客户端的调用需要做相应的判断，带来了不便。”
+
+> “什么地方用组合模式比较好呢？”
+> “当你发现需求中是体现部分与整体层次的结构以及你希望用户可以忽略组合对象与单个对象的不同，统一地使用组合结构中的所有对象时，就应该考虑用组合模式了。”
 
 ## 迭代器模式
+迭代器模式(Iterator)，提供一种方法顺序访问一个聚合对象中各个元素，而又不暴露该对象的内部表示[DP]。
+- 当需要访问一个聚集对象，而且不管这些对象是什么都需要遍历的时候，你就应该考虑用迭代器模式。
+- 当需要对聚集有多种方式遍历时，可以考虑用迭代器模式，例如从前向后遍历，从后向前遍历等。
+
+迭代器（Iterator）模式就是分离了集合对象的遍历行为，抽象出一个迭代器类来负责，这样既可以做到不暴露集合的内部结构，又可让外部代码透明地访问集合内部的数据。
+
+```plantuml
+@startuml
+class Iterator {
+    + First()
+    + Next()
+    + IsDone()
+    + CurrentItem()
+}
+note top : 迭代器抽象类\n\n提供如开始、下一个、是否结束\n当前哪一项等统一接口
+
+class Aggregate {
+    + CreateIterator() : Iterator
+}
+note top : 聚集抽象类
+
+class ConcreteIterator {
+
+}
+note bottom : 具体迭代器类，继承Iterator
+
+class ConcreteAggregate {
+    + CreateIterator() : Iterator
+}
+note bottom : 具体聚集类　继承Aggregate
+
+Client -right--> Iterator
+Client -left--> Aggregate
+ConcreteIterator -up-|> Iterator
+ConcreteAggregate -up--|> Aggregate
+
+ConcreteAggregate -right..> ConcreteIterator
+ConcreteIterator <--left- ConcreteAggregate
+@enduml
+```
 
 ## 单例模式
 
