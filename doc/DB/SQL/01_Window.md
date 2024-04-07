@@ -23,10 +23,12 @@ frame_clause:
 frame_start可以是下面其一:
     UNBOUNDED PRECEDING
     CURRENT ROW
+	value PRECEDING
 
 frame_end可以是下面其一:
     CURRENT ROW
     UNBOUNDED FOLLOWING
+	value FOLLOWING
 ```
 `PARTITION BY`在横向上对表进行分组，`ORDER BY`决定了纵向排序的规则，表明分区中的行如何排序，分区中`ORDER BY`相等的行被认为是对等(peers)的，如果没有`ORDER BY`则分区行是无序的，没有隐式的处理顺序，分区中的所有行是对等的。通过`PARTITION BY`分组后的记录集合称为窗口(代表范围)。可以不指定`PARTITION BY`，如果不指定`PARTITION BY`则表示将整个表作为一个大的窗口来计算。
 

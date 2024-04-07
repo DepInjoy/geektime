@@ -11,6 +11,7 @@ ORDER [SIBLINGS] BY column1, column2, ... ASC|DESC;
 ```
 
 ## CASE-WHEN语句
+
 ```sql
 CASE
     WHEN condition1 THEN result1
@@ -19,6 +20,7 @@ CASE
     ELSE result
 END;
 ```
+
 # 数据类型
 ## 日期和时间类型
 
