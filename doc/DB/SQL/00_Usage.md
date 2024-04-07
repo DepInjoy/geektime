@@ -1,3 +1,24 @@
+# SQL查询
+
+## SELECT语句
+```sql
+SELECT column1, column2, ...
+FROM table_name
+WHERE condition
+GROUP BY column_name(s)
+HAVING condition
+ORDER [SIBLINGS] BY column1, column2, ... ASC|DESC;
+```
+
+## CASE-WHEN语句
+```sql
+CASE
+    WHEN condition1 THEN result1
+    WHEN condition2 THEN result2
+    WHEN conditionN THEN resultN
+    ELSE result
+END;
+```
 # 数据类型
 ## 日期和时间类型
 
