@@ -21,6 +21,7 @@ Status ExecEnv::init(ExecEnv* env, const std::vector<StorePath>& store_paths) {
 Status ExecEnv::_init(const std::vector<StorePath>& store_paths) {
 		......
     // 创建和初始化Pipeline TaskScheduler
+    // init_pipeline_task_scheduler实现, 见下方初始化TaskScheduler描述
     RETURN_IF_ERROR(init_pipeline_task_scheduler());
 }
 ```
@@ -48,10 +49,12 @@ class TaskScheduler {
  + Status schedule_task(PipelineTask* task)
  - void _do_work(size_t index)
 }
-
+note top : 对外暴露schedule_task接口\nPipelineFragmentContext::submit提交Task到调度器
 
 interface TaskQueue {
     # size_t _core_size
+
+    + int cores() const
 
     + virtual void close() = 0;
     + virtual PipelineTask* take(size_t core_id) = 0;
@@ -79,7 +82,7 @@ note bottom : 对外提供execute接口实现执行，含Operator的open和get_n
 
 TaskQueue -up-o TaskScheduler
 BlockedTaskScheduler -up-o TaskScheduler
-TaskQueue -left-- BlockedTaskScheduler : Blocked Task放回执行队列
+TaskQueue -left-- BlockedTaskScheduler : Blocked Task\n放回执行队列
 
 PipelineTask -up-o BlockedTaskScheduler : blocked task
 PipelineTask -up-o TaskQueue : runable task
@@ -88,6 +91,7 @@ PipelineTask -up-o TaskQueue : runable task
 
 # 初始化TaskScheduler
 ```C++
+// be/src/runtime/exec_env_init.cpp
 Status ExecEnv::init_pipeline_task_scheduler() {
     // 配置参数pipeline_executor_size默认为0
     auto executors_size = config::pipeline_executor_size;
@@ -170,7 +174,7 @@ interface TaskQueue {
 class MultiCoreTaskQueue {
     - std::unique_ptr<PriorityTaskQueue[]> _prio_task_queue_list
 }
-note bottom: 通过多级反馈队列(Multilevel Feedback Queue, MLFQ)
+note bottom: 无workload group,\n通过多级反馈队列(Multilevel Feedback Queue, MLFQ)调度
 
 class TaskGroupTaskQueue {
     - ResouceGroupSet _group_entities
@@ -185,10 +189,19 @@ TaskGroupTaskQueue -up-|> TaskQueue
 ```
 
 # 划分时间片
-PipeLine的核心思路可以类比操作系统的分时调度系统，PipelineTask在执行超过`THREAD_TIME_SLICE`(100'000'000ns = 100毫秒)，出让调度线程资源给其他的Task。
+PipeLine的核心思路可以类比操作系统的分时调度系统，PipelineTask在执行超过`THREAD_TIME_SLICE`(100'000'000ns = 100毫秒)，`execute`执行退出，结束对`do_work`线程占用(`do_worker`对于`RUNNABLE`的Task再次入队)，出让调度线程资源给其他的Task(`do_worker`线程重新从`TaskQueue`中取任务)。
 ```C++
 Status PipelineTask::execute(bool* eos) {
     int64_t time_spent = 0;
+    // 离开作用域执行
+    Defer defer {[&]() {
+        if (_task_queue) {
+            // 更新task queue的runtime
+            _task_queue->update_statistics(this, time_spent);
+        }
+                ......
+    }};
+
     if (!_opened) {
         {
             SCOPED_RAW_TIMER(&time_spent);
@@ -220,7 +233,7 @@ Pipeline调度器启动固定的Work Thread数目来执行不同的PipeLineTask�
 执行引擎启动固定的执行线程进行查询任务的执行，数目可以由用户配置，默认为CPU的核数。
 - 获取该执行线程本地的调度队列的PipeLine Task进行执行，如果线程绑定的调度队列没有对应的Task，则进行Work Steal，从其他线程的调度队列中拉取Task
 - 记录该PipeLine Task的执行时间和处理的Block数目，超过固定时间片或一定数据量后放回调度队列，以免大查询饿死其他查询
-- PipeLine task执行过程中陷入阻塞，则将改任务放回阻塞队列之中，交付给轮询线程来后续处理。
+- PipeLine task执行过程中陷入阻塞，则将该任务放回阻塞队列之中，交付给轮询线程来后续处理。
 
 ```plantuml
 @startuml
@@ -233,14 +246,30 @@ class PipelineTask {
     + Status close()
 
     + PipelineTaskState get_state()
+    + void set_state(PipelineTaskState state)
+
+    + bool has_dependency()
+    + bool is_pending_finish()
+
+    + bool source_can_read()
+    + bool sink_can_write()
+
+    + bool runtime_filters_are_ready_or_timeout()
+    + PipelineFragmentContext* fragment_context()
 }
 
 class PipelineFragmentContext {
-    + void cancel(const PPlanFragmentCancelReason& reason,\n\tconst std::string& msg)
+    + void cancel(const PPlanFragmentCancelReason&\n\treason,const std::string& msg)
     + bool is_canceled() const
+    + QueryContext* get_query_context()
 }
 
-PipelineFragmentContext -up-o PipelineTask
+class QueryContext {
+    + bool is_timeout(const vectorized::VecDateTimeValue& now) const
+}
+
+PipelineTask -left-o PipelineFragmentContext
+QueryContext -up-o PipelineFragmentContext
 @enduml
 ```
 
@@ -273,7 +302,9 @@ void TaskScheduler::_do_work(size_t index) {
 
         bool eos = false;
         auto status = Status::OK();
-        // 3. 实际执行task，绑定执行的线程core id
+        // 3. 实际执行task，并绑定执行的线程core id
+        //    worker线程绑定一个core_id(这里的index)
+        //    task尽可能放入之前的worker线程执行，降低任务争抢
         try {
             status = task->execute(&eos);
         } catch (const Exception& e) {
@@ -332,33 +363,6 @@ void TaskScheduler::_do_work(size_t index) {
 - 轮询阻塞队列中的任务，Ready之后 轮询线程将任务 阻塞队列 -> 调度队列
 - 任务中记录了上一次被调度的线程id，优先进入该线程id的调度队列
 
-```plantuml
-@startuml
-class PipelineTask {
-    + bool has_dependency()
-    + bool is_pending_finish()
-    + bool source_can_read() 
-    + bool runtime_filters_are_ready_or_timeout()
-    + bool sink_can_write()
-    + PipelineFragmentContext* fragment_context()
-
-    + PipelineTaskState get_state()
-    + void set_state(PipelineTaskState state)
-}
-
-class PipelineFragmentContext {
-    + bool is_canceled()
-    + QueryContext* get_query_context()
-}
-
-class QueryContext {
-    + bool is_timeout(const vectorized::VecDateTimeValue& now) const
-}
-
-PipelineFragmentContext -left-o PipelineTask
-QueryContext -up-o PipelineFragmentContext
-@enduml
-```
 `PipelineTask`轮询调度，主要实现判断Task是否可以执行，如果可以执行将其放到`_task_queue`等调度线程调度执行，这里也会实现一些状态切换。
 
 ```C++
@@ -385,6 +389,8 @@ void BlockedTaskScheduler::_schedule() {
         auto origin_local_block_tasks_size = local_blocked_tasks.size();
         auto iter = local_blocked_tasks.begin();
         vectorized::VecDateTimeValue now = vectorized::VecDateTimeValue::local_time();
+        // 1. 任务具备执行条件，状态设置为RUNNABLE，并放回_task_queue等待调度
+        // 2. 任务超时，cancel任务
         while (iter != local_blocked_tasks.end()) {
             auto* task = *iter;
             auto state = task->get_state();
@@ -393,6 +399,7 @@ void BlockedTaskScheduler::_schedule() {
                 if (task->is_pending_finish()) {
                     iter++;
                 } else {
+                    // 1.1 任务可以执行，将Task放回_task_queue等待调度
                     _make_task_run(local_blocked_tasks, iter, PipelineTaskState::PENDING_FINISH);
                 }
             } else if (task->fragment_context()->is_canceled()) {
@@ -403,6 +410,7 @@ void BlockedTaskScheduler::_schedule() {
                     _make_task_run(local_blocked_tasks, iter);
                 }
             } else if (task->query_context()->is_timeout(now)) {
+                // 任务超时
                 task->fragment_context()->cancel(PPlanFragmentCancelReason::TIMEOUT);
                 if (task->is_pending_finish()) {
                     task->set_state(PipelineTaskState::PENDING_FINISH);
@@ -414,22 +422,26 @@ void BlockedTaskScheduler::_schedule() {
                 if (task->has_dependency()) {
                     iter++;
                 } else {
+                    // 1.2 依赖解除，任务可执行，放回task_queue等待调度
                     _make_task_run(local_blocked_tasks, iter);
                 }
             } else if (state == PipelineTaskState::BLOCKED_FOR_SOURCE) {
                 if (task->source_can_read()) {
+                    // 1.3 source可读，放回task_queue等待调度
                     _make_task_run(local_blocked_tasks, iter);
                 } else {
                     iter++;
                 }
             } else if (state == PipelineTaskState::BLOCKED_FOR_RF) {
                 if (task->runtime_filters_are_ready_or_timeout()) {
+                    // 1.4 RF Ready或超时，放回task_queue等待调度
                     _make_task_run(local_blocked_tasks, iter);
                 } else {
                     iter++;
                 }
             } else if (state == PipelineTaskState::BLOCKED_FOR_SINK) {
                 if (task->sink_can_write()) {
+                    // 1.5 sink可写，放回task_queue等待调度
                     _make_task_run(local_blocked_tasks, iter);
                 } else {
                     iter++;
@@ -554,7 +566,7 @@ MLFQ调度策略的关键在于如何设置优先级，因为没有先验信息�
 - **规则3**：工作进入系统时，放在最高优先级(最上层队列)。
     > 假设短工作，先执行，优化周转时间，如果是短工作很快便执行完成，如果是长工作通过规则4降低优先级
 - **规则4a**：工作用完整个时间片后，降低其优先级(移入下一个队列)。
-    > 如果不端来短时任务，可能导致长任务饿死
+    > 如果不断来短时任务，可能导致长任务饿死
 - **规则4b**：如果工作在其时间片以内主动释放CPU，则优先级不变。
     > 如果是I/O型任务，该任务不停出让CPU保持其优先级不变，实现其降低响应时间的目的(存在愚弄程序从而导致程序改变调度优先级，例如，任务用完CPU时间片后调用一个写无关文件的操作，这样便可以保持其有比较高的优先级)
 
@@ -637,7 +649,8 @@ PipelineTask -left-o SubTaskQueue
 初始化多级反馈队列，设置level factor。
 ```C++
 // 初始化多级反馈队列,6层(SUB_QUEUE_LEVEL=6)队列
-// factor = 2^(n-1), n = 1... 6
+// LEVEL_QUEUE_TIME_FACTOR = 2
+// factor = 2^(n-5), n = 0 ... 5
 PriorityTaskQueue::PriorityTaskQueue() : _closed(false) {
     double factor = 1;
     for (int i = SUB_QUEUE_LEVEL - 1; i >= 0; i--) {
@@ -875,7 +888,7 @@ PipelineTask* MultiCoreTaskQueue::take(size_t core_id) {
 }
 ```
 
-上述3步取`PipelineTask`都是调用`PriorityTaskQueue::try_take_unprotected`来取`PipelineTask`。
+上述第2，3步取`PipelineTask`最终都是调用`PriorityTaskQueue::try_take_unprotected`来取`PipelineTask`。
 
 ```C++
 // 规则：如果A的优先级 > B的优先级，运行A(不运行B)
@@ -937,10 +950,15 @@ class PipelineTask {
 
 class PipelineFragmentContext {
     - std::shared_ptr<QueryContext> _query_ctx
+    - taskgroup::TaskGroupPipelineTaskEntity* _task_group_entity
+
+    + QueryContext* get_query_context()
 }
 
 class QueryContext {
     - taskgroup::TaskGroupPtr _task_group
+    + void set_task_group(taskgroup::TaskGroupPtr& tg)
+    + taskgroup::TaskGroup* get_task_group() const
 }
 
 class TaskGroup {
@@ -951,16 +969,18 @@ class TaskGroup {
     - bool _enable_memory_overcommit;
     - int64_t _version;
     - TaskGroupEntity _task_entity;
-    - std::vector<TgTrackerLimiterGroup> _mem_tracker_limiter_pool;
+    - std::vector<TgTrackerLimiterGroup> _mem_tracker_limiter_pool
+
+    + TaskGroupPipelineTaskEntity* task_entity()
 }
 
 TaskGroupTaskQueue -left-|> TaskQueue
 
 TaskGroupEntity -up-o TaskGroupTaskQueue : 是TaskQueue的一种\n拥有一组TaskGroupEntity
-PipelineTask -left-o TaskGroupEntity
+PipelineTask -up-o TaskGroupEntity : 拥有一组PipelineTask
 PipelineFragmentContext -up-o PipelineTask
 QueryContext -left-o PipelineFragmentContext
-TaskGroup -down-o QueryContext
+TaskGroup -down-o QueryContext : cpu_share作为任务调度优先级
 TaskGroup --> TaskGroupEntity : PipelineTask属于某个TaskGroup\nTaskGroup关联到TaskGroupEntity\n
 @enduml
 ```
@@ -1004,6 +1024,8 @@ void TaskGroupTaskQueue::update_statistics(PipelineTask* task, int64_t time_spen
     auto* entity = group->task_entity();
     auto find_entity = _group_entities.find(entity);
     bool is_in_queue = find_entity != _group_entities.end();
+    // runtime更新影响任务的优先级
+    // 先将任务从队列中删除，更新runtime再重新入队, 确保红黑树平衡
     if (is_in_queue) {
         _group_entities.erase(entity);
     }
@@ -1036,6 +1058,8 @@ void TaskGroupTaskQueue::_enqueue_task_group(taskgroup::TGEntityPtr tg_entity) {
             tg_entity->adjust_vruntime_ns(_min_tg_v_runtime_ns);
         }
     }
+    _group_entities.emplace(tg_entity);
+    _update_min_tg();
             ......
 }
 
@@ -1103,6 +1127,16 @@ TaskGroupTaskQueue -> TaskGroupEntity:push_back
 ```
 
 ```C++
+// push from scheduler
+Status TaskGroupTaskQueue::push_back(PipelineTask* task) {
+    return _push_back<false>(task);
+}
+
+// // push from worker
+Status TaskGroupTaskQueue::push_back(PipelineTask* task, size_t core_id) {
+    return _push_back<true>(task);
+}
+
 template <bool from_executor>
 Status TaskGroupTaskQueue::_push_back(PipelineTask* task) {
     auto* entity = task->get_task_group()->task_entity();
