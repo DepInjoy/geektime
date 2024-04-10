@@ -30,6 +30,36 @@
 
 > Property enforcement in Orca in a flflexible framework that allows each operator to defifine the behav ior of enforcing required properties based on the properties delivered by child plans and operator local behavior.
 
+**Multi-Stage Optimization**
+
+> Our ongoing work in Orca involves implementing multi-stage optimization. An optimization stage in Orca is defined as a complete optimization workflow using a subset of transformation rules and (optional) time-out and cost threshold. A stage terminates when any of the following conditions is met: 
+>
+> 1. a planwith cost below cost threshold is found,
+> 2. time-out occurs, or 
+> 3.  the subset of transformation rules is exhausted.
+>
+> 
+>
+> This technique is also a foundation for obtaining a query plan as early as possible to cut-down search space for complex queries.
+
+# **Parallel Query Optimization**
+
+Query optimization is probably the most <b><font color=FA8072>CPU-intensive process</font></b> in a database system.
+
+
+
+Orca is a multi-core enabled optimizer. Optimization process is broken to small work units called optimization jobs. Orca currently has seven different types of optimization jobs:
+
+- Exp(g): Generate logically equivalent expressions of all group expressions in group g.
+- Exp(gexpr): Generate logically equivalent expressions of a group expression gexpr.
+- Imp(g): Generate implementations of all group expressions in group g.
+- Imp(gexpr): Generate implementation alternatives of a group expression gexpr.
+- Opt(g, req): Return the plan with the least estimated cost that is rooted by an operator in group g and satisfies optimization request req.
+- Opt(gexpr, req): Return the plan with the least estimated cost that is rooted by gexpr and satisfies optimization request req.
+- Xform(gexpr, t) Transform group expression gexpr using rule t.
+
+> During parallel query optimization, multiple concurrent requests to modify a Memo group might be triggered by different optimization requests. In order to <b><font color=FA8072>minimize synchronization overhead</font></b> among jobs with the same goal (e.g.,exploring the same group), jobs should not know about the existence of each other. When an optimization job with some goal is under processing, all other incoming jobs with the same goal are forced to wait until getting notified about the completion of the running job. At this point, the suspended jobs can pick up the results of the completed job. This functionality is enabled by attaching a job queue to each group, such that incoming jobs are queued as long as there exists an active job with the same goal.
+
 # 博客
 
 1. [数据库内核杂谈（九）：开源优化器ORCA](https://www.infoq.cn/article/5o16ehoz5zk6fzpsjpt2)
