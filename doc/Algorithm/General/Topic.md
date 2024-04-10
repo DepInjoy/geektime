@@ -12,7 +12,22 @@
 5. [72. 编辑距离](https://leetcode.cn/problems/edit-distance/) [相关实现](02_DP\72_LC_M_edit-distance.cpp) 线性DP
 6. [377. 组合总和 Ⅳ](https://leetcode.cn/problems/combination-sum-iv/description/) [相关实现]()     动态规划
 
+| 专题     |                                                              |                                                              | 其他 |
+| -------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
+| 动态规划 | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) |      |
+|          |                                                              |                                                              |      |
+|          |                                                              |                                                              |      |
+
+
+
+```
+
+```
+
+
+
 # 贪心
+
 1. [905. 区间选点](https://www.acwing.com/problem/content/description/907/) [相关实现](06_Greedy/950_ACW_M_interval-point-selection.cpp) 贪心
 
 # 回溯
