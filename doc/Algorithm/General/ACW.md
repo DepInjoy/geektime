@@ -360,48 +360,6 @@ dp[j] = max(dp[j], dp[j-v[i]] + w[i])
 \end{array}
 $$
 
-```C++
-#include <vector>
-#include <iostream>
-
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    std::vector<int> v(m), w(m);
-    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
-    
-    std::vector<std::vector<int>> dp(m+1, std::vector<int>(n+1, 0));
-    for (int i = 0; i < m; ++i) {
-        for (int j = 1; j <= n; ++j) {
-            dp[i+1][j] = dp[i][j];
-            if (j >= v[i]) dp[i+1][j] = std::max(dp[i+1][j], dp[i][j-v[i]] + w[i]);
-        }
-    }
-    std::cout << dp[m][n];
-    return 0;
-}
-```
-滚动数组优化，降维减少空间复杂度
-```C++
-#include <vector>
-#include <iostream>
-
-int main() {
-    int m, n;
-    scanf("%d%d", &m, &n);
-    std::vector<int> v(m), w(m);
-    for (int i = 0; i < m; ++i) scanf("%d%d", &v[i], &w[i]);
-    
-    std::vector<int> dp(n+1, 0);
-    for (int i = 0; i < m; ++i) {
-        for (int j = n; j >= v[i]; --j) {
-            dp[j] = std::max(dp[j], dp[j-v[i]] + w[i]);
-        }
-    }
-    std::cout << dp[n];
-    return 0;
-}
-```
 
 ### 完全背包问题
 [3. 完全背包问题](https://www.acwing.com/problem/content/3/)
