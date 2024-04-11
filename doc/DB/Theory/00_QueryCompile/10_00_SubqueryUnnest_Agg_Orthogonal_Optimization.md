@@ -364,7 +364,7 @@ SELECT c_name, (
 
 ## Reordering GroupBy
 
-`Agg`计算能减少结果集，因此借助`Agg`做为提前过滤的一种手段。但通常`Agg`花销也很大，这比较依赖于`Agg`聚集的行数。拿join来说，join的条件也可能减少结果集，这样先计算join在计算`GroupBy`更优；或者join可以借助索引，如果先进行`Agg`，那么索引就无法使用。因此最好是同时生成可选方案，基于代价进行选择。
+`Agg`计算能减少结果集，因此借助`Agg`做为提前过滤的一种手段。但通常`Agg`花销也很大，这比较依赖于`Agg`聚集的行数。拿join来说，join的条件也可能减少结果集，这样先计算join再计算`GroupBy`更优；或者join可以借助索引，如果先进行`Agg`，那么索引就无法使用。因此最好是同时生成可选方案，基于代价进行选择。
 
 <b>Group和Filter, join, semijoin等重排序</b>
 
@@ -374,9 +374,9 @@ filter和`Agg`的重排序
 >
 > 对于GroupBy操作符，对于分组列具有相同值的输入关系中的行只输出一行。如果聚合上方的filter过滤掉了这一行，那么将filter下推到agg的下面，它会过滤掉产生这一行的一组数据。产生这一组数据的特征是grouping列。
 >
->  Therefore we can move a filter around a GroupBy if and only if all the columns used in the filter are functionally determined by the grouping columns in the input relation.
-
-filter算子能够下推或者上拉的充要条件是：filter中的列是grouping列的子集。
+> Therefore we can move a filter around a GroupBy if and only if all the columns used in the filter are functionally determined by the grouping columns in the input relation.
+>
+> filter算子能够下推或者上拉的充要条件是：filter中的列是grouping列的子集。
 
 ---
 
@@ -470,7 +470,7 @@ SELECT c_custkey
 
 对于任意集合$S$，它可以被任意地划分为$\{S_1, S_2, ...., S_n \}$,那么有：
 $$
-f(\bigcup_{i=1}^{n}S_i) = f_g(\bigcup_{i=1}{n} \ f_l(S_i))
+f(\bigcup_{i=1}^{n}S_i) = f_g(\bigcup_{i=1}^{n} \ f_l(S_i))
 $$
 
 `GroupBy`中的聚集函数都可以这样拆分，我们可以用`LocalGroupby`替换`GroupBy`之后跟一个`Global GroupBy`，即
