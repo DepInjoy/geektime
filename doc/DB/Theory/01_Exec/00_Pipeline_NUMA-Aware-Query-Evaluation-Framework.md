@@ -41,3 +41,8 @@ The morsel-driven execution of the algebraic plan is controlled by a so called Q
 
 For each pipeline the QEPobject allocates the temporary storage areas into which the parallel threads executing the pipeline write their results.  After completion of the entire pipeline the temporary storage areas are logically re-fragmented into equally sized morsels.
 
+
+
+# 博客
+
+1. [知乎-新硬件时代的并行框架：Morsel-Driven Parallelism: A NUMA-Aware Query Evaluation Framework for the Many-Core Age](https://zhuanlan.zhihu.com/p/615029386)
