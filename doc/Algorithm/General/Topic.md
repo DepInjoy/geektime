@@ -24,7 +24,13 @@
 
 # 贪心
 
-1. [905. 区间选点](https://www.acwing.com/problem/content/description/907/) [相关实现](06_Greedy/950_ACW_M_interval-point-selection.cpp) 贪心
+| 专题                                   | 题目                                                         | 相关实现                                                     | 其他 |
+| -------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
+| 贪心                                   | [905. 区间选点](https://www.acwing.com/problem/content/description/907/) | [ACW 905. 区间选点](06_Greedy/950_ACW_M_interval-point-selection.cpp) |      |
+| 贪心+二分查找<br/>时间复杂度`O(NlogN)` | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) |      |
+|                                        |                                                              |                                                              |      |
+
+
 
 # 回溯
 
@@ -39,7 +45,7 @@
 | 专题 | 题目                                                    | 相关实现                                                   | 其他 |
 | ---- | ------------------------------------------------------- | ---------------------------------------------------------- | ---- |
 | 并查集| [1971. 寻找图中是否存在路径](https://leetcode.cn/problems/find-if-path-exists-in-graph/description/) | [LC 1971. 寻找图中是否存在路径](01_01_UnionFind/1973_LC_E_find-if-path-exists-in-graph.cpp) |   并查集实现含路径压缩和按秩归并，实现可做模板   |
-| 深度/宽度优先搜索 | [面试题 04.01. 节点间通路](https://leetcode.cn/problems/route-between-nodes-lcci/) | [面试题 04.01. 节点间通路](000_Graph/04.01_LC_M_route-between-nodes-lcci.cpp) | 有向图，不可以采用并查集实现，可以和[1971. 寻找图中是否存在路径](https://leetcode.cn/problems/find-if-path-exists-in-graph/description/)对比<br/><br/>程序员面试金典(第 6 版) |
+| 深度/宽度优先搜索 | [面试题 04.01. 节点间通路](https://leetcode.cn/problems/route-between-nodes-lcci/) | [面试题 04.01. 节点间通路](000_Graph/04.01_LC_M_route-between-nodes-lcci.cpp) | 有向图，可以和[1971. 寻找图中是否存在路径](https://leetcode.cn/problems/find-if-path-exists-in-graph/description/)对比<br/>程序员面试金典(第 6 版) |
 | 深度/宽度优先搜索 | [785. 判断二分图](https://leetcode.cn/problems/is-graph-bipartite/description/) | [LC 785. 判断二分图](000_Graph/785_LC_M_is-graph-bipartite.cpp) | 剑指Offer(专项突破)[106]<br/> |
 | 深度/宽度优先搜索 | [695. 岛屿的最大面积](https://leetcode.cn/problems/max-area-of-island/description/) |[LC 695. 岛屿的最大面积](000_Graph/695_LC_M_max-area-of-island.cpp)| 剑指Offer(专项突破)[105]<br/>                |
 
@@ -58,7 +64,7 @@
 
 | 专题   | 题目                                                         | 实现                                                         | 其他   |
 | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ | ------ |
-| 双指针 | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LeetCode 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节， |
+| 双指针 | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节， |
 |        |                                                              |                                                              |        |
 |        |                                                              |                                                              |        |
 
