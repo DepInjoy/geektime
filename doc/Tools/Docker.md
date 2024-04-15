@@ -1,4 +1,12 @@
 # Docker命令
+## 镜像操作
+```shell
+# 列出所有镜像来获取镜像的ID，镜像的名称和其他详细信息
+docker images
+
+# 删除镜像
+docker rmi <your-image-id>
+```
 
 ## 查看
 列出容器的命令是`docker container ls`,等价的命令有
