@@ -48,7 +48,7 @@
 | 深度/宽度优先搜索 | [面试题 04.01. 节点间通路](https://leetcode.cn/problems/route-between-nodes-lcci/) | [面试题 04.01. 节点间通路](000_Graph/04.01_LC_M_route-between-nodes-lcci.cpp) | 有向图，可以和[1971. 寻找图中是否存在路径](https://leetcode.cn/problems/find-if-path-exists-in-graph/description/)对比<br/>程序员面试金典(第 6 版) |
 | 深度/宽度优先搜索 | [785. 判断二分图](https://leetcode.cn/problems/is-graph-bipartite/description/) | [LC 785. 判断二分图](000_Graph/785_LC_M_is-graph-bipartite.cpp) | 剑指Offer(专项突破)[106]<br/> |
 | 深度/宽度优先搜索 | [695. 岛屿的最大面积](https://leetcode.cn/problems/max-area-of-island/description/) |[LC 695. 岛屿的最大面积](000_Graph/695_LC_M_max-area-of-island.cpp)| 剑指Offer(专项突破)[105]<br/>                |
-| 宽度优先搜索 | [542. 01 矩阵](https://leetcode.cn/problems/01-matrix/) |[LC 542. 01 矩阵](000_Graph/542_LC_M_01-matrix.cpp)| 剑指Offer(专项突破)[107] |
+| 宽度优先搜索<br/>动态规划 | [542. 01 矩阵](https://leetcode.cn/problems/01-matrix/) |[LC 542. 01 矩阵](000_Graph/542_LC_M_01-matrix.cpp)| 剑指Offer(专项突破)[107] |
 
 
 
