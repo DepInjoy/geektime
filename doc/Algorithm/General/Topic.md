@@ -48,6 +48,7 @@
 | 深度/宽度优先搜索 | [面试题 04.01. 节点间通路](https://leetcode.cn/problems/route-between-nodes-lcci/) | [面试题 04.01. 节点间通路](000_Graph/04.01_LC_M_route-between-nodes-lcci.cpp) | 有向图，可以和[1971. 寻找图中是否存在路径](https://leetcode.cn/problems/find-if-path-exists-in-graph/description/)对比<br/>程序员面试金典(第 6 版) |
 | 深度/宽度优先搜索 | [785. 判断二分图](https://leetcode.cn/problems/is-graph-bipartite/description/) | [LC 785. 判断二分图](000_Graph/785_LC_M_is-graph-bipartite.cpp) | 剑指Offer(专项突破)[106]<br/> |
 | 深度/宽度优先搜索 | [695. 岛屿的最大面积](https://leetcode.cn/problems/max-area-of-island/description/) |[LC 695. 岛屿的最大面积](000_Graph/695_LC_M_max-area-of-island.cpp)| 剑指Offer(专项突破)[105]<br/>                |
+| 宽度优先搜索 | [542. 01 矩阵](https://leetcode.cn/problems/01-matrix/) |[LC 542. 01 矩阵](000_Graph/542_LC_M_01-matrix.cpp)| 剑指Offer(专项突破)[107] |
 
 
 
@@ -91,7 +92,14 @@
 3. [125. 验证回文](https://leetcode.cn/problems/valid-palindrome/description) [相关实现](01_DoublePointer/125_LC_E_valid-palindrome.cpp)
 
 # 栈
- 1. [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) [相关实现](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp)     栈
+
+| 专题 | 题目                                                         | 实现                                                         | 其他 |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
+| 栈   | [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) | [LC 1047. 删除字符串中的所有相邻重复项](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp) |      |
+| 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  |      |
+|      |                                                              |                                                              |      |
+
+
 
 # Hash表
 1. [1. 两数之和](https://leetcode.cn/problems/two-sum/description/) [相关实现](09_Hash/01_LC_E_two-sum.cpp)
@@ -123,4 +131,9 @@
 
 
 # 链表
-1. [206. 反转链表](https://leetcode.cn/problems/reverse-linked-list/description/) [相关实现](00_LinkedList/206_LC_E_ReverseLinkedList.cpp) 单链表 + 迭代
+| 专题                  | 题目                                                         | 实现                                                         | 其他 |
+| --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
+| 单链表                | [206. 反转链表](https://leetcode.cn/problems/reverse-linked-list/description/) | [LC 206. 反转链表](00_LinkedList/206_LC_E_ReverseLinkedList.cpp) |      |
+| 单链表<br/>栈，双指针 | [19. 删除链表的倒数第 N 个结点](https://leetcode.cn/problems/remove-nth-node-from-end-of-list/) | [LC 19. 删除链表的倒数第 N 个结点](00_LinkedList/19_LC_M_remove-nth-node-from-end-of-list.cpp) |      |
+|                       |                                                              |                                                              |      |
+
