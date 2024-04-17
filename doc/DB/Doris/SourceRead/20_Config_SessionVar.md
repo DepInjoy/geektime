@@ -1,3 +1,41 @@
+# 前端配置
+
+前端相关的配置参数位于`fe/fe-common/src/main/java/org/apache/doris/common/Config.java`
+
+## 导入导出
+
+| 参数                   | 参数意义                                         | 默认值              | 其他                                                         |
+| ---------------------- | ------------------------------------------------ | ------------------- | ------------------------------------------------------------ |
+| `enable_pipeline_load` | 是否开启 Pipeline 引擎执行 Streamload 等导入任务 | 2.1版本，默认为True | 该配置会导致前端给后端的请求不同，参见：<br/>`FrontendServiceImpl::pipelineStreamLoadPutImpl`<br/> |
+|                        |                                                  |                     |                                                              |
+|                        |                                                  |                     |                                                              |
+
+```java
+// 开启 Pipeline引擎执行 Streamload 等导入任务,前端给后端的请求不同
+// FrontendServiceImpl
+public TStreamLoadPutResult streamLoadPut(TStreamLoadPutRequest request) {
+                    	......
+    if (Strings.isNullOrEmpty(request.getLoadSql())) 
+        if (Config.enable_pipeline_load) {
+            result.setPipelineParams(pipelineStreamLoadPutImpl(request));
+        } else {
+            result.setParams(streamLoadPutImpl(request, result));
+        }
+    }
+                    ......
+}
+```
+
+
+
+# 后端配置参数
+
+后端配置参数位于`be/src/common/config.cpp`
+
+
+
+# 会话级参数
+
 Doris支持一些会话级参数，参见源码`SessionVariable`
 
 | 参数                                  | 参数意义               | 默认值 |
@@ -5,9 +43,9 @@ Doris支持一些会话级参数，参见源码`SessionVariable`
 | `enable_nereids_planner`              | 开启新查询优化器       | `true` |
 | `enable_fallback_to_original_planner` | 开启自动回退到旧优化器 | `true` |
 
-# 并行度
 
 
+## 并行度
 
 | 参数                                  | 参数意义                                                     | 默认值               |
 | :------------------------------------ | ------------------------------------------------------------ | -------------------- |
