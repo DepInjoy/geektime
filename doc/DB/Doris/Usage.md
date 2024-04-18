@@ -132,6 +132,14 @@ SHOW TABLES FROM <catalog_name>.<db_name>
 SHOW [FULL] COLUMNS FROM tbl;
 ```
 
+## 窗口函数
+```sql
+-- 漏斗分析函数搜索滑动时间窗口内最大的发生的最大事件序列长度
+window_funnel(window, mode, timestamp_column, event1, event2, ... , eventN)
+```
+[Doris window_funnel官方文档描述](https://doris.apache.org/zh-CN/docs/sql-manual/sql-functions/window-functions/window-function-window-funnel#example)
+
+
 # 客户端连接
 ## Navicat显示乱码
 > 由于系统本身编码(命令行chcp)中为936(GBK)而不是65001(UTF8)造成

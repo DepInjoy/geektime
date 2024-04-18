@@ -1132,7 +1132,7 @@ Status TaskGroupTaskQueue::push_back(PipelineTask* task) {
     return _push_back<false>(task);
 }
 
-// // push from worker
+// push from worker
 Status TaskGroupTaskQueue::push_back(PipelineTask* task, size_t core_id) {
     return _push_back<true>(task);
 }

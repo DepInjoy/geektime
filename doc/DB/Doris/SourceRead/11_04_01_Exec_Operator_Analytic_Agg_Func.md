@@ -1,3 +1,19 @@
+```plantuml
+class AggFnEvaluator {
+    + static Status create(ObjectPool* pool, const TExpr& desc, \n\tconst TSortInfo& sort_info, AggFnEvaluator** result)
+
+    + const AggregateFunctionPtr& function()
+    + void insert_result_info(AggregateDataPtr place, IColumn* column)
+
+    - AggregateFunctionPtr _function
+}
+
+class IAggregateFunction {
+    + virtual void add_range_single_place(\n\tint64_t partition_start, int64_t partition_end,\n\tint64_t frame_start, int64_t frame_end,\n\tAggregateDataPtr place, const IColumn** columns,\n\tArena* arena) const = 0;
+}
+
+IAggregateFunction -up-o AggFnEvaluator
+```
 
 窗口函数相关的生成函数在`be/src/vec/aggregate_functions/aggregate_function_window.cpp`
 

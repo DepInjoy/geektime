@@ -1,4 +1,4 @@
-# 接口变更和使用
+# 使用
 [Doris官网关于PipelineX的介绍](https://doris.apache.org/zh-CN/docs/query-acceleration/pipeline-x-execution-engine/)
 
 用户接口变更,其中会话级参数
@@ -16,7 +16,6 @@ set enable_local_shuffle = true;
 ```sql
 set ignore_storage_data_distribution = true;
 ```
-
 
 ---
 # 设计
@@ -58,11 +57,11 @@ PipelineXFragmentContext -> PipelineXFragmentContext:_plan_local_exchange
 end
 
 PipelineXFragmentContext -> Pipeline:prepare\n[遍历_pipelines对执行每个Pipeline的prepare]
-note over of Pipeline: 初始化global state
 note over of Pipeline #FF5733 : 2. 递归地Operator prepare和open
 
 PipelineXFragmentContext -> PipelineXFragmentContext :_build_pipeline_tasks
-note right of PipelineXFragmentContext #DAF7A6 : 3.构建PipelineTask并初始化local state
+note right of PipelineXFragmentContext #DAF7A6 : 3.构建PipelineTask
+note right of PipelineXFragmentContext #8333FF : 1.构造函数创建share state(create_shared_state)\n2.在prepare阶段初始化local state(setup_local_state)
 
 PipelineXFragmentContext -[#FF9F33]-> FragmentMgr
 deactivate PipelineXFragmentContext
@@ -97,6 +96,9 @@ note top :  _dag通过PipelineId来管理Pipeline依赖\n_tasks是一个n*m的�
 
 class PipelineFragmentContext {
     - Pipelines _pipelines
+    - std::map<PipelineId, std::vector<PipelineId>> _dag
+
+    + PipelinePtr add_pipeline()
 }
 
 struct pipeline_parent_map {
@@ -128,7 +130,21 @@ pipeline_parent_map -left-* PipelineXFragmentContext
 Pipeline -up-o PipelineFragmentContext
 @enduml
 ```
+# PipelineTask
 
+```plantuml
+@startuml
+class PipelineTask {
+    - std::vector<Dependency*> _read_dependencies
+    - std::vector<Dependency*> _write_dependencies
+    - std::vector<Dependency*> _finish_dependencies
+    - std::vector<Dependency*> _filter_dependencies
+
+    + bool source_can_read() override
+    + bool sink_can_write() override
+}
+@enduml
+```
 # Operator
 
 ```plantuml
@@ -187,5 +203,15 @@ ExchangeSinkOperatorX -down-|> DataSinkOperatorX
 ResultSinkOperatorX -down-|> DataSinkOperatorX
 @enduml
 ```
+
+`PipelineXTask::prepare`中进行LocalState的初始化
+```plantuml
+@startuml
+PipelineXTask -> DataSinkOperatorX:setup_local_state
+DataSinkOperatorX -> LocalStateType:create_unique\n(this, RuntimeState)
+DataSinkOperatorX -> LocalStateType:init
+@enduml
+```
+
 # 参考资料
 1. [Doris PipeplineX Execution Engine](https://cwiki.apache.org/confluence/display/DORIS/DSIP-035%3A+PipelineX+Execution+Engine)
