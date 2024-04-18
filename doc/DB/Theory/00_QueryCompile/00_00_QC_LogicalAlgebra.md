@@ -1,4 +1,16 @@
+Union的分布式执行
+```sql
+select * from tbl
+UNION
+select * from tbl;
 
+-- 等价转化为
+select DISTINCT * FROM (
+    select * from tbl
+	UNION ALL
+	select * from tbl;
+);
+```
 
 # 集合(Sets)
 
@@ -128,6 +140,24 @@ $$
 如果对于所有的参数都是sequence-linear，则称其为sequence-linear。二元函数或操作，我们可以区分左参数和右参数，如果它的左(右)参数是sequence-linear，那么，称left(right) sequence-linear。
 
 # 聚集函数(Aggregation Functions)
+
+聚集函数分解实现UNION ALL子查询拆分
+
+```SQL
+SELECT COUNT(*) FROM (
+    select * from tbl
+	UNION ALL
+	select * from tbl;
+);
+
+-- 等价拆分为
+SELECT SUM(c) FROM (
+	SELECT COUNT(*) c FROM tbl
+    UNION ALL
+    SELECT COUNT(*) c FROM tbl
+);
+```
+
 
 SQL至少支持min,max, count, sum和avg五种聚合函数。SQL也支持在计算聚合函数之前删除重复项，或者将重复项也参与聚合计算。例如`sum(distinct a)`或`sum(a)`
 
