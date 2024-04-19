@@ -1,9 +1,80 @@
 基于2.1.2-rc04分支
 
+
+# Operator
+算子的基本数据结构类图表示：
+```plantuml
+@startuml
+class StreamingOperatorX {
+
+}
+
+class OperatorX {
+    + Status setup_local_state(RuntimeState* state, LocalStateInfo& info)
+    + LocalState& get_local_state(RuntimeState* state) const
+
+    + DependencySPtr get_dependency(QueryContext* ctx)
+}
+
+class OperatorXBase {
+    # const int _operator_id
+    # const int _node_id
+    # TPlanNodeType::type _type;
+    # int _parallel_tasks
+    # std::unique_ptr<RowDescriptor> _output_row_descriptor(nullptr)
+
+    + Status setup_local_state(RuntimeState* state,LocalStateInfo& info) = 0
+    + DependencySPtr get_dependency(QueryContext* ctx) = 0
+    + virtual DataDistribution required_data_distribution() const
+
+    + void set_parallel_tasks(int parallel_tasks)
+    + int parallel_tasks() const
+
+    + Status get_block_after_projects(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
+}
+
+class OperatorBase {
+    # OperatorXPtr _child_x = nullptr
+
+    + virtual size_t revocable_mem_size(RuntimeState* state) const
+    + virtual Status revoke_memory(RuntimeState* state)
+}
+
+class ExchangeSinkOperatorX {
+    - RuntimeState* _state
+}
+
+class DataSinkOperatorX {
+    + std::shared_ptr<BasicSharedState> create_shared_state() const = 0
+
+    + Status setup_local_state(RuntimeState* state, LocalSinkStateInfo& info)
+    + LocalState& get_local_state(RuntimeState* state)
+
+    + void get_dependency(std::vector<DependencySPtr>& dependency,\n\tQueryContext* ctx)
+}
+
+class DataSinkOperatorXBase {
+    + virtual void get_dependency(std::vector<DependencySPtr>&\n\tdependency,QueryContext* ctx) = 0
+    + virtual Status setup_local_state(RuntimeState* state,\n\tLocalSinkStateInfo& info) = 0;
+    + virtual DataDistribution required_data_distribution() const
+}
+
+StreamingOperatorX -down-|> OperatorX
+OperatorX -down-|> OperatorXBase
+OperatorXBase -down-|> OperatorBase
+
+DataSinkOperatorXBase -down-|> OperatorBase
+DataSinkOperatorX -down-|> DataSinkOperatorXBase
+ExchangeSinkOperatorX -down-|> DataSinkOperatorX
+ResultSinkOperatorX -down-|> DataSinkOperatorX
+@enduml
+```
+
+
 ```plantuml
 @startuml
 class DataSinkOperatorX {
-    + std::shared_ptr<BasicSharedState> create_shared_state() const = 0;
+    
     + virtual DataDistribution required_data_distribution() const
     + Status setup_local_state(RuntimeState* state, LocalSinkStateInfo& info) = 0
 }
@@ -11,18 +82,17 @@ class DataSinkOperatorX {
 class DataSinkOperatorXBase {
     + Status setup_local_state(RuntimeState* state, \n\tLocalSinkStateInfo& info) = 0
     + void get_dependency(std::vector<DependencySPtr>& \n\tdependency,QueryContext* ctx) = 0
-    + virtual DataDistribution required_data_distribution() const
+    
 }
 
 class OperatorXBase {
     + DataDistribution required_data_distribution() const
     + DependencySPtr get_dependency(QueryContext* ctx) = 0
-    + Status get_block_after_projects(RuntimeState* state, \n\tvectorized::Block* block, bool* eos)
+    
 }
 
 class OperatorBase {
-    + virtual size_t revocable_mem_size(RuntimeState* state) const { return 0; }
-    + virtual Status revoke_memory(RuntimeState* state)
+
 }
 
 class OperatorX {

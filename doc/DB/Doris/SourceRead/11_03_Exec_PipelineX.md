@@ -1,4 +1,17 @@
-# 使用
+# 背景和目标
+PipelineX 执行引擎 是 Doris 在 2.1 版本加入的实验性功能。目标是为了解决Doris pipeline引擎的四大问题：
+1. 执行并发上，当前Doris执行并发收到两个因素的制约，一个是fe设置的参数，另一个是受存储层bucket数量的限制，这样的静态并发使得执行引擎无法充分利用机器资源。
+2. 执行逻辑上，当前Doris有一些固定的额外开销，例如表达式部分各个instance彼此独立，而instance的初始化参数有很多公共部分，所以需要额外进行很多重复的初始化步骤。
+3. 调度逻辑上，当前pipeline的调度器会把阻塞task全部放入一个阻塞队列中，由一个线程负责轮询并从阻塞队列中取出可执行task放入runnable队列，所以在有查询执行的过程中，会固定有一个核的资源作为调度的开销。
+4. profile方面，目前pipeline无法为用户提供简单易懂的指标。
+
+预期目标:
+1. 执行并发上，<b><font color=33FF5E>依赖local exchange使pipelinex充分并发</font></b>，可以让数据被均匀分布到不同的task中，尽可能减少数据倾斜，此外，pipelineX也将不再受存储层tablet数量的制约。
+2. 执行逻辑上，<b><font color=33FF5E>多个pipeline task共享同一个pipeline的全部共享状态</font></b>，例如表达式和一些const变量，<b><font color=33FF5E>消除了额外的初始化开销</font></b>。
+3. 调度逻辑上，所有pipeline task的阻塞条件都使用Dependency进行了封装，通过外部事件(例如rpc完成)触发task的执行逻辑进入runnable队列，从而消除了阻塞轮询线程的开销。
+4. profile：为用户提供简单易懂的指标。
+
+# 使用接口
 [Doris官网关于PipelineX的介绍](https://doris.apache.org/zh-CN/docs/query-acceleration/pipeline-x-execution-engine/)
 
 用户接口变更,其中会话级参数
@@ -90,119 +103,97 @@ deactivate PipelineXFragmentContext
 class PipelineXFragmentContext {
     - std::map<PipelineId, std::vector<PipelineId>> 
     - struct pipeline_parent_map _pipeline_parent_map
-    - - std::vector<std::vector<std::unique_ptr<PipelineXTask>>> _tasks
+    - std::vector<std::vector<std::unique_ptr\n\t<PipelineXTask>>> _tasks
 }
 note top :  _dag通过PipelineId来管理Pipeline依赖\n_tasks是一个n*m的矩阵，在_build_pipeline_tasks中填充数据\n
 
 class PipelineFragmentContext {
     - Pipelines _pipelines
     - std::map<PipelineId, std::vector<PipelineId>> _dag
+    - int _num_instances = 1
 
     + PipelinePtr add_pipeline()
+    + PipelinePtr add_pipeline(PipelinePtr parent, int idx)
 }
 
 struct pipeline_parent_map {
-    + std::map<int, std::vector<PipelinePtr>> _build_side_pipelines
-    + void push(int parent_node_id, PipelinePtr pipeline)
-    + void pop(PipelinePtr& cur_pipe, int parent_node_id, int child_idx)
+    + std::map<int, std::vector<PipelinePtr>> \n\t_build_side_pipelines
+    + void push(int parent_node_id,\n\tPipelinePtr pipeline)
+    + void pop(PipelinePtr& cur_pipe,\n\tint parent_node_id, int child_idx)
     + void clear()
 }
 
+class PipelineXTask {
+    + Status execute(bool* eos) override
+    + Status close(Status exec_status) override
+}
+
 class Pipeline {
+    - OperatorXs operatorXs
+    - DataSinkOperatorXPtr _sink_x
+
+    - std::vector<std::pair<int, std::weak_ptr<\n\tPipeline>>> _parents
+    - std::vector<std::pair<int, std::shared_ptr<\n\tPipeline>>> _dependencies
+
+    - int _num_tasks = 1
+    - int _num_tasks_created = 0
+
+    + bool need_to_create_task() const
+
     + Status add_operator(OperatorXPtr& op)
     + Status set_sink(DataSinkOperatorXPtr& sink)
 
     + void add_dependency(std::shared_ptr<Pipeline>& pipeline)
-    + void finish_one_dependency(int dep_opr, int dependency_core_id)
+    + void finish_one_dependency(int dep_opr,\n\tint dependency_core_id)
     + bool has_dependency()
 
     + Status prepare(RuntimeState* state)
-
-    - OperatorXs operatorXs
-    - DataSinkOperatorXPtr _sink_x
-
-    - std::vector<std::pair<int, std::weak_ptr<Pipeline>>> _parents
-    - std::vector<std::pair<int, std::shared_ptr<Pipeline>>> _dependencies
 }
 
-PipelineXFragmentContext -down-|> PipelineFragmentContext
+PipelineXFragmentContext -left-|> PipelineFragmentContext
+PipelineXTask -up-o PipelineXFragmentContext : 拥有一组PipelineXTask\n提交给TaskScheduler调度
+
 pipeline_parent_map -left-* PipelineXFragmentContext
 Pipeline -up-o PipelineFragmentContext
+
+Pipeline -right--> PipelineXTask : 维护_num_tasks和\n_num_tasks_created\n决定是否创建PipelineXTask,\n如果需要创建\n在构造调用incr_created_tasks\n将_num_tasks_created自增1
 @enduml
 ```
-# PipelineTask
 
+
+
+# PipelineXTask
+
+PipelineXTask数据结构表达类图：
 ```plantuml
 @startuml
-class PipelineTask {
+class PipelineXTask {
     - std::vector<Dependency*> _read_dependencies
     - std::vector<Dependency*> _write_dependencies
     - std::vector<Dependency*> _finish_dependencies
     - std::vector<Dependency*> _filter_dependencies
 
+    - OperatorXs _operators
+    - OperatorXPtr _source
+    - OperatorXPtr _root
+    - DataSinkOperatorXPtr _sink
+
     + bool source_can_read() override
     + bool sink_can_write() override
-}
-@enduml
-```
-# Operator
 
-```plantuml
-@startuml
-class StreamingOperatorX {
-
-}
-
-class OperatorX {
-    + Status setup_local_state(RuntimeState* state, LocalStateInfo& info)
-    + LocalState& get_local_state(RuntimeState* state) const
-    + DependencySPtr get_dependency(QueryContext* ctx)
+    + Status execute(bool* eos) override
+    + Status close(Status exec_status) override
 }
 
 class OperatorXBase {
-    # const int _operator_id
-    # const int _node_id
-    # TPlanNodeType::type _type;
-    # int _parallel_tasks
-    # std::unique_ptr<RowDescriptor> _output_row_descriptor(nullptr)
-
-    + virtual Status setup_local_state(RuntimeState* state,\n\tLocalStateInfo& info) = 0
-    + virtual DependencySPtr get_dependency(QueryContext* ctx) = 0
-    + virtual DataDistribution required_data_distribution() const
-
-    + void set_parallel_tasks(int parallel_tasks)
-    + int parallel_tasks() const
+    + virtual Status get_block_after_projects(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
 }
 
-class OperatorBase {
-    # OperatorXPtr _child_x = nullptr
-}
-
-class ExchangeSinkOperatorX {
-    - RuntimeState* _state
-}
-
-class DataSinkOperatorX {
-    + Status setup_local_state(RuntimeState* state, LocalSinkStateInfo& info)
-    + void get_dependency(std::vector<DependencySPtr>& dependency,\n\tQueryContext* ctx)
-    + LocalState& get_local_state(RuntimeState* state)
-}
-
-class DataSinkOperatorXBase {
-    + virtual void get_dependency(\n\tstd::vector<DependencySPtr>& dependency,\n\tQueryContext* ctx) = 0
-    + virtual Status setup_local_state(RuntimeState* state,\n\tLocalSinkStateInfo& info) = 0;
-}
-
-StreamingOperatorX -down-|> OperatorX
-OperatorX -down-|> OperatorXBase
-OperatorXBase -down-|> OperatorBase
-
-DataSinkOperatorXBase -down-|> OperatorBase
-DataSinkOperatorX -down-|> DataSinkOperatorXBase
-ExchangeSinkOperatorX -down-|> DataSinkOperatorX
-ResultSinkOperatorX -down-|> DataSinkOperatorX
+PipelineXTask -down-|> PipelineTask
+OperatorXBase -up-o PipelineXTask
 @enduml
 ```
+
 
 `PipelineXTask::prepare`中进行LocalState的初始化
 ```plantuml
@@ -210,6 +201,7 @@ ResultSinkOperatorX -down-|> DataSinkOperatorX
 PipelineXTask -> DataSinkOperatorX:setup_local_state
 DataSinkOperatorX -> LocalStateType:create_unique\n(this, RuntimeState)
 DataSinkOperatorX -> LocalStateType:init
+DataSinkOperatorX --> PipelineXTask
 @enduml
 ```
 
