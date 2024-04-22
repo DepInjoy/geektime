@@ -145,3 +145,13 @@
 | 单链表<br/>栈，双指针 | [19. 删除链表的倒数第 N 个结点](https://leetcode.cn/problems/remove-nth-node-from-end-of-list/) | [LC 19. 删除链表的倒数第 N 个结点](00_LinkedList/19_LC_M_remove-nth-node-from-end-of-list.cpp) |      |
 |                       |                                                              |                                                              |      |
 
+
+
+# Hash表
+
+| 专题          | 题目                                                         | 实现                                                         | 其他 |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
+| Hash表+前缀和 | [523.连续的子数组和](https://leetcode.cn/problems/continuous-subarray-sum/description/) | [523.连续的子数组和](09_Hash/523_M_LC-continuous-subarray-sum.cpp)  [523.连续的子数组和](09_Hash/523_M_LC-continuous-subarray-sum.cpp) |      |
+|               |                                                              |                                                              |      |
+|               |                                                              |                                                              |      |
+
