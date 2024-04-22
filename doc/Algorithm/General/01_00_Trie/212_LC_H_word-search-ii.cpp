@@ -29,7 +29,12 @@ bool dfs(vector<vector<char>>& board, Trie* node, int i, int j, std::unordered_s
     if (!node->children[ch - 'a']) return false;
 
     node = node->children[ch - 'a'];
-    if (node->isEnd) valid_words.insert(node->word);
+    if (node->isEnd) {
+        valid_words.insert(node->word);
+        // 该单词已经记入结果集,将isEnd标记为true
+        // 避免a, aa, aaa单词列表中a多次记入结果集
+        node->isEnd = false;
+    }
 
     int dx[4] = {0, 1, 0, -1};
     int dy[4] = {1, 0, -1, 0};
