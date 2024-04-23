@@ -42,7 +42,7 @@ RDD支持基于工作集的应用，同时具有数据流模型的特点：自�
 
 2. 一个计算每个分区的函数。Spark中RDD的计算是以分片为单位的，每个RDD都会实现compute函数以达到这个目的。compute函数会对迭代器进行复合，不需要保存每次计算的结果。
 
-3. RDD之间的依赖关系。RDD的每次转换都会生成一个新的RDD，所以RDD之间就会形成类似于流水线一样的前后依赖关系。在部分分区数据丢失时，Spark可以通过这个依赖关系重新计算丢失的分区数据，而不是对RDD的所有分区进行重新计算。
+3. RDD之间的依赖关系。RDD的每次转换都会生成一个新的RDD，所以RDD之间就会形成类似于流水线一样的前后依赖关系。在部分分区数据丢失时，Spark可以通过依赖关系重新计算丢失的分区数据，而不是对RDD的所有分区进行重新计算。
 
 4. 一个Partitioner，即RDD的分片函数。当前Spark中实现了两种类型的分片函数，一个是基于哈希的HashPartitioner，另外一个是基于范围的RangePartitioner。只有对于key-value的RDD，才会有Partitioner，非key-value的RDD的Parititioner的值是None。Partitioner函数不但决定了RDD本身的分片数量，也决定了parent RDD Shuffle输出时的分片数量。
 
@@ -59,19 +59,15 @@ RDD创建后，就可以在RDD上进行数据处理。RDD支持两种操作：
 
 - 动作(action)，即在数据集上进行计算后，返回一个值给Driver程序。
 
-## RDD转换和生成DAG
-Spark会根据用户提交的计算逻辑中的RDD的转换和动作来生成RDD之间的依赖关系，同时这个计算链也就生成了逻辑上的DAG。
-
-RDD之间的关系可以从两个维度来理解：
+## 生成DAG
+Spark会根据用户提交的计算逻辑中的RDD的转换和动作来生成RDD之间的依赖关系，同时这个计算链也就生成了逻辑上的DAG。RDD之间的关系可以从两个维度来理解：
 - RDD是从哪些RDD转换而来，也就是RDD的parent RDD(s)是什么
 - 依赖于parent RDD(s)的哪些Partition(s)。这个关系就是RDD之间的依赖，org.apache.spark.Dependency。根据依赖于parent RDD(s)的Partitions的不同情况，Spark将这种依赖分为两种，一种是宽依赖，一种是窄依赖
 
 ### RDD依赖关系
 RDD和它依赖的parent RDD(s)的关系有两种不同的类型，即窄依赖(narrow dependency)和宽依赖(wide dependency)。
 1. 窄依赖指的是每一个parent RDD的Partition最多被子RDD的一个Partition使用。
-2. 宽依赖指的是多个子RDD的Partition会依赖同一个parent RDD的Partition，
-
-宽依赖支持两种Shuffle Manager，即org.apache.spark.shuffle.hash.HashShuffleManager(基于Hash的Shuffle机制)和org.apache.spark.shuffle.sort.SortShuffleManager(基于排序的Shuffle机制).
+2. 宽依赖指的是多个子RDD的Partition会依赖同一个parent RDD的Partition。宽依赖支持两种Shuffle Manager，即`org.apache.spark.shuffle.hash.HashShuffleManager`(基于Hash的Shuffle机制)和`org.apache.spark.shuffle.sort.SortShuffleManager`(基于排序的Shuffle机制).
 
 # 参考资料
 1. 《Spark技术内幕：深入解析Spark内核架构设计与实现原理》
