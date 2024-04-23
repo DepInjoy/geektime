@@ -69,5 +69,38 @@ RDD和它依赖的parent RDD(s)的关系有两种不同的类型，即窄依赖(
 1. 窄依赖指的是每一个parent RDD的Partition最多被子RDD的一个Partition使用。
 2. 宽依赖指的是多个子RDD的Partition会依赖同一个parent RDD的Partition。宽依赖支持两种Shuffle Manager，即`org.apache.spark.shuffle.hash.HashShuffleManager`(基于Hash的Shuffle机制)和`org.apache.spark.shuffle.sort.SortShuffleManager`(基于排序的Shuffle机制).
 
+# 术语
+## Cores(Slots)
+Cores(Slots)：在Spark中，Cores(或Slots)是每个Executor(也可能是Spark守护进程)可用的线程数。Slots表示可用于为Spark执行并行工作的线程[。Spark文档经常将这些线程称为Cores，实际上Cores和机器上的物理核心没有关系。在[stackoverflow:Spark local mode: How to query the number of executor slots?](https://stackoverflow.com/questions/49324721/spark-local-mode-how-to-query-the-number-of-executor-slots)中给出了这两个术语的渊源：
+
+> "Slots" is a term Databricks uses (or used?) for the **threads available** to do parallel work for Spark. The Spark documentation and Spark UI **calls the same concept "cores"**, even though they are unrelated to physical CPU cores.
+>
+>
+> 翻译一下的意思是说：
+>
+> Slots是Databricks使用(或曾用)的术语，用来表示在Spark上并行运行可用的线程数。Spark文档和UI将这个该概念称为Cores，实际上它和机器的物理CPU核心无关。
+
+## 延迟调度
+在Apache Spark中，延迟调度(Delay Scheduling)是一种优化策略，用于改善数据本地性。以下是一些关键的延迟调度概念：
+
+1. 数据本地性：Spark任务的执行效率往往取决于其所处理数据的位置。例如，如果一个任务在同一节点上的数据上运行，那么它的执行速度通常会比在远程节点上的数据上运行要快。这就是所谓的数据本地性。
+
+2. 延迟调度：为了优化数据本地性，Spark引入了一种名为延迟调度的策略。当Spark准备调度一个任务时，它首先会检查该任务所需数据的位置。如果数据位于某个节点上，Spark会尝试在该节点上调度任务。然而，如果该节点当前没有可用的CPU核心，Spark不会立即在其他节点上调度任务。相反，它会等待一段时间，希望在等待期间该节点能够释放出CPU核心。这就是所谓的延迟调度。
+
+相关配置参数：
+- `spark.locality.wait`配置参数来设置延迟调度的等待时间
+- `spark.locality.wait.node`和`spark.locality.wait.process`配置参数来分别设置节点级别和进程级别的等待时间。
+
+## Barrier TaskSet
+
+在Apache Spark中，Barrier TaskSet是一种特殊的任务集，它用于支持Barrier Execution Mode。以下是一些关键的Barrier TaskSet概念：
+
+1. Barrier Execution Mode：一种执行模式，它要求在同一阶段的所有任务同时开始，并在所有任务完成后同时结束。这种执行模式常用于深度学习和其他需要全局同步的应用。
+
+2. Barrier TaskSet：在Barrier Execution Mode中，一个Barrier TaskSet包含了在同一阶段的所有任务。这些任务在开始时会设置一个全局的屏障，并等待所有任务达到这个屏障。
+
+3. BarrierTaskContext：提供了额外的上下文信息和工具的TaskContext，用于Barrier Stage中的任务。你可以使用BarrierTaskContext.get()来获取一个正在运行的Barrier Task的Barrier Context。
+
 # 参考资料
 1. 《Spark技术内幕：深入解析Spark内核架构设计与实现原理》
+2. [Datacadamia:Spark-Core(Slot)](https://datacadamia.com/db/spark/cluster/core)
