@@ -1,6 +1,6 @@
 # Plantuml
 
-配置markdown planuml serser为
+配置markdown planuml server为
 ```
 https://www.plantuml.com/plantuml
 ```
