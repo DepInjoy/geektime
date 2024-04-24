@@ -11,7 +11,7 @@
 </center>
 Driver是用户编写的数据处理逻辑，这个逻辑中包含用户创建的SparkContext。SparkContext是用户逻辑与Spark集群主要的交互接口，它会和Cluster Manager交互，包括向它申请计算资源等。Cluster Manager负责集群的资源管理和调度，现在支持Standalone、Apache Mesos和YARN。Worker是Spark集群中可以执行计算任务的节点，负责启动Executor，Worker节点可以有一个或多个Executor。Executor是在Worker节点上为某应用启动的进程，负责运行任务，并将数据存在内存或者磁盘上。Task是Spark作业执行的最小单位。每个Executor都有多个Task，一个Task是一个线程，对应了一个任务。在基于RDD计算时，Task的数量其实就是RDD的分区数，RDD的分区数目决定了总的Task数量。每个Task执行的结果就是生成了目标RDD的一个partition。
 
-<br/><br/>
+---
 用户程序从最开始的提交到最终的计算执行，需要经历以下几个阶段：
 
 1. 用户程序创建SparkContext时，新创建的SparkContext实例会连接到Cluster Manager。Cluster Manager会根据用户提交时设置的CPU和内存等信息为本次提交分配计算资源，启动Executor。
@@ -27,9 +27,9 @@ Spark的目标是为基于工作集的应用(即多个并行操作重用中间�
 在这些特性中，最难实现的是容错性。一般来说，分布式数据集的容错性有两种方式：数据检查点和记录数据的更新。我们面向的是大规模数据分析，数据检查点操作成本很高：需要通过数据中心的网络连接在机器之间复制庞大的数据集，而网络带宽往往比内存带宽低得多，同时还需要消耗更多的存储资源(在内存中复制数据可以减少需要缓存的数据量，而存储到磁盘则会降低应用程序速度)。所以，我们选择记录更新的方式。但是，如果更新太多，记录更新成本也不低。因此，RDD只支持粗粒度转换，即在大量记录上执行的单个操作。将创建RDD的一系列转换记录下来(即Lineage)，以便恢复丢失的分区。
 
 ---
-什么是RDD？<b>RDD是只读的、分区记录的集合。</b>RDD只能基于在稳定物理存储中的数据集和其他已有的RDD上执行确定性操作来创建，这些确定性操作称为转换，如map、filter、groupBy、join。RDD不需要物化。RDD含有如何从其他RDD衍生(即计算)出本RDD的相关信息(即Lineage)，因此在RDD部分分区数据丢失的时候可以从物理存储的数据计算出相应的RDD分区。
+什么是RDD？<b>RDD是只读的、分区记录的集合。</b>RDD只能基于在稳定物理存储中的数据集和其他已有的RDD上执行确定性操作来创建，这些确定性操作称为转换，如map、filter、groupBy、join。<b>RDD不需要物化，RDD含有如何从其他RDD衍生(即计算)出本RDD的相关信息(即Lineage)，因此在RDD部分分区数据丢失的时候可以从物理存储的数据计算出相应的RDD分区。</b>
 
-RDD支持基于工作集的应用，同时具有数据流模型的特点：自动容错、位置感知性调度和可伸缩性。RDD允许用户在执行多个查询时显式地将工作集缓存在内存中，后续的查询能够重用工作集，这极大地提升了查询速度，这是Spark速度非常快的原因之一。当持久化一个RDD后，每一个节点都将把计算的分片结果保存在内存中，并在对此数据集(或者衍生出的数据集)进行的其他动作(action)中重用, 这使得后续的动作变得更加迅速(通常快10倍)。
+RDD支持基于工作集的应用，同时具有数据流模型的特点：自动容错、位置感知性调度和可伸缩性。<b>RDD允许用户在执行多个查询时显式地将工作集缓存在内存中，后续的查询能够重用工作集，这极大地提升了查询速度</b>，这是Spark速度非常快的原因之一。当持久化一个RDD后，每一个节点都将把计算的分片结果保存在内存中，并在对此数据集(或者衍生出的数据集)进行的其他动作(action)中重用, 这使得后续的动作变得更加迅速(通常快10倍)。
 
 缓存有可能丢失，或者存储于内存的数据由于内存不足而被删除，需要重新计算。RDD的缓存的容错机制保证了即使缓存丢失也能保证计算的正确执行。通过基于RDD的一系列的转换，丢失的数据会被重算。RDD的各个Partition是相对独立的，因此只需要计算丢失的部分即可，并不需要重算全部Partition。
 
@@ -56,18 +56,28 @@ RDD支持基于工作集的应用，同时具有数据流模型的特点：自�
 
 RDD创建后，就可以在RDD上进行数据处理。RDD支持两种操作：
 - 转换(transformation)，即从现有的数据集创建一个新的数据集。RDD中的所有转换都是惰性的，也就是说，它们并不会直接计算结果，它们只是记住这些应用到基础数据集(例如一个文件)上的转换动作。只有当发生一个要求返回结果给Driver的动作时，这些转换才会真正运行，这个设计让Spark更加有效率地运行。
-
 - 动作(action)，即在数据集上进行计算后，返回一个值给Driver程序。
 
 ## 生成DAG
 Spark会根据用户提交的计算逻辑中的RDD的转换和动作来生成RDD之间的依赖关系，同时这个计算链也就生成了逻辑上的DAG。RDD之间的关系可以从两个维度来理解：
 - RDD是从哪些RDD转换而来，也就是RDD的parent RDD(s)是什么
-- 依赖于parent RDD(s)的哪些Partition(s)。这个关系就是RDD之间的依赖，org.apache.spark.Dependency。根据依赖于parent RDD(s)的Partitions的不同情况，Spark将这种依赖分为两种，一种是宽依赖，一种是窄依赖
-
-### RDD依赖关系
-RDD和它依赖的parent RDD(s)的关系有两种不同的类型，即窄依赖(narrow dependency)和宽依赖(wide dependency)。
+- 依赖于parent RDD(s)的哪些Partition(s)。这个关系就是RDD之间的依赖，org.apache.spark.Dependency。根据依赖于parent RDD(s)的Partitions的不同情况，Spark将这种依赖分为两种，即窄依赖(narrow dependency)和宽依赖(wide dependency)。
 1. 窄依赖指的是每一个parent RDD的Partition最多被子RDD的一个Partition使用。
 2. 宽依赖指的是多个子RDD的Partition会依赖同一个parent RDD的Partition。宽依赖支持两种Shuffle Manager，即`org.apache.spark.shuffle.hash.HashShuffleManager`(基于Hash的Shuffle机制)和`org.apache.spark.shuffle.sort.SortShuffleManager`(基于排序的Shuffle机制).
+
+---
+
+原始的RDD(s)通过一系列转换就形成了DAG。<b>RDD之间的依赖关系，包含了RDD由哪些Parent RDD(s)转换而来和它依赖parent RDD(s)的哪些Partitions，是DAG的重要属性。</b>借助这些依赖关系，DAG可以认为这些RDD之间形成了Lineage(血统)。借助Lineage，能保证一个RDD被计算前，它所依赖的parentRDD都已经完成了计算；同时也实现了RDD的容错性，即如果一个RDD的部分或者全部的计算结果丢失了，那么就需要重新计算这部分丢失的数据。
+
+<b>那么Spark是如何根据DAG来生成计算任务呢？</b>首先，根据依赖关系的不同将DAG划分为不同的阶段(Stage)。对于窄依赖，由于Partition依赖关系的确定性，Partition的转换处理就可以在同一个线程里完成，窄依赖被Spark划分到同一个执行阶段；对于宽依赖，由于Shuffle的存在，只能在parent RDD(s)Shuffle处理完成后，才能开始接下来的计算，因此<b>宽依赖就是Spark划分Stage的依据，即Spark根据宽依赖将DAG划分为不同的Stage。在一个Stage内部，每个Partition都会被分配一个计算任务(Task)，这些Task可以并行执行</b>。Stage之间根据依赖关系变成了一个大粒度的DAG，这个DAG的执行顺序也是从前向后的。也就是说，Stage只有在它没有parent Stage或者parent Stage都已经执行完成后，才可以执行。
+
+## RDD计算
+原始的RDD经过一系列转换后，会在最后一个RDD上触发一个动作，这个动作会生成一个Job。在Job被划分为一批计算任务（Task）后，这批Task会被提交到集群上的计算节点去计算。计算节点执行计算逻辑的部分称为Executor。Executor在准备好Task的运行时环境后，会通过调用`org.apache.spark.scheduler.Task#run`来执行计算。Spark的Task分为两种：
+1. `org.apache.spark.scheduler.ShuffleMapTask`
+2. `org.apache.spark.scheduler.ResultTask`
+简单来说，DAG的最后一个阶段会为每个结果的Partition生成一个ResultTask，其余所有的阶段都会生成ShuffleMapTask。生成的Task会被发送到已经启动的Executor上，由Executor来完成计算任务的执行，执行过程的实现在`org.apache.spark.executor.Executor.TaskRunner#run`
+
+
 
 # 术语
 ## Cores(Slots)
