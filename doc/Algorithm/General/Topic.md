@@ -54,11 +54,11 @@
 
 # 树
 
-| 专题       | 题目                                                         | 相关实现                                                   | 其他 |
-| ---------- | ------------------------------------------------------------ | ---------------------------------------------------------- | ---- |
-| 二叉树遍历 | [94. 二叉树的中序遍历](https://leetcode.cn/problems/binary-tree-inorder-traversal/description/)<br/>[144. 二叉树的前序遍历](https://leetcode.cn/problems/binary-tree-preorder-traversal/description/)<br/>[145. 二叉树的后序遍历](https://leetcode.cn/problems/binary-tree-postorder-traversal/description/)<br/>[102. 二叉树的层序遍历](https://leetcode.cn/problems/binary-tree-level-order-traversal/description/) | [LC 二叉树遍历](08_Tree/94_LC_E_binary-tree-traversal.cpp) |      |
-|            |                                                              |                                                            |      |
-|            |                                                              |                                                            |      |
+| 专题       | 题目                                                         | 相关实现                                                   | 其他                              |
+| ---------- | ------------------------------------------------------------ | ---------------------------------------------------------- | --------------------------------- |
+| 二叉树遍历 | [94. 二叉树的中序遍历](https://leetcode.cn/problems/binary-tree-inorder-traversal/description/)<br/>[144. 二叉树的前序遍历](https://leetcode.cn/problems/binary-tree-preorder-traversal/description/)<br/>[145. 二叉树的后序遍历](https://leetcode.cn/problems/binary-tree-postorder-traversal/description/)<br/>[102. 二叉树的层序遍历](https://leetcode.cn/problems/binary-tree-level-order-traversal/description/) | [LC 二叉树遍历](08_Tree/94_LC_E_binary-tree-traversal.cpp) |                                   |
+|            | [102. 二叉树的层序遍历](https://leetcode.cn/problems/binary-tree-level-order-traversal/description/) | [LC 102. 二叉树的层序遍历]()                               | <font color=FF3933>Hot 100</font> |
+|            |                                                              |                                                            |                                   |
 
 
 
@@ -110,7 +110,12 @@
 
 
 # Hash表
-1. [1. 两数之和](https://leetcode.cn/problems/two-sum/description/) [相关实现](09_Hash/01_LC_E_two-sum.cpp)
+
+| 专题   | 题目                                                         | 实现                                          | 其他                              |
+| ------ | ------------------------------------------------------------ | --------------------------------------------- | --------------------------------- |
+| Hash表 | [1. 两数之和](https://leetcode.cn/problems/two-sum/description/) | [LC 1. 两数之和](09_Hash/01_LC_E_two-sum.cpp) | <font color=FF3933>Hot 100</font> |
+|        |                                                              |                                               |                                   |
+|        |                                                              |                                               |                                   |
 
 # 排序
 1. [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  快排/堆+ Hash表
@@ -141,17 +146,17 @@
 # 链表
 | 专题                  | 题目                                                         | 实现                                                         | 其他 |
 | --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
-| 单链表                | [206. 反转链表](https://leetcode.cn/problems/reverse-linked-list/description/) | [LC 206. 反转链表](00_LinkedList/206_LC_E_ReverseLinkedList.cpp) |      |
+| 单链表                | [206. 反转链表](https://leetcode.cn/problems/reverse-linked-list/description/) | [LC 206. 反转链表](00_LinkedList/206_LC_E_ReverseLinkedList.cpp) | <font color=FF3933>Hot 100</font> |
 | 单链表<br/>栈，双指针 | [19. 删除链表的倒数第 N 个结点](https://leetcode.cn/problems/remove-nth-node-from-end-of-list/) | [LC 19. 删除链表的倒数第 N 个结点](00_LinkedList/19_LC_M_remove-nth-node-from-end-of-list.cpp) |      |
-| 单链表|  [21. 合并两个有序链表](https://leetcode.cn/problems/merge-two-sorted-lists/description/)| [LC 21. 合并两个有序链表](00_LinkedList/21_LC_E_Merge-Two-Sorted-Lists.cpp) | Hot 100 <br/> |
+| 单链表|  [21. 合并两个有序链表](https://leetcode.cn/problems/merge-two-sorted-lists/description/)| [LC 21. 合并两个有序链表](00_LinkedList/21_LC_E_Merge-Two-Sorted-Lists.cpp) | <font color=FF3933>Hot 100</font><br/> |
 
 
 
 # Hash表
 
-| 专题          | 题目                                                         | 实现                                                         | 其他 |
-| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
-| Hash表+前缀和 | [523.连续的子数组和](https://leetcode.cn/problems/continuous-subarray-sum/description/) | [523.连续的子数组和](09_Hash/523_M_LC-continuous-subarray-sum.cpp)  [523.连续的子数组和](09_Hash/523_M_LC-continuous-subarray-sum.cpp) |      |
-|               |                                                              |                                                              |      |
-|               |                                                              |                                                              |      |
+| 专题          | 题目                                                         | 实现                                                         | 其他                              |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
+| Hash表+前缀和 | [523.连续的子数组和](https://leetcode.cn/problems/continuous-subarray-sum/description/) | [523.连续的子数组和](09_Hash/523_M_LC-continuous-subarray-sum.cpp) |                                   |
+| Hash表        | [1. 两数之和](https://leetcode.cn/problems/two-sum/description/) | [LC 1. 两数之和](09_Hash/01_LC_E_two-sum.cpp)                | <font color=FF3933>Hot 100</font> |
+|               |                                                              |                                                              |                                   |
 
