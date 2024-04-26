@@ -44,6 +44,23 @@
 15. 可视化Profile
 
 
+# 新特性
+## Doris 2.0.9新特性
+新功能
+- 物化视图的 Key 和 Value 列都允许出现谓词
+- 物化视图支持bitmap_union(bitmap_from_array())
+- 增加一个FE配置强制集群中所有表的Replicate Allocation
+- 新优化器支持日期字面量指定时区
+- MATCH_PHRASE全文检索支持 slop 参数指定搜索词之间的距离
+
+改进与优化
+- first_value/last_value函数增加第二个参数指定忽略 NULL 值
+LEAD/LAG函数的 Offset 参数可以为 0
+- 调整物化视图匹配的顺序优先利用索引和预聚合加速查询
+- 优化TopN查询ORDER BY k LIMIT n 的性能
+- 优化Meta Cache 的性能
+- 为`delete_bitmap` `get_agg`函数增加Profile便于性能分析
+- 增加FE参数设置Autobucket的最大Bucket数
 
 
 
