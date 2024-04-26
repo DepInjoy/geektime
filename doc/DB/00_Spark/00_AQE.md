@@ -1,12 +1,17 @@
 
 # 动态合并Shuffle分区
-<center>
-    <img src="img/1_NoAQE_Coalesce_Partitions.png">
-</center>
 
-<center>
-    <img src="img/1_AQE_Coalesce_Partitions.png">
-</center>
+<table><tr>
+<td bgcolor=white>
+<img src="img/1_NoAQE_Coalesce_Partitions.png"></td>
+</tr></table>
+
+<table><tr>
+<td bgcolor=white>
+<img src="img/1_AQE_Coalesce_Partitions.png"></td>
+</tr></table>
+
+
 # 动态切换Join策略
 <center>
     <img src="img/2_SwitchJoinStrategies.jpg">
@@ -14,10 +19,12 @@
 
 # 动态优化join数据倾斜
 
-<center>
-    <img src="img/3_NoAQE_Skew_Join.png">
-    <img src="./img/3_AQE_Skew_Join.png.png">
-</center>
+<table><tr>
+<td bgcolor=white>
+<img src="img/3_NoAQE_Skew_Join.png">
+<img src="./img/3_AQE_Skew_Join.png.png"></td>
+</tr></table>
+
 
 要启用上面的功能需要用到下面三个参数：
 
