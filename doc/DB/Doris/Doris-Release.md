@@ -62,5 +62,3 @@ LEAD/LAG函数的 Offset 参数可以为 0
 - 为`delete_bitmap` `get_agg`函数增加Profile便于性能分析
 - 增加FE参数设置Autobucket的最大Bucket数
 
-
-

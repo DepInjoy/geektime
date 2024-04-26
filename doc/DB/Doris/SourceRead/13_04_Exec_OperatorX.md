@@ -85,6 +85,8 @@ protected:
 }
 
 class PipelineXSpillSinkLocalState : public PipelineXSinkLocalState<SharedStateArg>
+
+class AsyncWriterSink : public PipelineXSinkLocalState<FakeSharedState>
 ```
 
 # 窗口
