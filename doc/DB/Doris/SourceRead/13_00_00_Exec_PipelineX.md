@@ -8,7 +8,7 @@ PipelineX 执行引擎 是 Doris 在 2.1 版本加入的实验性功能。目标
 预期目标:
 1. 执行并发上，<b><font color=33FF5E>依赖local exchange使pipelinex充分并发</font></b>，可以让数据被均匀分布到不同的task中，尽可能减少数据倾斜，此外，pipelineX也将不再受存储层tablet数量的制约。
 2. 执行逻辑上，<b><font color=33FF5E>多个pipeline task共享同一个pipeline的全部共享状态</font></b>，例如表达式和一些const变量，<b><font color=33FF5E>消除了额外的初始化开销</font></b>。
-3. 调度逻辑上，所有pipeline task的阻塞条件都使用Dependency进行了封装，通过外部事件(例如rpc完成)触发task的执行逻辑进入runnable队列，从而消除了阻塞轮询线程的开销。
+3. 调度逻辑上，所有pipeline task的阻塞条件都使用Dependency进行了封装，通过外部事件(例如rpc完成)触发task的执行逻辑进入runnable队列，从而<b><font color=33FF5E>消除阻塞轮询线程的开销</font></b>。
 4. profile：为用户提供简单易懂的指标。
 
 # 使用接口
@@ -103,7 +103,7 @@ deactivate PipelineXFragmentContext
 class PipelineXFragmentContext {
     - std::map<PipelineId, std::vector<PipelineId>> 
     - struct pipeline_parent_map _pipeline_parent_map
-    - std::vector<std::vector<std::unique_ptr\n\t<PipelineXTask>>> _tasks
+    - std::vector<std::vector<std::unique_ptr<PipelineXTask>>> _tasks
 }
 note top :  _dag通过PipelineId来管理Pipeline依赖\n_tasks是一个n*m的矩阵，在_build_pipeline_tasks中填充数据\n
 
@@ -178,22 +178,140 @@ class PipelineXTask {
     - OperatorXPtr _root
     - DataSinkOperatorXPtr _sink
 
+    - std::map<int, std::shared_ptr<BasicSharedState>> _op_shared_states;
+    - std::shared_ptr<BasicSharedState> _sink_shared_state;
+    - std::map<int, std::pair<std::shared_ptr<LocalExchangeSharedState>,\n\tstd::shared_ptr<Dependency>>>            _le_state_map;
+
     + bool source_can_read() override
     + bool sink_can_write() override
+    + void wake_up()
+
+    + void inject_shared_state(std::shared_ptr<BasicSharedState> shared_state)
+    + BasicSharedState* get_op_shared_state(int id)
+    + std::shared_ptr<BasicSharedState> get_sink_shared_state()
 
     + Status execute(bool* eos) override
     + Status close(Status exec_status) override
 }
+note top : 对任务调度器暴露execute接口执行任务，从operator chain的根算子\n调用get_block_after_projects拉取数据
+
+class PipelineTask {
+    # RuntimeState* _state
+}
+
+class RuntimeState {
+    - std::vector<std::unique_ptr<doris::pipeline::\n\tPipelineXLocalStateBase>> _op_id_to_local_state
+    - std::unique_ptr<doris::pipeline::\n\tPipelineXSinkLocalStateBase> _sink_local_state
+    + LocalState* get_local_state(int id);
+    + Result<LocalState*> get_local_state_result(int id);
+}
 
 class OperatorXBase {
-    + virtual Status get_block_after_projects(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
+    + virtual Status get_block_after_projects(\n\tRuntimeState* state,\n\tvectorized::Block* block, bool* eos)
+}
+
+class BasicSharedState {
+    - std::vector<DependencySPtr> source_deps
+    - std::vector<DependencySPtr> sink_deps
+    - int id = 0
+    - std::set<int> related_op_ids
+
+    + Dependency* create_source_dependency(int operator_id,\n\tint node_id, std::string name,QueryContext* ctx)
+    + Dependency* create_sink_dependency(int dest_id, \n\tint node_id, std::string name,QueryContext* ctx)
+}
+
+class Dependency {
+    - std::vector<PipelineXTask*> _blocked_task
+
+    + virtual Dependency* is_blocked_by(PipelineXTask* task)
+    + void block()
+    + void set_ready()
 }
 
 PipelineXTask -down-|> PipelineTask
-OperatorXBase -up-o PipelineXTask
+OperatorXBase -up-o PipelineXTask : 由一组Operator组成\nleft是source，right是root
+BasicSharedState -left-o PipelineXTask
+Dependency -up-o BasicSharedState
+
+RuntimeState -up-o PipelineTask
 @enduml
 ```
 
+从算子执行层面，`get_block_after_projects`调用get_block接口实现算子计算
+```C++
+Status OperatorXBase::get_block_after_projects(
+        RuntimeState* state, vectorized::Block* block, bool* eos) {
+    auto local_state = state->get_local_state(operator_id());
+    if (_output_row_descriptor) {
+        local_state->clear_origin_block();
+        auto status = get_block(state, &local_state->_origin_block, eos);
+        if (UNLIKELY(!status.ok())) return status;
+        return do_projections(state, &local_state->_origin_block, block);
+    }
+    return get_block(state, block, eos);
+}
+```
+
+在执行算子方面，Pipelinex采取的pull-push混合模型。source算子直接继承`OperatorX`并实现`get_block`接口,`StreamingOperatorX`实现了`get_block`接口pull方式拉取数据，`StatefulOperatorX`也实现了`get_block`通过pull-push混合的方式计算。
+```plantuml
+@startuml
+class StreamingOperatorX {}
+note top : pull模式
+
+class StatefulOperatorX {}
+note top : pull-push混合方式
+
+class OperatorX {
+    + Status setup_local_state(RuntimeState* state,LocalStateInfo& info)
+    + LocalState& get_local_state(RuntimeState* state) const
+
+    + DependencySPtr get_dependency(QueryContext* ctx)
+}
+
+class OperatorXBase {
+    + Status get_block_after_projects(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
+}
+
+class OperatorBase {
+    # OperatorXPtr _child_x = nullptr
+
+    + virtual size_t revocable_mem_size(RuntimeState* state) const
+    + virtual Status revoke_memory(RuntimeState* state)
+}
+
+class ExchangeSinkOperatorX {
+    - RuntimeState* _state
+}
+
+class DataSinkOperatorX {
+    + std::shared_ptr<BasicSharedState> create_shared_state() const = 0
+
+    + Status setup_local_state(RuntimeState* state, LocalSinkStateInfo& info)
+    + LocalState& get_local_state(RuntimeState* state)
+
+    + void get_dependency(std::vector<DependencySPtr>& dependency,\n\tQueryContext* ctx)
+}
+
+class DataSinkOperatorXBase {
+    + virtual void get_dependency(std::vector<DependencySPtr>&\n\tdependency,QueryContext* ctx) = 0
+    + virtual Status setup_local_state(RuntimeState* state,\n\tLocalSinkStateInfo& info) = 0;
+    + virtual DataDistribution required_data_distribution() const
+}
+
+AnalyticSourceOperatorX -down-|> OperatorX
+StreamingOperatorX -down-|> OperatorX
+StatefulOperatorX -down-|> OperatorX
+
+OperatorX -down-|> OperatorXBase
+OperatorXBase -down-|> OperatorBase
+
+DataSinkOperatorXBase -down-|> OperatorBase
+DataSinkOperatorX -down-|> DataSinkOperatorXBase
+AnalyticSinkOperatorX -down-|> DataSinkOperatorX
+ExchangeSinkOperatorX -down-|> DataSinkOperatorX
+ResultSinkOperatorX -down-|> DataSinkOperatorX
+@enduml
+```
 
 `PipelineXTask::prepare`中进行LocalState的初始化
 ```plantuml

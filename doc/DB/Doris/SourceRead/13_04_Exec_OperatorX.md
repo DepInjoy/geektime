@@ -9,6 +9,10 @@ class StreamingOperatorX {
 
 }
 
+class StatefulOperatorX {
+
+}
+
 class OperatorX {
     + Status setup_local_state(RuntimeState* state, LocalStateInfo& info)
     + LocalState& get_local_state(RuntimeState* state) const
@@ -60,6 +64,8 @@ class DataSinkOperatorXBase {
 }
 
 StreamingOperatorX -down-|> OperatorX
+StatefulOperatorX -down-|> OperatorX
+
 OperatorX -down-|> OperatorXBase
 OperatorXBase -down-|> OperatorBase
 
@@ -71,49 +77,14 @@ ResultSinkOperatorX -down-|> DataSinkOperatorX
 ```
 
 
-```plantuml
-@startuml
-class DataSinkOperatorX {
-    
-    + virtual DataDistribution required_data_distribution() const
-    + Status setup_local_state(RuntimeState* state, LocalSinkStateInfo& info) = 0
-}
-
-class DataSinkOperatorXBase {
-    + Status setup_local_state(RuntimeState* state, \n\tLocalSinkStateInfo& info) = 0
-    + void get_dependency(std::vector<DependencySPtr>& \n\tdependency,QueryContext* ctx) = 0
-    
-}
-
-class OperatorXBase {
-    + DataDistribution required_data_distribution() const
-    + DependencySPtr get_dependency(QueryContext* ctx) = 0
-    
-}
-
-class OperatorBase {
-
-}
-
-class OperatorX {
-    + LocalState& get_local_state(RuntimeState* state) const 
-}
-DataSinkOperatorX -down-|> DataSinkOperatorXBase
-DataSinkOperatorXBase -down-|> OperatorBase
-
-OperatorX -down-|>OperatorXBase
-OperatorXBase -down-|> OperatorBase
-
-
-@enduml
-```
-
 ```C++
 class PipelineXSinkLocalState : public PipelineXSinkLocalStateBase {
 protected:
     DependencyType* _dependency = nullptr;
     typename DependencyType::SharedState* _shared_state = nullptr;
 }
+
+class PipelineXSpillSinkLocalState : public PipelineXSinkLocalState<SharedStateArg>
 ```
 
 # 窗口

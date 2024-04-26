@@ -9,10 +9,10 @@ using IndexByName = phmap::flat_hash_map<String, size_t>;
 @startuml
 class Block {
     - Container data
-    - IndexByName index_by_name \n\t<column name, column index> Hash Map
+    - IndexByName index_by_name \n\t<> Hash Map
     - std::vector<bool> row_s
 }
-note top : 1. Block对象的本质是一组由数据对象(Column), \n数据类型(DataType)和列名称(列名称字符串)\n组成的三元组(ColumnWithTypeAndName)\n\n 2. IndexByName是Hash Map可以根据列名寻找列index
+note top : 1. Block对象的本质是一组由数据对象(Column), \n数据类型(DataType)和列名称(列名称字符串)\n组成的三元组(ColumnWithTypeAndName)\n\n 2. IndexByName是<column name, column index>HashMap\n\t可以根据列名寻找列index
 
 struct ColumnWithTypeAndName {
     + ColumnPtr column

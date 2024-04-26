@@ -1,0 +1,1 @@
+Pipelinex采取的pull-push混合模型，执行算子

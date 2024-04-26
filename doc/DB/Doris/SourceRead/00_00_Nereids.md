@@ -35,7 +35,7 @@ SET dump_nereids_memo=true;
 SET nth_optimized_plan=XX;
 ```
 
-SQL进入Doris会进行SQL解析，Doris采用Java CUP Parser，语法规则定义在 `sql_parser.cup`，SQL语句会被解析为抽象语法树(AST)，例如常见的SELECT语句被解析为`SelectStmt`。
+SQL进入Doris会进行SQL解析，Doris新版查询优化器采用Antlr4词法分析器，对应配置文件 `DorisLexer.g4`，以及Antlr4  LL(*)语法分析，对应的语法分析文件为`DorisParser.g4`，SQL语句会被解析为抽象语法树(AST)，例如常见的SELECT语句被解析为`SelectStmt`。
 
 
 
@@ -56,9 +56,9 @@ private void handleQuery(MysqlCommand mysqlCommand) {
     List<StatementBase> stmts = null;
     if (mysqlCommand == MysqlCommand.COM_QUERY &&
         ctx.getSessionVariable().isEnableNereidsPlanner()) {
-        // 2.1 Nereids parser解析,采用Java CUP Parser, 语法规则定义在sql_parser.cup
+        // 2.1 Nereids parser解析,采用Antlr4，对应文件为`DorisParser.g4
         //     这里借助LogicalPlanBuilder得到了逻辑计划
-        //     将<LogicalPlan, StatementContext>报错在LogicalPlanAdapter
+        //     将<LogicalPlan, StatementContext>保存在LogicalPlanAdapter
         stmts = new NereidsParser().parseSQL(originStmt);
     }
     
@@ -156,7 +156,6 @@ public void plan(StatementBase queryStmt, org.apache.doris.thrift.TQueryOptions 
     PlanTranslatorContext planTranslatorContext = new PlanTranslatorContext(cascadesContext);
     PhysicalPlanTranslator physicalPlanTranslator = new PhysicalPlanTranslator(planTranslatorContext,
             statementContext.getConnectContext().getStatsErrorEstimator());
-    if (cascadesContext.getConnectContext().getSessionVariable().isPlayNereidsDump()) return;
     PlanFragment root = physicalPlanTranslator.translatePlan(physicalPlan);
 
     scanNodeList.addAll(planTranslatorContext.getScanNodes());
