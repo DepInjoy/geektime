@@ -46,6 +46,7 @@ set ignore_storage_data_distribution = true;
 > 3. In terms of scheduling logic, the blocking conditions of all pipeline tasks are encapsulated using Dependency, and the execution logic of the tasks is triggered by external events (such as rpc completion) to enter the runnable queue, thereby eliminating the overhead of blocking polling threads.
 > 4. Profile: Provide users with simple and easy to understand metrics
 
+# 主流程
 ```plantuml
 @startuml
 FragmentMgr -> PipelineXFragmentContext:new
@@ -73,8 +74,8 @@ PipelineXFragmentContext -> Pipeline:prepare\n[遍历_pipelines对执行每个Pi
 note over of Pipeline #FF5733 : 2. 递归地Operator prepare和open
 
 PipelineXFragmentContext -> PipelineXFragmentContext :_build_pipeline_tasks
-note right of PipelineXFragmentContext #DAF7A6 : 3.构建PipelineTask
-note right of PipelineXFragmentContext #8333FF : 1.构造函数创建share state(create_shared_state)\n2.在prepare阶段初始化local state(setup_local_state)
+note right of PipelineXFragmentContext #DAF7A6 : 3.构建PipelineTask并执行prepare
+note right of PipelineXFragmentContext #8333FF : 1.PipelineXTask的构造函数创建share state(create_shared_state)\n2.在prepare阶段初始化local state(setup_local_state)
 
 PipelineXFragmentContext -[#FF9F33]-> FragmentMgr
 deactivate PipelineXFragmentContext
@@ -127,6 +128,7 @@ class PipelineXTask {
     + Status execute(bool* eos) override
     + Status close(Status exec_status) override
 }
+note bottom : 代表Pipeline Task执行并发度\n在构造调用Pipeline的incr_created_tasks\n将_num_tasks_created自增1
 
 class Pipeline {
     - OperatorXs operatorXs
@@ -143,12 +145,13 @@ class Pipeline {
     + Status add_operator(OperatorXPtr& op)
     + Status set_sink(DataSinkOperatorXPtr& sink)
 
-    + void add_dependency(std::shared_ptr<Pipeline>& pipeline)
+    + void add_dependency(std::shared_ptr<\n\tPipeline>& pipeline)
     + void finish_one_dependency(int dep_opr,\n\tint dependency_core_id)
     + bool has_dependency()
 
     + Status prepare(RuntimeState* state)
 }
+note bottom :  维护_num_tasks和_num_tasks_created\n决定是否创建PipelineXTask
 
 PipelineXFragmentContext -left-|> PipelineFragmentContext
 PipelineXTask -up-o PipelineXFragmentContext : 拥有一组PipelineXTask\n提交给TaskScheduler调度
@@ -156,11 +159,9 @@ PipelineXTask -up-o PipelineXFragmentContext : 拥有一组PipelineXTask\n提交
 pipeline_parent_map -left-* PipelineXFragmentContext
 Pipeline -up-o PipelineFragmentContext
 
-Pipeline -right--> PipelineXTask : 维护_num_tasks和\n_num_tasks_created\n决定是否创建PipelineXTask,\n如果需要创建\n在构造调用incr_created_tasks\n将_num_tasks_created自增1
+Pipeline -right--> PipelineXTask : 根据Pipeline的_num_tasks和\n_num_tasks_created\n决定是否创建PipelineTask
 @enduml
 ```
-
-
 
 # PipelineXTask
 
@@ -320,6 +321,112 @@ PipelineXTask -> DataSinkOperatorX:setup_local_state
 DataSinkOperatorX -> LocalStateType:create_unique\n(this, RuntimeState)
 DataSinkOperatorX -> LocalStateType:init
 DataSinkOperatorX --> PipelineXTask
+@enduml
+```
+# state
+
+```plantuml
+@startuml
+class Pipeline {
+    - DataSinkOperatorXPtr _sink_x
+    + Status set_sink(DataSinkOperatorXPtr& sink)
+    + DataSinkOperatorXPtr sink_shared_pointer()
+}
+
+class PipelineXTask {
+    - DataSinkOperatorXPtr _sink
+    - OperatorXs _operators
+    - std::shared_ptr<BasicSharedState> _sink_shared_state
+    - RuntimeState* _state
+}
+note top : _sink实际是pipeline的sink_shared_pointer\n构造函数阶段调用create_shared_state\n\nprepare阶段，利用_sink_shared_state调用setup_local_state
+
+class RuntimeState {
+    - std::vector<std::unique_ptr<doris::pipeline::\n\tPipelineXLocalStateBase>> _op_id_to_local_state
+    + void emplace_local_state(int id, std::unique_ptr<\n\tdoris::pipeline::PipelineXLocalStateBase> state)
+}
+
+class DataSinkOperatorX {
+    + std::shared_ptr<BasicSharedState>\n\t create_shared_state() const
+}
+
+class OperatorXBase {
+    + Status setup_local_state(RuntimeState* state,\n\t LocalStateInfo& info) = 0
+}
+
+class OperatorX {
+    + LocalState& get_local_state(RuntimeState* state) const
+}
+
+struct BasicSharedState {
+    + std::vector<DependencySPtr> source_deps
+    + std::vector<DependencySPtr> sink_deps
+    + std::set<int> related_op_ids
+
+    + Dependency* create_source_dependency(int operator_id,\n\tint node_id,std::string name, QueryContext* ctx)
+    + Dependency* create_sink_dependency(int dest_id,\n\tint node_id, std::string name, QueryContext* ctx)
+}
+
+class AnalyticSharedState {
+    - vectorized::VExprContextSPtrs partition_by_eq_expr_ctxs
+    - vectorized::VExprContextSPtrs order_by_eq_expr_ctxs
+}
+PipelineXTask -left-- Pipeline
+
+DataSinkOperatorX -up-o PipelineXTask
+OperatorXBase -up-o PipelineXTask
+BasicSharedState -up-o PipelineXTask : _sink->create_shared_state
+OperatorX -up-|> OperatorXBase
+
+RuntimeState -left--> PipelineXTask
+
+AnalyticSharedState -up-|> BasicSharedState
+@enduml
+```
+
+```plantuml
+@startuml
+class PipelineXLocalState {
+    # Dependency* _dependency = nullptr
+    # SharedStateArg* _shared_state
+}
+
+class PipelineXSinkLocalState {
+    # Dependency* _dependency
+    # SharedStateType* _shared_state
+}
+
+class PipelineXSinkLocalStateBase {
+    - DataSinkOperatorXBase* _parent
+    - RuntimeState* _state
+
+    + Status init(RuntimeState* state, LocalSinkStateInfo& info) = 0
+    + Status open(RuntimeState* state) = 0
+    + Status close(RuntimeState* state, Status exec_status) = 0
+
+    + virtual std::vector<Dependency*> dependencies() const
+}
+
+class PipelineXLocalStateBase {
+    - RuntimeState* _state
+    - vectorized::VExprContextSPtrs _conjuncts
+    - vectorized::VExprContextSPtrs _projections
+    - vectorized::Block _origin_block
+
+    + Status init(RuntimeState* state, LocalStateInfo& info) = 0
+    + Status open(RuntimeState* state)
+    + Status close(RuntimeState* state) = 0
+
+    + virtual std::vector<Dependency*> dependencies() const
+    + void reached_limit(vectorized::Block* block, bool* eos)
+}
+
+PipelineXSpillLocalState -down-|> PipelineXLocalState
+PipelineXLocalState -down-|> PipelineXLocalStateBase
+
+PipelineXSinkLocalState -down-|> PipelineXSinkLocalStateBase
+AsyncWriterSink -down-|> PipelineXSinkLocalState
+PipelineXSpillSinkLocalState -down-|> PipelineXSinkLocalState
 @enduml
 ```
 

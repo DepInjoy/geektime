@@ -1,22 +1,36 @@
 基于2.1.2-rc04分支
 
+```plantuml
+@startuml
+TaskScheduler -> PipelineXTask:execute
+activate PipelineXTask
+PipelineXTask -> OperatorXBase:get_block_after_projects
 
+
+
+@enduml
+```
 # Operator
 算子的基本数据结构类图表示：
 ```plantuml
 @startuml
 class StreamingOperatorX {
-
+    + Status get_block(RuntimeState* state,\n\t vectorized::Block* block, bool* eos) override
+    + Status pull(RuntimeState* state,\n\tvectorized::Block* block, bool* eos) = 0
 }
+note top : pull执行模型
 
 class StatefulOperatorX {
-
+    + Status get_block(RuntimeState* state, vectorized::Block*\n\tblock,bool* eos) override
+    + Status pull(RuntimeState* state, vectorized::Block*\n\tblock, bool* eos) const = 0;
+    + Status push(RuntimeState* state, vectorized::Block*\n\tinput_block,bool eos) const = 0
+    + bool need_more_input_data(RuntimeState* state) const = 0
 }
+note top : pull-push混合模型 
 
 class OperatorX {
     + Status setup_local_state(RuntimeState* state, LocalStateInfo& info)
     + LocalState& get_local_state(RuntimeState* state) const
-
     + DependencySPtr get_dependency(QueryContext* ctx)
 }
 
@@ -35,7 +49,9 @@ class OperatorXBase {
     + int parallel_tasks() const
 
     + Status get_block_after_projects(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
+    + Status get_block(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
 }
+note bottom : 对外暴露get_block_after_projects接口\n内部实现主要调用get_block接口\nPipelineTask的execute调用该接口触发计算
 
 class OperatorBase {
     # OperatorXPtr _child_x = nullptr
@@ -49,12 +65,11 @@ class ExchangeSinkOperatorX {
 }
 
 class DataSinkOperatorX {
-    + std::shared_ptr<BasicSharedState> create_shared_state() const = 0
-
-    + Status setup_local_state(RuntimeState* state, LocalSinkStateInfo& info)
+    + std::shared_ptr<BasicSharedState>\n\tcreate_shared_state() const = 0
+    + Status setup_local_state(RuntimeState* state,\n\t LocalSinkStateInfo& info)
     + LocalState& get_local_state(RuntimeState* state)
 
-    + void get_dependency(std::vector<DependencySPtr>& dependency,\n\tQueryContext* ctx)
+    + void get_dependency(std::vector<DependencySPtr>&\n\tdependency,QueryContext* ctx)
 }
 
 class DataSinkOperatorXBase {
@@ -198,12 +213,62 @@ class PipelineXSinkLocalState {
 
 struct SetSharedState {
     + std::vector<Dependency*> probe_finished_children_dependency
-    + std::vector<vectorized::VExprContextSPtrs> probe_child_exprs_lists;
+    + std::vector<vectorized::VExprContextSPtrs> probe_child_exprs_lists
 }
 
 SetSinkLocalState -down-|> PipelineXSinkLocalState
-SetSinkLocalState --> SetSharedState
+SetSinkLocalState -right--> SetSharedState
 
 SetSharedState -down-|> BasicSharedState
+@enduml
+```
+
+# TableFunction
+```plantuml
+@startuml
+class TableFunctionOperatorX {
+    + Status push(RuntimeState* state, \n\tvectorized::Block* input_block, bool eos) const
+    + Status pull(RuntimeState* state,\n\tvectorized::Block* output_block, bool* eos) const
+}
+note top : StatefulOperator的一种，pull-push混合模型
+
+class TableFunctionLocalState {
+    + void process_next_child_row()
+    + Status get_expanded_block(RuntimeState* state,\n\t vectorized::Block* output_block, bool* eos)
+}
+
+class StatefulOperatorX {
+    + Status get_block(RuntimeState* state, vectorized::Block*\n\tblock,bool* eos) override
+    + Status pull(RuntimeState* state, vectorized::Block*\n\tblock, bool* eos) const = 0;
+    + Status push(RuntimeState* state, vectorized::Block*\n\tinput_block,bool eos) const = 0
+    + bool need_more_input_data(RuntimeState* state) const = 0
+}
+
+TableFunctionOperatorX -down-|> StatefulOperatorX
+
+TableFunctionLocalState -left--> TableFunctionOperatorX
+TableFunctionLocalState -down-|> PipelineXLocalState
+@enduml
+```
+
+## Groupping
+```plantuml
+@startuml
+class RepeatOperatorX {
+    + bool need_more_input_data(RuntimeState* state)const
+    + Status pull(RuntimeState* state, vectorized::Block*\n\toutput_block, bool* eos) const
+    + Status push(RuntimeState* state, vectorized::Block*\n\tinput_block, bool eos) const
+}
+note top : Groupping计算，含groupping set, rollup和cube
+
+class RepeatLocalState {
+    + Status get_repeated_block(vectorized::Block* child_block,\n\tint repeat_id_idx, vectorized::Block* output_block)
+    + Status add_grouping_id_column(std::size_t rows,\n\tstd::size_t& cur_col,vectorized::MutableColumns&\n\tcolumns, int repeat_id_idx);
+
+}
+
+RepeatOperatorX -down-|> StatefulOperatorX
+RepeatLocalState -left--> RepeatOperatorX 
+
 @enduml
 ```
