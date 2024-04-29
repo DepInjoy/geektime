@@ -189,11 +189,15 @@ class CDrvdProp {
     + virtual void Derive(CMemoryPool *mp, CExpressionHandle &exprhdl, CDrvdPropCtxt *pdppropctxt) = 0
     + virtual BOOL FSatisfies(const CReqdPropPlan *prpp) const = 0
 }
-
-class CDrvdPropScalar
-
 note right of CDrvdProp : Abstract base class for all derived properties
+
+class CDrvdPropScalar {
+
+}
+
+class CDrvdPropRelational{}
 note top of CDrvdPropRelational : Derived logical properties container
+class CDrvdPropPlan {}
 note top of CDrvdPropPlan : Derived plan properties container
 
 CDrvdPropScalar <|-- CDrvdProp

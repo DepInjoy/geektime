@@ -1,22 +1,20 @@
 # 查询优化
 入口函数是`libgpopt\include\gpopt\optimizer\COptimizer.h`的`static CDXLNode *PdxlnOptimiz`。
 ```c++
-	static CDXLNode *PdxlnOptimize(
-		CMemoryPool *mp,
-		CMDAccessor *md_accessor,  // MD accessor
-		const CDXLNode *query,
-		const CDXLNodeArray
-			*query_output_dxlnode_array,  // required output columns
-		const CDXLNodeArray *cte_producers,
-		IConstExprEvaluator *pceeval,  // constant expression evaluator
-		ULONG ulHosts,		// number of hosts (data nodes) in the system
-		ULONG ulSessionId,	// session id used for logging and minidumps
-		ULONG ulCmdId,		// command id used for logging and minidumps
-		CSearchStageArray *search_stage_array,	// search strategy
-		COptimizerConfig *optimizer_config,		// optimizer configurations
-		const CHAR *szMinidumpFileName =
-			NULL  // name of minidump file to be created
-	);
+static CDXLNode *PdxlnOptimize(
+    CMemoryPool *mp,
+    CMDAccessor *md_accessor,  // MD accessor
+    const CDXLNode *query,
+    const CDXLNodeArray *query_output_dxlnode_array,  // required output columns
+    const CDXLNodeArray *cte_producers,
+    IConstExprEvaluator *pceeval,  // constant expression evaluator
+    ULONG ulHosts,		// number of hosts (data nodes) in the system
+    ULONG ulSessionId,	// session id used for logging and minidumps
+    ULONG ulCmdId,		// command id used for logging and minidumps
+    CSearchStageArray *search_stage_array,	// search strategy
+    COptimizerConfig *optimizer_config,		// optimizer configurations
+    const CHAR *szMinidumpFileName = NULL  // name of minidump file to be created
+);
 ```
 
 删除`COptimizer::PdxlnOptimize`的部分非主要代码来了解一下主流程。
@@ -27,12 +25,13 @@ CDXLNode* COptimizer::PdxlnOptimize(
     ...) {
   // translate DXL Tree -> Expr Tree
   CTranslatorDXLToExpr dxltr(mp, md_accessor);
-  CExpression *pexprTranslated =	dxltr.PexprTranslateQuery(query,
+  CExpression *pexprTranslated = dxltr.PexprTranslateQuery(query,
        query_output_dxlnode_array, cte_producers);
   
   // Expr Tree -> Query context
   // 在CQueryContext构造调用CExpressionPreprocessor::PexprPreprocess
-  CQueryContext *pqc = CQueryContext::PqcGenerate(mp, pexprTranslated, pdrgpul, pdrgpmdname, true /*fDeriveStats*/);
+  CQueryContext *pqc = CQueryContext::PqcGenerate(mp, pexprTranslated,
+        pdrgpul, pdrgpmdname, true /*fDeriveStats*/);
   
   // optimize logical expression tree into physical expression tree.
   CExpression *pexprPlan = PexprOptimize(mp, pqc, search_stage_array);
@@ -48,9 +47,11 @@ CDXLNode* COptimizer::PdxlnOptimize(
 COptimizer -> CTranslatorDXLToExpr:PexprTranslateQuery
 CTranslatorDXLToExpr --> COptimizer : CExpression(expr treee)
 note right of CTranslatorDXLToExpr : translate DXL Tree -> Expr Tree
+
 COptimizer -> CQueryContext:PqcGenerate
 note right of CQueryContext : Generate the query context for the given \nexpression and array of output column ref ids
-COptimizer -> COptimizer:**PexprOptimize**
+
+COptimizer -> COptimizer:**PexprOptimize(pqc, search_stage_array)**
 note right of COptimizer : optimize logical expression tree into physical expression tree
 
 COptimizer -> COptimizer: CreateDXLNode
@@ -60,10 +61,8 @@ note right of COptimizer : translate plan into DXL
 查询优化主要的调用流程在`COptimizer::PexprOptimize`, 主要执行代码
 ```C++
 // Optimize query in given query context
-CExpression *
-COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
-        CSearchStageArray *search_stage_array)
-{
+CExpression * COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
+        CSearchStageArray *search_stage_array) {
     // CEngine的构造函数创建Memo
     CEngine eng(mp);
     // 1. 如果search_stage_array为空，进行设置，参见CSearchStage::PdrgpssDefault
@@ -83,11 +82,8 @@ COptimizer::PexprOptimize(CMemoryPool *mp, CQueryContext *pqc,
 ```
 
 ```C++
-void
-CEngine::Optimize()
-{
-    const ULONG ulJobs =
-        std::min((ULONG) GPOPT_JOBS_CAP,
+void CEngine::Optimize() {
+    const ULONG ulJobs = std::min((ULONG) GPOPT_JOBS_CAP,
                     (ULONG)(m_pmemo->UlpGroups() * GPOPT_JOBS_PER_GROUP));
     CJobFactory jf(m_mp, ulJobs);
     CScheduler sched(m_mp, ulJobs);
@@ -95,8 +91,7 @@ CEngine::Optimize()
     sc.Init(m_mp, &jf, &sched, this);
 
     const ULONG ulSearchStages = m_search_stage_array->Size();
-    for (ULONG ul = 0; !FSearchTerminated() && ul < ulSearchStages; ul++)
-    {
+    for (ULONG ul = 0; !FSearchTerminated() && ul < ulSearchStages; ul++) {
         PssCurrent()->RestartTimer();
 
         // optimize root group
@@ -126,8 +121,7 @@ CEngine::Optimize()
         FinalizeSearchStage();
     }
 
-    if (CEnumeratorConfig::FSample())
-    {
+    if (CEnumeratorConfig::FSample()) {
         SamplePlans();
     }
 }
@@ -415,37 +409,6 @@ class CXform {
 CXform <|-- CXformExploration
 CXform <|-- CXformImplementation
 CXformFactory *-- CXform
-@enduml
-```
-
-
-```plantuml
-@startuml
-class XformFactory{
-    + static XformFactory& GetInstance();
-    + XformPtrType GetXform(Xform::XFormID xformId) const;
-    + XformPtrType GetXform(std::string& szXformName) const;
-}
-
-class XformImplementation {
-    + CXformImplementation(Expression *)
-    + BOOL IsImplementation() const override // true
-}
-
-class Xform {
-    - Expression *m_pexpr
-    + Xform(Expression *pexpr);
-    + virtual XFormID XformId() const = 0
-    + virtual const std::string XformName() const = 0
-    + virtual BOOL IsExploration() const
-    + virtual BOOL IsImplementation()
-    + CExpression * ExprPattern() const;// For Pattern
-    + virtual void Transform(XformContext *xformCtx, XformResult* xformRes, Expression *expression) const = 0
-}
-
-XformImplementation <|-- XformImplementNarySublink
-Xform <|-- XformImplementation
-XformFactory *-- Xform
 @enduml
 ```
 

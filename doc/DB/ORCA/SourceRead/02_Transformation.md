@@ -13,7 +13,7 @@ EopttraceDisableXformBase
 > 
 > 有道翻译供参考：
 > 
-> 为了获得目标Group的统计信息，Orca选择了最有可能提供可靠统计信息的`GroupExpression`。 统计保证计算是特定于表达式的。 例如，具有少量连接条件的`InnerJoin`表达式比具有大量连接条件的另一个等效`InnerJoin`表达式更有希望(在生成多个`JoinOrder`时可能会出现这种情况)。 其基本原理是，连接条件的数量越多，估计误差被传播和放大的几率就越高。 由于需要在给定表达式的所有节点上聚合置信度得分，计算基数估计的置信度得分具有挑战性。 我们目前正在探索几种方法来计算紧凑的Memo结构中的置信度分数。
+> 为了获得目标Group的统计信息，Orca选择了最有可能提供可靠统计信息的`GroupExpression`。 统计promisze计算是特定于表达式的。 例如，具有少量连接条件的`InnerJoin`表达式比具有大量连接条件的另一个等效`InnerJoin`表达式更有希望(在生成多个`JoinOrder`时可能会出现这种情况)。 其基本原理是，连接条件的数量越多，估计误差被传播和放大的几率就越高。 由于需要在给定表达式的所有节点上聚合置信度得分，计算基数估计的置信度得分具有挑战性。 我们目前正在探索几种方法来计算紧凑的Memo结构中的置信度分数。
 
 `CXform`主要的接口：
 
@@ -69,7 +69,7 @@ public:
 @startuml
 class CXformFactory{
     - static CXformFactory *m_pxff
-    - CXform *m_rgpxf[CXform::ExfSentinel] xformid -> xform
+    - CXform *m_rgpxf[CXform::ExfSentinel] // xformid -> xform
     - XformNameToXformMap *m_phmszxform // name -> xform map
 
     + static CXformFactory* Pxff()
