@@ -8,19 +8,15 @@ using namespace std;
 
 vector<vector<int>> threeSum(vector<int>& nums) {
     std::sort(nums.begin(), nums.end());
-    const int size = nums.size();
-    vector<vector<int>> ans;
-    for (int i = 0; i < size; ++i) {
-        if (i > 0 && nums[i] == nums[i-1]) continue;
-
+    std::vector<std::vector<int>> ans;
+    const int n = nums.size();
+    for (int i = 0; i < n; ++i) {
         int target = -nums[i];
-        for (int j = i + 1, k = size - 1; j < size; ++j) {
-            if (j > i + 1 && nums[j] == nums[j - 1]) continue;
+        if (i - 1 >= 0 && nums[i] == nums[i-1]) continue;
+        for (int j = i + 1, k = n - 1; j < n && j < k; ++j) {
+            if (j - 1 > i && nums[j-1] == nums[j]) continue;
             while (j < k && nums[j] + nums[k] > target) --k;
-
-            if (j == k) break;
-
-            if (nums[j] + nums[k] == target) {
+            if (j < k && nums[j] + nums[k] == target) {
                 ans.push_back({nums[i], nums[j], nums[k]});
             }
         }
