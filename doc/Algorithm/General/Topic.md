@@ -15,12 +15,12 @@
 | 专题                                                     |                                                              |                                                              | 其他 |
 | -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 动态规划 `O(N^2)`<br/>贪心+二分查找 时间复杂度`O(NlogN)` | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) |      |
+|                                                          |[121. 买卖股票的最佳时机](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock/description/)                                            |   [LC 121. 买卖股票的最佳时机](02_DP/121_LC_E_best-time-to-buy-and-sell-stock.cpp)                                                           |      |
 |                                                          |                                                              |                                                              |      |
-|                                                          |                                                              |                                                              |      |
 
-
-
-
+[53. 最大子数组和](https://leetcode.cn/problems/maximum-subarray/description/)｜
+[LC 53. 最大子数组和](02_DP/53_LC_M_maximum-subarray.cpp) 
+Hot 100
 
 # 贪心
 
@@ -76,9 +76,10 @@
 
 1. [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  堆/快排+ Hash表
 2. [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) [相关实现](./04_Heap/692_LC_M_top-k-frequent-words.cpp) 堆/快排+Hash表
-3. [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) [相关实现](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp)
+3. [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) [相关实现](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp) 剑指Offer(专项突破)[59]
 
 100 [838. 堆排序-ACW](https://www.acwing.com/problem/content/840/) [相关实现](04_Heap/838_ACW_E_heap-sort.cpp) 手写堆(优化建堆时间复杂度为O)/堆
+
 
 # 单调栈
 1. [496. 下一个更大元素 I](https://leetcode.cn/problems/next-greater-element-i/description/)       [相关实现](02_MonotonicStack/496_E_Next-Greater-Element-i.cpp)      单调栈
