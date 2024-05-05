@@ -163,7 +163,8 @@
 | --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 单链表                | [206. 反转链表](https://leetcode.cn/problems/reverse-linked-list/description/) | [LC 206. 反转链表](00_LinkedList/206_LC_E_ReverseLinkedList.cpp) | <font color=FF3933>Hot 100</font> |
 | 单链表<br/>栈，双指针 | [19. 删除链表的倒数第 N 个结点](https://leetcode.cn/problems/remove-nth-node-from-end-of-list/) | [LC 19. 删除链表的倒数第 N 个结点](00_LinkedList/19_LC_M_remove-nth-node-from-end-of-list.cpp) |      |
-| 单链表|  [21. 合并两个有序链表](https://leetcode.cn/problems/merge-two-sorted-lists/description/)| [LC 21. 合并两个有序链表](00_LinkedList/21_LC_E_Merge-Two-Sorted-Lists.cpp) | <font color=FF3933>Hot 100</font><br/> |
+| 单链表|  [21. 合并两个有序链表](https://leetcode.cn/problems/merge-two-sorted-lists/description/)| [LC 21. 合并两个有序链表](00_LinkedList/21_LC_E_Merge-Two-Sorted-Lists.cpp) | <font color=FF3933>Hot 100</font> |
+| 单链表 | [2. 两数相加](https://leetcode.cn/problems/add-two-numbers/description/) | [LC 2. 两数相加](00_LinkedList/02_LC_M_add-two-numbers.cpp) | <font color=FF3933>Hot 100</font> |
 
 
 
