@@ -4,23 +4,20 @@
 
 ---
 
-1. [213. 打家劫舍 II](https://leetcode-cn.com/problems/house-robber-ii/)                         动态规划   [相关实现](02_DP/213_LC_M_house-robber-ii.cpp)
-2. [122. 买卖股票的最佳时机 II](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock-ii/description)    动态规划+空间压缩 [相关实现](02_DP\122_LC_M_best-time-to-Buy-And-Sell-Stock-ii.cpp)
-3. [416. 分割等和子集](https://leetcode.cn/problems/partition-equal-subset-sum/description/) [相关实现](02_DP/416_LC_M_partition-equal-subset-sum.cpp)01背包问题
-4. [518. 零钱兑换 II](https://leetcode.cn/problems/coin-change-ii/description/) [相关实现](02_DP/518_LC_M_coin-change-ii.cpp) 完全背包(组合数问题)
-
-5. [72. 编辑距离](https://leetcode.cn/problems/edit-distance/) [相关实现](02_DP\72_LC_M_edit-distance.cpp) 线性DP
-6. [377. 组合总和 Ⅳ](https://leetcode.cn/problems/combination-sum-iv/description/) [相关实现]()     动态规划
-
-| 专题                                                     |                                                              |                                                              | 其他 |
-| -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
-| 动态规划 `O(N^2)`<br/>贪心+二分查找 时间复杂度`O(NlogN)` | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) |      |
-|                                                          |[121. 买卖股票的最佳时机](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock/description/)                                            |   [LC 121. 买卖股票的最佳时机](02_DP/121_LC_E_best-time-to-buy-and-sell-stock.cpp)                                                           |      |
-|                                                          |                                                              |                                                              |      |
-
-[53. 最大子数组和](https://leetcode.cn/problems/maximum-subarray/description/)｜
-[LC 53. 最大子数组和](02_DP/53_LC_M_maximum-subarray.cpp) 
-Hot 100
+| 专题                                                     |                                                              |                                                              | 其他                              |
+| -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
+| 动态规划 `O(N^2)`<br/>贪心+二分查找 时间复杂度`O(NlogN)` | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) |                                   |
+| 动态规划                                                 | [121. 买卖股票的最佳时机](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock/description/) | [LC 121. 买卖股票的最佳时机](02_DP/121_LC_E_best-time-to-buy-and-sell-stock.cpp) | <font color=FF3933>Hot 100</font> |
+| 1. 动态规划<br/>2. 中心扩散法<br/>3. Manacher算法(TODO)  | [5. 最长回文子串]()                                          | [5. 最长回文子串](02_DP/05_LC_M_longest-palindromic-substring.cpp) | <font color=FF3933>Hot 100</font> |
+| 动态规划                                                 | [53. 最大子数组和](https://leetcode.cn/problems/maximum-subarray/description/) | [LC 53. 最大子数组和](02_DP/53_LC_M_maximum-subarray.cpp)    | <font color=FF3933>Hot 100</font> |
+| 动态规划                                                 | [213. 打家劫舍 II](https://leetcode-cn.com/problems/house-robber-ii/) | [LC 213. 打家劫舍 II](02_DP/213_LC_M_house-robber-ii.cpp)    |                                   |
+| 动态规划+空间压缩                                        | [122. 买卖股票的最佳时机 II](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock-ii/description) | [LC 122. 买卖股票的最佳时机 II](02_DP/122_LC_M_best-time-to-Buy-And-Sell-Stock-ii.cpp) |                                   |
+| 01背包问题                                               | [416. 分割等和子集](https://leetcode.cn/problems/partition-equal-subset-sum/description/) | [LC 416. 分割等和子集](02_DP/416_LC_M_partition-equal-subset-sum.cpp) |                                   |
+| 完全背包(组合数问题)                                     | [518. 零钱兑换 II](https://leetcode.cn/problems/coin-change-ii/description/) | [LC 518. 零钱兑换 II](02_DP/518_LC_M_coin-change-ii.cpp)     |                                   |
+| 线性DP                                                   | [72. 编辑距离](https://leetcode.cn/problems/edit-distance/)  | [LC 72. 编辑距离](02_DP/72_LC_M_edit-distance.cpp)           |                                   |
+| 动态规划                                                 | [377. 组合总和 Ⅳ](https://leetcode.cn/problems/combination-sum-iv/description/) | [LC 377. 组合总和 Ⅳ](02_DP/377_LC_M_combination-sum-iv.cpp)  |                                   |
+|                                                          |                                                              |                                                              |                                   |
+|                                                          |                                                              |                                                              |                                   |
 
 # 贪心
 
@@ -49,6 +46,17 @@ Hot 100
 | 深度/宽度优先搜索 | [785. 判断二分图](https://leetcode.cn/problems/is-graph-bipartite/description/) | [LC 785. 判断二分图](000_Graph/785_LC_M_is-graph-bipartite.cpp) | 剑指Offer(专项突破)[106]<br/> |
 | 深度/宽度优先搜索 | [695. 岛屿的最大面积](https://leetcode.cn/problems/max-area-of-island/description/) |[LC 695. 岛屿的最大面积](000_Graph/695_LC_M_max-area-of-island.cpp)| 剑指Offer(专项突破)[105]<br/>                |
 | 多源最短路径(广度优先)<br/>动态规划 | [542. 01 矩阵](https://leetcode.cn/problems/01-matrix/) |[LC 542. 01 矩阵](000_Graph/542_LC_M_01-matrix.cpp)| 剑指Offer(专项突破)[107] |
+| 深度/宽度优先搜索<br/>并查集 | [200.岛屿数量](https://leetcode.cn/problems/number-of-islands/description/) |[LC 200.岛屿数量](000_Graph/200_LC_M_number-of-islands.cpp)| <font color=FF3933>Hot 100</font> |
+
+
+
+## 并查集
+
+| 专题   | 题目                                                         | 相关实现                                                    | 其他                              |
+| ------ | ------------------------------------------------------------ | ----------------------------------------------------------- | --------------------------------- |
+| 并查集 | [200.岛屿数量](https://leetcode.cn/problems/number-of-islands/description/) | [LC 200.岛屿数量](000_Graph/200_LC_M_number-of-islands.cpp) | <font color=FF3933>Hot 100</font> |
+|        |                                                              |                                                             |                                   |
+|        |                                                              |                                                             |                                   |
 
 
 
@@ -74,23 +82,29 @@ Hot 100
 
 # 堆
 
-1. [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  堆/快排+ Hash表
-2. [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) [相关实现](./04_Heap/692_LC_M_top-k-frequent-words.cpp) 堆/快排+Hash表
-3. [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) [相关实现](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp) 剑指Offer(专项突破)[59]
+100  [相关实现]() 
 
-100 [838. 堆排序-ACW](https://www.acwing.com/problem/content/840/) [相关实现](04_Heap/838_ACW_E_heap-sort.cpp) 手写堆(优化建堆时间复杂度为O)/堆
+| 专题                        | 题目                                                         | 实现                                                         | 其他                               |
+| --------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------- |
+| 堆                          | [838. 堆排序-ACW](https://www.acwing.com/problem/content/840/) | [ACW 838. 堆排序-ACW](04_Heap/838_ACW_E_heap-sort.cpp)       | 手写堆(优化建堆时间复杂度为`O(N))` |
+| 快排<br/>堆                 | [215. 数组中的第K个最大元素](https://leetcode.cn/problems/kth-largest-element-in-an-array/description/) | [LC 215. 数组中的第K个最大元素](04_Heap/215_LC_M_kth-largest-element-in-an-array.cpp) | <font color=FF3933>Hot 100</font>  |
+| 堆<br/>快排+Hash表          | [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description)z | [LC 347. 前 K 个高频元素](04_Heap/347_LC_M_top-k-frequent-elements.cpp) |                                    |
+| 堆+Hash表<br/>Hash表 + 快排 | [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) | [LC 692. 前K个高频单词](04_Heap/692_LC_M_top-k-frequent-words.cpp) |                                    |
+| 堆                          | [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) | [LC 703. 数据流中的第 K 大元素](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp) | 剑指Offer(专项突破)[59]            |
+
 
 
 # 单调栈
+
 1. [496. 下一个更大元素 I](https://leetcode.cn/problems/next-greater-element-i/description/)       [相关实现](02_MonotonicStack/496_E_Next-Greater-Element-i.cpp)      单调栈
 
 # 双指针
 
-| 专题   | 题目                                                         | 实现                                                         | 其他    |
-| ------ | ------------------------------------------------------------ | ------------------------------------------------------------ | ------- |
-| 双指针 | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节，  |
-| 双指针 | [15.三数之和](https://leetcode.cn/problems/3sum/)            | [LC 15.三数之和](00_01_DoublePointer\15_LC_M_3Sums.cpp)      | Hot 100 |
-|        |                                                              |                                                              |         |
+| 专题   | 题目                                                         | 实现                                                         | 其他                              |
+| ------ | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
+| 双指针 | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节，                            |
+| 双指针 | [15.三数之和](https://leetcode.cn/problems/3sum/)            | [LC 15.三数之和](00_01_DoublePointer\15_LC_M_3Sums.cpp)      | <font color=FF3933>Hot 100</font> |
+|        |                                                              |                                                              |                                   |
 
 
 
@@ -105,7 +119,7 @@ Hot 100
 | 专题 | 题目                                                         | 实现                                                         | 其他 |
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 栈   | [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) | [LC 1047. 删除字符串中的所有相邻重复项](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp) |      |
-| 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  |  Hot 100    |
+| 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  | <font color=FF3933>Hot 100</font> |
 |      |                                                              |                                                              |      |
 
 
