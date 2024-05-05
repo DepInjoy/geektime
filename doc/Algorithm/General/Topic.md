@@ -105,7 +105,7 @@ Hot 100
 | 专题 | 题目                                                         | 实现                                                         | 其他 |
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 栈   | [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) | [LC 1047. 删除字符串中的所有相邻重复项](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp) |      |
-| 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  |      |
+| 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  |  Hot 100    |
 |      |                                                              |                                                              |      |
 
 
