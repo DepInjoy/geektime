@@ -23,9 +23,14 @@ Null 是所有引用类型的子类型(即`AnyRef`的子类型)，它有一个�
 
 Scalar还提供了`RichInt`，`RichDouble`，`RichChar`等，它们提供了`Int`，`Double`，`Char`等不具备的便捷方法。`BigInt`，`BigDecimal`可以用于任意大小(但有穷)的数字，它们背后对应`java.math.BigInteger`和`java.math.BigDecimal`。
 
+# 容器
+
 ## 元组
 
 在Scala中，元组是一个可以容纳不同类型元素的类，元组是不可变的，可用于从函数返回多个值。
+
+## 映射和元组
+映射是键值对的集合，元组是n哥对象的聚集，且类型不一定相同。
 
 # 变量
 
