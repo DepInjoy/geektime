@@ -4,72 +4,80 @@
 */
 #include <unordered_map>
 
-struct DoubleLinkedNode {
-    int key;
-    int value;
-    DoubleLinkedNode* pre;
-    DoubleLinkedNode* next;
-    DoubleLinkedNode() : key(0), value(0), pre(nullptr), next(nullptr) {}
-    DoubleLinkedNode(int _key, int _value)
-        : key(_key), value(_value), pre(nullptr), next(nullptr) {}
+struct DLinkList {
+    int key, value;
+    DLinkList*  prev{nullptr};
+    DLinkList*  next{nullptr};
+    DLinkList() : key(0), value(0) {}
+    DLinkList(int _key, int _value) :
+        key(_key), value(_value) {}
 };
 
 class LRUCache {
 public:
-    LRUCache(int capacity) : capacity_(capacity),
-        head_(new DoubleLinkedNode()), tail_(new DoubleLinkedNode()) {
-        head_->next = tail_;
-        tail_->pre = head_;
+    LRUCache(int capacity) : capacity_(capacity), size_(0) {
+        head = new DLinkList();
+        tail = new DLinkList();
+        head->next = tail;
+        tail->prev = head;
     }
     
     int get(int key) {
-        auto iter = cache_.find(key);
-        if (iter == cache_.end()) {
+        if (!cache.count(key)) {
             return -1;
         }
-        
-        DoubleLinkedNode* node = iter->second;
+
+        DLinkList* node = cache[key];
         moveToHead(node);
         return node->value;
     }
     
     void put(int key, int value) {
-        if (cache_.count(key)) {
-            DoubleLinkedNode* node = cache_[key];
+        if (!cache.count(key)) {
+            DLinkList* newNode = new DLinkList(key, value);
+            cache[key] = newNode;
+            addToHead(newNode);
+            ++size_;
+            if (size_ > capacity_) {
+                DLinkList* rmNode = removeTail();
+                cache.erase(rmNode->key);
+                size_--;
+                delete rmNode;
+            }
+        } else {
+            DLinkList* node = cache[key];
             node->value = value;
             moveToHead(node);
-        } else {
-            DoubleLinkedNode* node = new DoubleLinkedNode(key, value);
-            addToHead(node);
-            cache_[key] = node;
-            if (cache_.size() > capacity_) {
-                DoubleLinkedNode* node = tail_->pre;
-                removeNode(node);
-                cache_.erase(node->key);
-                delete node;
-            }
         }
     }
+
 private:
-    void moveToHead(DoubleLinkedNode* node) {
+    void addToHead(DLinkList* node) {
+        node->next = head->next;
+        node->prev = head;
+        head->next->prev = node;
+        head->next = node;
+    }
+
+    void removeNode(DLinkList* node) {
+        node->prev->next = node->next;
+        node->next->prev = node->prev;
+    }
+
+    void moveToHead(DLinkList* node) {
         removeNode(node);
         addToHead(node);
     }
 
-    void addToHead(DoubleLinkedNode* node) {
-        node->next = head_->next;
-        node->pre = head_;
-        head_->next->pre = node;
-        head_->next = node;
-    }
-    
-    void removeNode(DoubleLinkedNode *node) {
-        node->pre->next = node->next;
-        node->next->pre = node->pre;
+    DLinkList* removeTail() {
+        DLinkList* node = tail->prev;
+        removeNode(node);
+        return node;
     }
 private:
+    std::unordered_map<int, DLinkList*> cache;
+    DLinkList*  head;
+    DLinkList*  tail;
+    int size_;
     int capacity_;
-    std::unordered_map<int, DoubleLinkedNode*> cache_;
-    DoubleLinkedNode* head_;
-    DoubleLinkedNode* tail_;
 };
