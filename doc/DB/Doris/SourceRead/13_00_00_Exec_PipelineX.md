@@ -11,10 +11,10 @@ PipelineX 执行引擎 是 Doris 在 2.1 版本加入的实验性功能。目标
 3. 调度逻辑上，所有pipeline task的阻塞条件都使用Dependency进行了封装，通过外部事件(例如rpc完成)触发task的执行逻辑进入runnable队列，从而<b><font color=33FF5E>消除阻塞轮询线程的开销</font></b>。
 4. profile：为用户提供简单易懂的指标。
 
-# 使用接口
+## 使用接口
 [Doris官网关于PipelineX的介绍](https://doris.apache.org/zh-CN/docs/query-acceleration/pipeline-x-execution-engine/)
 
-用户接口变更,其中会话级参数
+上述改造存在一些用户接口变更, 其中会话级参数
 
 `enable_pipeline_x_engine` : 设置为true，则 BE在进行查询执行时就会默认将SQL的执行模型转变PipelineX的执行方式。
 ```sql
@@ -29,22 +29,6 @@ set enable_local_shuffle = true;
 ```sql
 set ignore_storage_data_distribution = true;
 ```
-
----
-# 设计
-
-存在的问题(动机)
-> The PipelineX execution engine is an experimental feature in Doris 2.1.0, expected to address the four major issues of the Doris pipeline engine:
-> 1. In terms of execution concurrency, Doris is currently constrained by two factors: one is the parameters set by FE, and the other is limited by the number of buckets. This concurrent strategy prevents the execution engine from fully utilizing machine resources.
-> 2. In terms of execution logic, Doris currently has some fixed additional overhead. For example, the common expression for all instances will be initialized multiple times due to independence between all instances.
-> 3. In terms of scheduling logic, the scheduler of the current pipeline will put all blocking tasks into a blocking queue, and a blocking queue scheduler will be responsible for polling and extracting executable tasks from the blocking queue and placing them in the runnable queue. Therefore, during the query execution process, a CPU core will always be occupied to do scheduling instead of execution.
-> 4. In terms of profile, currently the pipeline cannot provide users concise and clear metrics.
-
-要解决的问题(目标)
-> 1. In terms of execution concurrency, pipelineX introduces local exchange optimization to fully utilize CPU resources, and distribute data evenly across different tasks to minimize data skewing. In addition, pipelineX will no longer be constrained by the number of tablets.
-> 2. Logically, multiple pipeline tasks share all shared states of the same pipeline and eliminate additional initialization overhead, such as expressions and some const variables.
-> 3. In terms of scheduling logic, the blocking conditions of all pipeline tasks are encapsulated using Dependency, and the execution logic of the tasks is triggered by external events (such as rpc completion) to enter the runnable queue, thereby eliminating the overhead of blocking polling threads.
-> 4. Profile: Provide users with simple and easy to understand metrics
 
 # 主流程
 ```plantuml
@@ -338,8 +322,15 @@ class PipelineXTask {
     - OperatorXs _operators
     - std::shared_ptr<BasicSharedState> _sink_shared_state
     - RuntimeState* _state
+    + void inject_shared_state(std::shared_ptr<\n\tBasicSharedState> shared_state)
+    + BasicSharedState* get_op_shared_state(int id)
 }
 note top : _sink实际是pipeline的sink_shared_pointer\n构造函数阶段调用create_shared_state\n\nprepare阶段，利用_sink_shared_state调用setup_local_state
+
+class PipelineTask {
+    # RuntimeState* _state
+    # PipelinePtr _pipeline
+}
 
 class RuntimeState {
     - std::vector<std::unique_ptr<doris::pipeline::\n\tPipelineXLocalStateBase>> _op_id_to_local_state
@@ -347,6 +338,7 @@ class RuntimeState {
 }
 
 class DataSinkOperatorX {
+    + Status setup_local_state(RuntimeState* state,\n\tLocalSinkStateInfo& info)
     + std::shared_ptr<BasicSharedState>\n\t create_shared_state() const
 }
 
@@ -355,6 +347,7 @@ class OperatorXBase {
 }
 
 class OperatorX {
+    + Status setup_local_state(RuntimeState* state,\n\tLocalStateInfo& info)
     + LocalState& get_local_state(RuntimeState* state) const
 }
 
@@ -371,7 +364,9 @@ class AnalyticSharedState {
     - vectorized::VExprContextSPtrs partition_by_eq_expr_ctxs
     - vectorized::VExprContextSPtrs order_by_eq_expr_ctxs
 }
-PipelineXTask -left-- Pipeline
+
+PipelineXTask -up-|> PipelineTask
+PipelineXTask -left-- Pipeline : 对于PipelineXTask,\n_sink = pipeline->\nsink_shared_pointer()
 
 DataSinkOperatorX -up-o PipelineXTask
 OperatorXBase -up-o PipelineXTask
@@ -429,6 +424,185 @@ AsyncWriterSink -down-|> PipelineXSinkLocalState
 PipelineXSpillSinkLocalState -down-|> PipelineXSinkLocalState
 @enduml
 ```
+# 完成改造目标的设计实现
+这里主要从2.1为实现改造目标所做的设计实现工作，更多是从2.0版本的Pipeline到2.1版本的PipelineX的对比，梳理一个发展历程。
+
+## 执行流程改造
+执行流程的改造主要是为了降低了初始化的额外开销，
+1. pipeline会启动多个线程同时对多个instance进行初始化的开销
+2. 全局const变量初始化在多个instance中重复初始化的开销
+<center>
+    <img src="https://cwiki.apache.org/confluence/download/attachments/288885187/7.png?version=1&modificationDate=1705484052000&api=v2">
+</center>
+
+---
+首先，对其存在的问题复现描述:
+
+2.0版本的Pipeline在`FragmentMgr`将任务借助`pipeline::PipelineFragmentContext`提交到任务调度器，将每个Instance都作为一个Pipeline处理，每个Pieline对应一个Pipeline Task来调度执行，此外会使用线程池中线程处理
+```C++
+// 删除一些异常处理和无关变量初始化来了解主要执行流程
+Status FragmentMgr::exec_plan_fragment(const TPipelineFragmentParams& params,
+                                       const FinishCallback& cb) {
+    // 1. Pipeline执行主要含prepare和sumit两大步骤
+    //    封装Pipeline任务构建和提交
+    auto pre_and_submit = [&](int i) {
+        // local_params是TPipelineInstanceParams，是一个instance
+        // !!! 也就是说Pipeline将每个instance都作为一个Pipeline处理
+        const auto& local_params = params.local_params[i];
+                        ......
+        std::shared_ptr<pipeline::PipelineFragmentContext> context =
+                std::make_shared<pipeline::PipelineFragmentContext>(......);
+        // 1.1 构造Pipeline和PipelineTask
+        auto prepare_st = context->prepare(params, i);
+                        ......
+        // 1.2 将PipelineTask提交到任务调度器
+        return context->submit();
+    };
+
+    int target_size = params.local_params.size();
+    if (target_size > 1) {
+                        ......
+        for (size_t i = 0; i < target_size; i++) {
+            // 2. 将封装的Pipeline任务构建和提交操作提交到线程池执行
+            // !!! 启动多个线程对instance初始化
+            RETURN_IF_ERROR(_thread_pool->submit_func([&, i]() {
+                prepare_status[i] = pre_and_submit(i);
+                        ......   
+            }));
+        }
+                        ......   
+        return Status::OK();
+    } else {
+        return pre_and_submit(0);
+    }
+}
+```
+这里在本地节点存在多个并行子计划执行，会存在重复的多个instance的初始化的开销(pipelinex task仅持有一些运行时状态(即local state)，全局信息则由多个task共享的同一个pipeline对象持有(即global state)。
+
+pipelinex对共享的状态做了复用，对比较重的global state只做一次，对更轻量的local state进行串行初始化。取消了启动多个线程对instance初始化，对local state初始化串行。
+
+---
+PipelineX的执行流程改造，优化解决上述问题。首先了解在`FragmentMgr`中取消多线程初始化的实现
+```C++
+// 删除一些异常处理和无关变量初始化来了解主要执行流程
+Status FragmentMgr::exec_plan_fragment(const TPipelineFragmentParams& params,
+                                       const FinishCallback& cb) {
+    const bool enable_pipeline_x = 
+            params.query_options.__isset.enable_pipeline_x_engine &&
+            params.query_options.enable_pipeline_x_engine;
+    if (enable_pipeline_x) {
+        // PipelineX执行引擎
+        std::shared_ptr<pipeline::PipelineFragmentContext> context =
+                std::make_shared<pipeline::PipelineXFragmentContext>(......);
+        // 1.1 构建Pipeline,用request.fragment.plan.nodes构建非instance
+        //     初始化global state(source)
+        //     构建PipelineTask
+        auto prepare_st = context->prepare(params);
+                        ......
+
+        // 1.2 将PipelinexTask提交到任务调度器
+        RETURN_IF_ERROR(context->submit());
+        return Status::OK();
+    }
+}
+```
+
+pipelinex task仅持有一些运行时状态(即local state)，全局信息则由多个task共享的同一个pipeline对象持有(即global state)
+```plantuml
+@startuml
+class Pipeline {
+    - OperatorXs operatorXs
+    - DataSinkOperatorXPtr _sink_x
+    + Status prepare(RuntimeState* state)
+    + DataSinkOperatorXPtr sink_shared_pointer()
+}
+note top : prepare阶段初始化全局信息\n执行root和sink的prepare和open
+
+class OperatorXBase {
+    # vectorized::VExprContextSPtrs _conjuncts
+    # vectorized::VExprContextSPtrs _projections
+    + Status prepare(RuntimeState* state)
+    + Status open(RuntimeState* state)
+}
+
+class DataSinkOperatorXBase {
+    + Status prepare(RuntimeState* state)
+    + Status open(RuntimeState* state)
+}
+
+class PipelineXTask {
+    - Operators _operators
+    - std::map<int, std::shared_ptr<BasicSharedState>>\n\t_op_shared_states;
+    - std::shared_ptr<BasicSharedState> _sink_shared_state
+
+    + void inject_shared_state(std::shared_ptr<\n\tBasicSharedState> shared_state)
+    + BasicSharedState* get_op_shared_state(int id)
+}
+note top: 代表任务并行度，构造阶段创建shared state\nprepare阶段setup local state
+
+class PipelineTask {
+    - PipelinePtr _pipeline
+}
+
+OperatorXBase -up-o Pipeline
+DataSinkOperatorXBase -up-o Pipeline
+OperatorXBase-down-|> OperatorBase
+DataSinkOperatorXBase -down-|>OperatorBase
+
+Pipeline -right-- PipelineXTask : 一个Pipeline可能\n对应1到NPipelineTask
+PipelineTask -up-|>PipelineXTask
+@enduml
+```
+
+```C++
+// prepare阶段初始化全局信息
+Status PipelineXFragmentContext::prepare(const doris::TPipelineFragmentParams& request) {
+                ......
+    // 4. Initialize global states in pipelines.
+    for (PipelinePtr& pipeline : _pipelines) {
+        pipeline->children().clear();
+        RETURN_IF_ERROR(pipeline->prepare(_runtime_state.get()));
+    }
+                ......
+    return Status::OK();
+}
+
+Status Pipeline::prepare(RuntimeState* state) {
+    RETURN_IF_ERROR(operatorXs.back()->prepare(state));
+    RETURN_IF_ERROR(operatorXs.back()->open(state));
+    RETURN_IF_ERROR(_sink_x->prepare(state));
+    RETURN_IF_ERROR(_sink_x->open(state));
+    return Status::OK();
+}
+```
+
+```C++
+Status OperatorXBase::prepare(RuntimeState* state) {
+    for (auto& conjunct : _conjuncts) {
+        RETURN_IF_ERROR(conjunct->prepare(state, intermediate_row_desc()));
+    }
+    RETURN_IF_ERROR(vectorized::VExpr::prepare(_projections,
+            state, intermediate_row_desc()));
+
+    if (_child_x && !is_source()) {
+        RETURN_IF_ERROR(_child_x->prepare(state));
+    }
+    return Status::OK();
+}
+
+Status OperatorXBase::open(RuntimeState* state) {
+    for (auto& conjunct : _conjuncts) {
+        RETURN_IF_ERROR(conjunct->open(state));
+    }
+    RETURN_IF_ERROR(vectorized::VExpr::open(_projections, state));
+    if (_child_x && !is_source()) {
+        RETURN_IF_ERROR(_child_x->open(state));
+    }
+    return Status::OK();
+}
+```
+
+## 调度逻辑开销改造
 
 # 参考资料
 1. [Doris PipeplineX Execution Engine](https://cwiki.apache.org/confluence/display/DORIS/DSIP-035%3A+PipelineX+Execution+Engine)

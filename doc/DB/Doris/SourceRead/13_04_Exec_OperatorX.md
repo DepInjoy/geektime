@@ -48,8 +48,8 @@ class OperatorXBase {
     + void set_parallel_tasks(int parallel_tasks)
     + int parallel_tasks() const
 
-    + Status get_block_after_projects(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
-    + Status get_block(RuntimeState* state,\n\tvectorized::Block* block, bool* eos)
+    + Status get_block_after_projects(RuntimeState* state, \n\tvectorized::Block* block, bool* eos)
+    + Status get_block(RuntimeState* state,vectorized::Block* block, bool* eos)
 }
 note bottom : 对外暴露get_block_after_projects接口\n内部实现主要调用get_block接口\nPipelineTask的execute调用该接口触发计算
 
@@ -251,7 +251,7 @@ TableFunctionLocalState -down-|> PipelineXLocalState
 @enduml
 ```
 
-## Groupping
+# Groupping
 ```plantuml
 @startuml
 class RepeatOperatorX {
@@ -271,4 +271,25 @@ RepeatOperatorX -down-|> StatefulOperatorX
 RepeatLocalState -left--> RepeatOperatorX 
 
 @enduml
+```
+# MultiCastDataSink
+```C++
+class MultiCastDataStreamSinkOperatorX final
+    : public DataSinkOperatorX<MultiCastDataStreamSinkLocalState> {
+            
+}
+
+class MultiCastDataStreamSourceLocalState final :
+        public PipelineXLocalState<MultiCastSharedState>,
+        public vectorized::RuntimeFilterConsumer {
+                                                      
+}
+
+struct MultiCastSharedState : public BasicSharedState {
+public:
+    MultiCastSharedState(const RowDescriptor& row_desc,
+            ObjectPool* pool, int cast_sender_count)
+        : multi_cast_data_streamer(row_desc, pool, cast_sender_count, true) {}
+    pipeline::MultiCastDataStreamer multi_cast_data_streamer;
+};
 ```
