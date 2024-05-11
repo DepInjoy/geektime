@@ -13,6 +13,17 @@
  *     时间复杂度O(N), 空间复杂度为O(1)。
 */
 
+// set判重
+bool hasCycle(ListNode *head) {
+    std::unordered_set<ListNode*> nodes;
+    while (head) {
+        if (nodes.count(head)) return true;
+        nodes.insert(head);
+        head = head->next;
+    }
+    return false;
+}
+
 // 快慢指针
 bool hasCycle(ListNode *head) {
     ListNode* slow = head, *fast = head;
