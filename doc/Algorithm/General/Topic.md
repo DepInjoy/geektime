@@ -71,7 +71,10 @@
 | 二叉树遍历                                             | [94. 二叉树的中序遍历](https://leetcode.cn/problems/binary-tree-inorder-traversal/description/)<br/>[144. 二叉树的前序遍历](https://leetcode.cn/problems/binary-tree-preorder-traversal/description/)<br/>[145. 二叉树的后序遍历](https://leetcode.cn/problems/binary-tree-postorder-traversal/description/)<br/>[102. 二叉树的层序遍历](https://leetcode.cn/problems/binary-tree-level-order-traversal/description/) | [LC 二叉树遍历](08_Tree/94_LC_E_binary-tree-traversal.cpp)   |                                   |
 |                                                        | [102. 二叉树的层序遍历](https://leetcode.cn/problems/binary-tree-level-order-traversal/description/) | [LC 102. 二叉树的层序遍历]()                                 | <font color=FF3933>Hot 100</font> |
 | 1.递归实现<br/>2.非递归实现<br/>3.Morris中序遍历(TODO) | [94. 二叉树的中序遍历](https://leetcode.cn/problems/binary-tree-inorder-traversal/description/) | [LC 94. 二叉树的中序遍历](08_Tree/94_LC_E_binary-tree-inorder-traversal.cpp) | <font color=FF3933>Hot 100</font> |
-|                                                        |                                                              |                                                              |                                   |
+|                                                        | [105. 从前序与中序遍历序列构造二叉树](https://leetcode.cn/problems/construct-binary-tree-from-preorder-and-inorder-traversal) | [105. 从前序与中序遍历序列构造二叉树](08_Tree/105_LC_M_construct-binary-tree-from-preorder-and-inorder-traversal.cpp) |                                   |
+|                                                        | [106. 从中序与后序遍历序列构造二叉树](https://leetcode.cn/problems/construct-binary-tree-from-inorder-and-postorder-traversal/) | [106. 从中序与后序遍历序列构造二叉树](08_Tree/106_LC_M_construct-binary-tree-from-inorder-and-postorder-traversal.cpp) |                                   |
+
+
 
 # 前缀树
 
