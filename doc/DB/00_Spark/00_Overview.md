@@ -80,7 +80,7 @@ Spark会根据用户提交的计算逻辑中的RDD的转换和动作来生成RDD
 # 任务调度
 任务调度模块主要包含两大部分，即DAGScheduler和TaskScheduler，它们负责将用户提交的计算任务按照DAG划分为不同的阶段并且将不同阶段的计算任务提交到集群进行最终的计算。
 <center>
-    <img src="./img/00_01_spark_task_schedule_logical_view.png">
+    <img src="./img/01_00_task_schedule_logic_view.png">
 </center>
 DAGScheduler主要负责分析用户提交的应用，并根据计算任务的依赖关系建立DAG，然后将DAG划分为不同的Stage（阶段），其中每个Stage由可以并发执行的一组Task构成，这些Task的执行逻辑完全相同，只是作用于不同的数据。
 
