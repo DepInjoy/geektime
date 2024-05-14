@@ -5,133 +5,15 @@
 
 # DAGScheduler实现
 ## Job提交
-Job提交的调用流程
-```scala
-org.apache.spark.SparkContext#runJob
-  org.apache.spark.scheduler.DAGScheduler#runJob
-    org.apache.spark.scheduler.DAGScheduler#submitJob (生成并返回JobWaiter Object)
-      eventProcessLoop#post(JobSubmitted(...)) // 提交JobSubmitted Event
-
-org.apache.spark.scheduler.DAGSchedulerEventProcessLoop#onReceive(JobSubmitted)
-  org.apache.spark.scheduler.DAGScheduler#handleJobSubmitted
-```
-
-```plantuml
-class DAGScheduler {
-  - val eventProcessLoop : DAGSchedulerEventProcessLoop
-}
-
-class DAGSchedulerEventProcessLoop {
-  + def onReceive(event: DAGSchedulerEvent): Unit
-}
-
-abstract class EventLoop {
-  - val eventQueue: BlockingQueue[E]
-  - val eventThread = new Thread(name)
-  + def post(event: E): Unit
-  + def start(): Unit
-  + def stop(): Unit
-  # def onReceive(event: E): Unit
-  # def onError(e: Throwable): Unit
-  # def onStop(): Unit
-  # def onStart(): Unit
-}
-
-DAGSchedulerEventProcessLoop -up-- DAGScheduler : 提交(post)JobSubmitted事件
-DAGSchedulerEventProcessLoop -right-|> EventLoop : E=DAGSchedulerEvent
-```
-
-Job提交会为这个Job生成一个JobID，并生成一个JobWaiter实例例来监听Job执行状态，JobWaiter会监听Job的执行状态，而Job是由多个Task组成的，只有Job的所有Task都成功完成，Job才标记为成功；任意一个Task失败都会标记该Job失败。
-
-```scala
-def runJob[T, U](rdd: RDD[T], func: (TaskContext, Iterator[T]) => U,
-    partitions: Seq[Int], callSite: CallSite,
-    resultHandler: (Int, U) => Unit, properties: Properties): Unit = {
-
-  // submitJob内部会为Job生成一个JobID，创建并返回一个JobWaiter实例
-  val waiter = submitJob(rdd, func, partitions, callSite, resultHandler, properties)
-        ......
-}
-
-def submitJob[T, U](rdd: RDD[T], func: (TaskContext, Iterator[T]) => U,
-    partitions: Seq[Int], callSite: CallSite,
-    resultHandler: (Int, U) => Unit, properties: Properties): JobWaiter[U] = {
-
-  // 1. 创建Job ID
-  val jobId = nextJobId.getAndIncrement()
-  
-  // 2. 创建JobListener(JobWaiter)实例来监听Job执行状态
-  if (partitions.isEmpty) {
-    // 2.1 创建共有0个task的JobWaiter，
-            ......
-    listenerBus.post(SparkListenerJobStart(jobId, time, Seq.empty, clonedProperties))
-    listenerBus.post(SparkListenerJobEnd(jobId, time, JobSucceeded))
-    return new JobWaiter[U](this, jobId, 0, resultHandler)
-  }
-
-  // 2.2 创建JobWaiter并提交JobSubmitted事件
-  val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
-  val waiter = new JobWaiter[U](this, jobId, partitions.size, resultHandler)
-  eventProcessLoop.post(JobSubmitted(....))
-  waiter
-}
-```
-
-对于近似估计的Job，DAGScheduler会调用`runApproximateJob`，其逻辑类似，JobWaiter换成了`org.apache.spark.partial.ApproximateActionListener`
-```scala
-def runApproximateJob[T, U, R](rdd: RDD[T],
-    func: (TaskContext, Iterator[T]) => U,
-    evaluator: ApproximateEvaluator[U, R],
-    callSite: CallSite, timeout: Long,
-    properties: Properties): PartialResult[R] = {
-    // 1. 创建Job ID
-  val jobId = nextJobId.getAndIncrement()
-
-  // 2. 创建JobListener(ApproximateActionListener)实例来监听Job执行状态
-  if (rdd.partitions.isEmpty) {
-    // 2.1 直接返回
-            ......
-    listenerBus.post(SparkListenerJobStart(jobId, time, Seq[StageInfo](), clonedProperties))
-    listenerBus.post(SparkListenerJobEnd(jobId, time, JobSucceeded))
-    return new PartialResult(evaluator.currentResult(), true)
-  }
 
 
-  // 2.2 创建ApproximateActionListener并提交JobSubmitted事件
-  val listener = new ApproximateActionListener(rdd, func, evaluator, timeout)
-  val func2 = func.asInstanceOf[(TaskContext, Iterator[_]) => _]
-  eventProcessLoop.post(JobSubmitted(
-    jobId, rdd, func2, rdd.partitions.indices.toArray, callSite, listener,
-    JobArtifactSet.getActiveOrDefault(sc), clonedProperties))
-  
-  // 3. 异步等待结果，timeout毫秒超时
-  listener.awaitResult()
-}
-```
 
-Job通过`DAGSchedulerEventProcessLoop::post(JobSubmitted))`提交JobSubmitted事件，`DAGSchedulerEventProcessLoop::doOnReceive`对接收到的JobSubmitted Event处理，调用`dagScheduler.handleJobSubmitted`,忽略一些异常处理来了解其主执行流程
-```scala
-private[scheduler] class DAGSchedulerEventProcessLoop(dagScheduler: DAGScheduler)
-  extends EventLoop[DAGSchedulerEvent]("dag-scheduler-event-loop") with Logging {
 
-  // The main event loop of the DAG scheduler.
-  override def onReceive(event: DAGSchedulerEvent): Unit = {
-    doOnReceive(event)
-  }
 
-  private def doOnReceive(event: DAGSchedulerEvent): Unit = event match {
-    // 通过createResultStage创建ResultStage
-    case JobSubmitted(jobId, rdd, func, partitions, callSite, listener, artifacts, properties) =>
-      dagScheduler.handleJobSubmitted(jobId, rdd, func, partitions, callSite, listener, artifacts,
-        properties)
 
-    // 通过getOrCreateShuffleMapStage创建ShuffleMapStage
-    case MapStageSubmitted(jobId, dependency, callSite, listener, artifacts, properties) =>
-      dagScheduler.handleMapStageSubmitted(jobId, dependency, callSite, listener, artifacts,
-        properties)
-      				......
-  }
-```
+
+
+Job通过`DAGSchedulerEventProcessLoop::post(JobSubmitted))`提交JobSubmitted事件，
 可见，JobSubmitted的事件，会触发调用`dagScheduler.handleJobSubmitted`，接下来了解一下它的实现。
 ```scala
 private[scheduler] def handleJobSubmitted(jobId: Int,
