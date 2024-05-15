@@ -6,17 +6,6 @@
 # DAGScheduler实现
 ## Job提交
 
-
-
-
-
-
-
-
-Job通过`DAGSchedulerEventProcessLoop::post(JobSubmitted))`提交JobSubmitted事件，
-可见，JobSubmitted的事件，会触发调用`dagScheduler.handleJobSubmitted`，接下来了解一下它的实现。
-
-
 ## Job监听
 `JobListener`是一种特质，在其上派生出`JobWaiter`会监听Job的执行状态
 
