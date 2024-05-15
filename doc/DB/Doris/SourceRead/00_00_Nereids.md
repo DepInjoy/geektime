@@ -183,22 +183,23 @@ public Plan plan(LogicalPlan plan, PhysicalProperties requireProperties, Explain
     //    e.g. process SET_VAR hint
     plan = preprocess(plan);
 
+    // 2. 初始化CascadesContext
     initCascadesContext(plan, requireProperties);
     try (Lock lock = new Lock(plan, cascadesContext)) {
-        // 2. analyze this query
+        // 3. analyze this query
         analyze();
 
-        // 3. rule-based optimize(RBO)
+        // 4. rule-based optimize(RBO)
         rewrite();
 
-        // 3. optimize(CBO)
+        // 5. optimize(CBO)
         optimize();
 
-        // 4. choose Nth Plan
+        // 6. choose Nth Plan
         int nth = cascadesContext.getConnectContext().getSessionVariable().getNthOptimizedPlan();
         PhysicalPlan physicalPlan = chooseNthPlan(getRoot(), requireProperties, nth);
         
-        // 5. 借助PlanPostProcessor实现rewrite PhysicalPlan to new PhysicalPlan
+        // 7. 借助PlanPostProcessor实现rewrite PhysicalPlan to new PhysicalPlan
         physicalPlan = postProcess(physicalPlan);
         return physicalPlan;
     } catch { }

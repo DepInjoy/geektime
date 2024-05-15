@@ -20,7 +20,7 @@ class FragmentExecState {
 class PlanFragmentExecutor {
     - ExecNode* _plan
 
-    + Status prepare(const TExecPlanFragmentParams& request, \n\tQueryContext* query_ctx = nullptr)
+    + Status prepare(const TExecPlanFragmentParams& request,QueryContext* query_ctx)
     + Status open()
     + void close()
 
