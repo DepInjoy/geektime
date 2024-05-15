@@ -52,13 +52,15 @@ private void handleQuery(MysqlCommand mysqlCommand) {
     while (ending >= 1 && bytes[ending] == '\0') ending--;
     String originStmt = new String(bytes, 1, ending, StandardCharsets.UTF_8);
     
-	// 2. Nereids处理Query Command, do not support prepare and execute now
+    // 2. Nereids处理Query Command, do not support prepare and execute now
     List<StatementBase> stmts = null;
     if (mysqlCommand == MysqlCommand.COM_QUERY &&
         ctx.getSessionVariable().isEnableNereidsPlanner()) {
-        // 2.1 Nereids parser解析,采用Antlr4，对应文件为`DorisParser.g4
+        // 2.1 Nereids parser解析,采用Antlr4，对应文件为DorisParser.g4
         //     这里借助LogicalPlanBuilder得到了逻辑计划
         //     将<LogicalPlan, StatementContext>保存在LogicalPlanAdapter
+        //      
+        //     其中, LogicalPlanBuilder来构建logical plan
         stmts = new NereidsParser().parseSQL(originStmt);
     }
     
@@ -201,7 +203,6 @@ public Plan plan(LogicalPlan plan, PhysicalProperties requireProperties, Explain
         return physicalPlan;
     } catch { }
 }
-
 ```
 
 # Parser
