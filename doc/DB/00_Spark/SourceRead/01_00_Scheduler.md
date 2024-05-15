@@ -330,3 +330,46 @@ private[scheduler] class DAGSchedulerEventProcessLoop(dagScheduler: DAGScheduler
 
 ## Stage划分
 
+`DAGScheduler#handleJobSubmitted`首先会根据RDD创建finalStage(也就是最后的那个stage)。然后创建ActiveJob后提交计算任务。在讨论这个过程的实现之前，先看一下究竟什么是Stage。
+
+用户提交的计算任务是一个由RDD构成的DAG，如果RDD在转换的时候需要做Shuffle，那么这个Shuffle的过程就将这个DAG分为了不同的阶段(即Stage)。由于Shuffle的存在，不同的Stage不能并行计算，因为后面Stage的计算需要前面Stage的Shuffle的结果。而一个Stage由一组完全独立的计算任务（即Task）组成，每个Task的运算逻辑完全相同，只不过每个Task都会处理其所对应的Partition。其中，Partition的数量和Task的数量一致，即一个Partition会被该Stage的一个Task处理。
+
+### 划分依据
+那么RDD在哪种转换的时候需要Shuffle呢？这个取决于该RDD和它所依赖的RDD(s)的关系。RDD和它依赖的parent RDD(s)的关系有两种不同的类型，即窄依赖(narrow dependency)和宽依赖(wide dependency)。
+- 对窄依赖，由于RDD每个Partition依赖固定数量的parent RDD的Partition，可以通过一个Task来处理这些Partition，而且这些Partition相互独立，所以这些Task可以并行执行。
+- 宽依赖，由于需要Shuffle，只有所有的parent RDD的Partition Shuffle完成，新的Partition才会形成，接下来的Task才可以继续处理。宽依赖可以认为是DAG的分界线，或者说Spark根据宽依赖将Job划分为不同的阶段(Stage)。
+
+
+### 划分过程
+`DAGScheduler#handleJobSubmitted`忽略异常处理和非重点了解其实现主流程
+```scala
+private[scheduler] def handleJobSubmitted(jobId: Int,
+    finalRDD: RDD[_], func: (TaskContext, Iterator[_]) => _,
+    partitions: Array[Int], callSite: CallSite, listener: JobListener,
+    artifacts: JobArtifactSet, properties: Properties): Unit = {
+  var finalStage: ResultStage = null
+  // 1. 创建finalStage,这个接口会获取宽依赖创建ShuffleMapStage
+  finalStage = createResultStage(finalRDD, func, partitions, jobId, callSite)
+  
+  // Job submitted, clear internal data.
+  barrierJobIdToNumTasksCheckFailures.remove(jobId)
+
+  // 2. 创建ActiveJob
+  val job = new ActiveJob(jobId, finalStage, callSite, listener, artifacts, properties)
+  clearCacheLocs()
+
+  val jobSubmissionTime = clock.getTimeMillis()
+  jobIdToActiveJob(jobId) = job
+  activeJobs += job
+
+  // 3. 为finalStage设置ActiveJob
+  finalStage.setActiveJob(job)
+  val stageIds = jobIdToStageIds(jobId).toArray
+  val stageInfos = stageIds.flatMap(id => stageIdToStage.get(id).map(_.latestInfo))
+  listenerBus.post(SparkListenerJobStart(job.jobId, jobSubmissionTime, stageInfos,
+      Utils.cloneProperties(properties)))
+
+  // 4. Stage提交,这里会向TaskScheduler提交Task
+  submitStage(finalStage)
+}
+```

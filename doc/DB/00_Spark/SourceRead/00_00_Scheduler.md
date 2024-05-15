@@ -15,37 +15,7 @@
 
 Job通过`DAGSchedulerEventProcessLoop::post(JobSubmitted))`提交JobSubmitted事件，
 可见，JobSubmitted的事件，会触发调用`dagScheduler.handleJobSubmitted`，接下来了解一下它的实现。
-```scala
-private[scheduler] def handleJobSubmitted(jobId: Int,
-    finalRDD: RDD[_], func: (TaskContext, Iterator[_]) => _,
-    partitions: Array[Int], callSite: CallSite, listener: JobListener,
-    artifacts: JobArtifactSet, properties: Properties): Unit = {
-  var finalStage: ResultStage = null
-  // 1. 创建finalStage,这个接口会获取宽依赖创建ShuffleMapStage
-  finalStage = createResultStage(finalRDD, func, partitions, jobId, callSite)
-  
-  // Job submitted, clear internal data.
-  barrierJobIdToNumTasksCheckFailures.remove(jobId)
 
-  // 2. 创建ActiveJob
-  val job = new ActiveJob(jobId, finalStage, callSite, listener, artifacts, properties)
-  clearCacheLocs()
-
-  val jobSubmissionTime = clock.getTimeMillis()
-  jobIdToActiveJob(jobId) = job
-  activeJobs += job
-
-  // 3. 为finalStage设置ActiveJob
-  finalStage.setActiveJob(job)
-  val stageIds = jobIdToStageIds(jobId).toArray
-  val stageInfos = stageIds.flatMap(id => stageIdToStage.get(id).map(_.latestInfo))
-  listenerBus.post(SparkListenerJobStart(job.jobId, jobSubmissionTime, stageInfos,
-      Utils.cloneProperties(properties)))
-
-  // 4. Stage提交,这里会向TaskScheduler提交Task
-  submitStage(finalStage)
-}
-```
 
 ## Job监听
 `JobListener`是一种特质，在其上派生出`JobWaiter`会监听Job的执行状态
