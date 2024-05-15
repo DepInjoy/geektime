@@ -11,7 +11,6 @@ ListNode *detectCycle(ListNode *head) {
         fast = fast->next->next;
         if (slow == fast) {
             slow = head;
-            // 有环
             while (slow != fast) {
                 slow = slow->next;
                 fast = fast->next;
