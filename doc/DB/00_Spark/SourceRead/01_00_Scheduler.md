@@ -339,9 +339,27 @@ private[scheduler] class DAGSchedulerEventProcessLoop(dagScheduler: DAGScheduler
 - 对窄依赖，由于RDD每个Partition依赖固定数量的parent RDD的Partition，可以通过一个Task来处理这些Partition，而且这些Partition相互独立，所以这些Task可以并行执行。
 - 宽依赖，由于需要Shuffle，只有所有的parent RDD的Partition Shuffle完成，新的Partition才会形成，接下来的Task才可以继续处理。宽依赖可以认为是DAG的分界线，或者说Spark根据宽依赖将Job划分为不同的阶段(Stage)。
 
-
 ### 划分过程
-`DAGScheduler#handleJobSubmitted`忽略异常处理和非重点了解其实现主流程
+```plantuml
+@startuml
+class ShuffleMapStage {
+  - val shuffleDep: ShuffleDependency[_, _, _]
+  - mapOutputTrackerMaster: MapOutputTrackerMaster
+}
+
+class Stage {
+  - val id: Int
+  - val rdd: RDD[_]
+  - val numTasks: Int
+  - val parents: List[Stage]
+  - val firstJobId: Int
+}
+ResultStage -down-|> Stage
+ShuffleMapStage -down-|> Stage
+@enduml
+```
+
+`DAGScheduler.handleJobSubmitted`忽略异常处理和非重点了解其实现主流程
 ```scala
 private[scheduler] def handleJobSubmitted(jobId: Int,
     finalRDD: RDD[_], func: (TaskContext, Iterator[_]) => _,
@@ -372,4 +390,115 @@ private[scheduler] def handleJobSubmitted(jobId: Int,
   // 4. Stage提交,这里会向TaskScheduler提交Task
   submitStage(finalStage)
 }
+```
+
+```scala
+private def createResultStage(
+    rdd: RDD[_], func: (TaskContext, Iterator[_]) => _,
+    partitions: Array[Int], jobId: Int,
+    callSite: CallSite): ResultStage = {
+  // 1. 广度优先遍历RDD依赖树获取ShuffleStage用于创建Stage
+  val (shuffleDeps, resourceProfiles) = getShuffleDependenciesAndResourceProfiles(rdd)
+  val resourceProfile = mergeResourceProfilesForStage(resourceProfiles)
+  // 忽略barrier的处理, ......
+
+  // 2. 将收集到的ShuffleDepency创建Stage
+  val parents = getOrCreateParentStages(shuffleDeps, jobId)
+  val id = nextStageId.getAndIncrement()
+
+  // 3. 创建finalStage
+  val stage = new ResultStage(id, rdd, func, partitions, parents,
+      jobId, callSite, resourceProfile.id)
+  stageIdToStage(id) = stage
+  updateJobIdStageIdMaps(jobId, stage)
+  stage
+}
+```
+
+`DAGScheduler.getShuffleDependenciesAndResourceProfiles`根据RDD的依赖树获取ShuffleStage。
+```scala
+private[scheduler] def getShuffleDependenciesAndResourceProfiles(
+    rdd: RDD[_]): (HashSet[ShuffleDependency[_, _, _]], HashSet[ResourceProfile]) = {
+  // 存储parent dependency
+  val parents = new HashSet[ShuffleDependency[_, _, _]]
+  val resourceProfiles = new HashSet[ResourceProfile]
+  // 存储已经访问过的RDD
+  val visited = new HashSet[RDD[_]]
+  val waitingForVisit = new ListBuffer[RDD[_]]
+  waitingForVisit += rdd
+  // 广度优先遍历RDD的依赖树
+  while (waitingForVisit.nonEmpty) {
+    val toVisit = waitingForVisit.remove(0)
+    if (!visited(toVisit)) {
+      visited += toVisit
+      Option(toVisit.getResourceProfile()).foreach(resourceProfiles += _)
+      // 逐个处理当前RDD依赖的parent RDD
+      toVisit.dependencies.foreach {
+        // 是ShuffleDependency依赖需要创建stage
+        case shuffleDep: ShuffleDependency[_, _, _] =>
+          parents += shuffleDep
+        // 不是ShuffleDependency，那么属于同一stage
+        case dependency =>
+          waitingForVisit.prepend(dependency.rdd)
+      }
+    }
+  }
+  (parents, resourceProfiles)
+}
+```
+
+`DAGScheduler.getOrCreateParentStages`为输入的不存在的ShufleMapStage创建Stage，并计算该ShuffleMapStage的RDD的shuffleMapDepency并创建ShuffleMapStage(即父Stage)。
+```scala
+private def getOrCreateParentStages(shuffleDeps: HashSet[ShuffleDependency[_, _, _]],
+    firstJobId: Int): List[Stage] = {
+  shuffleDeps.map { shuffleDep =>
+    getOrCreateShuffleMapStage(shuffleDep, firstJobId)
+  }.toList
+}
+
+private def getOrCreateShuffleMapStage(
+    shuffleDep: ShuffleDependency[_, _, _],
+    firstJobId: Int): ShuffleMapStage = {
+  shuffleIdToMapStage.get(shuffleDep.shuffleId) match {
+    // ShuffleMapStage已经存在,直接返回存储的stage
+    case Some(stage) =>
+      stage
+
+    // 不存在,为ShuffleMapStage创建ShuffleMapStage
+    case None =>
+      // Create stages for all missing ancestor shuffle dependencies.
+      getMissingAncestorShuffleDependencies(shuffleDep.rdd).foreach { dep =>
+        if (!shuffleIdToMapStage.contains(dep.shuffleId)) {
+          createShuffleMapStage(dep, firstJobId)
+        }
+      }
+      createShuffleMapStage(shuffleDep, firstJobId)
+  }
+}
+
+  def createShuffleMapStage[K, V, C](
+      shuffleDep: ShuffleDependency[K, V, C], jobId: Int): ShuffleMapStage = {
+    val rdd = shuffleDep.rdd
+    val (shuffleDeps, resourceProfiles) = getShuffleDependenciesAndResourceProfiles(rdd)
+    val resourceProfile = mergeResourceProfilesForStage(resourceProfiles)
+  
+    // 忽略Barrier操作....
+  
+    val numTasks = rdd.partitions.length
+    val parents = getOrCreateParentStages(shuffleDeps, jobId)
+    val id = nextStageId.getAndIncrement()
+
+    // 创建ShuffleMapStage
+    val stage = new ShuffleMapStage(id, rdd, numTasks, parents, jobId,
+        rdd.creationSite, shuffleDep, mapOutputTracker, resourceProfile.id)
+    stageIdToStage(id) = stage
+    shuffleIdToMapStage(shuffleDep.shuffleId) = stage
+    updateJobIdStageIdMaps(jobId, stage)
+
+    if (!mapOutputTracker.containsShuffle(shuffleDep.shuffleId)) {
+      mapOutputTracker.registerShuffle(shuffleDep.shuffleId, rdd.partitions.length,
+        shuffleDep.partitioner.numPartitions)
+    }
+    stage
+  }
 ```
