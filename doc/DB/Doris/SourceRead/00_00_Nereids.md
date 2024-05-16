@@ -134,8 +134,18 @@ private void executeByNereids(TUniqueId queryId) throws Exception {
 }
 ```
 
-接下来，了解一下`NereidsPlanner`的`plan`实现
+`NereidsPlanner`类图：
+```plantuml
+class NereidsPlanner {
+    - CascadesContext cascadesContext
+    - StatementContext statementContext
+    + void plan(StatementBase queryStmt, TQueryOptions queryOptions)\n\tthrows UserException
+}
 
+CascadesContext -up-o NereidsPlanner
+StatementContext -up-o NereidsPlanner
+```
+接下来，了解一下`NereidsPlanner`的`plan`实现
 ```java
 @Override
 public void plan(StatementBase queryStmt, org.apache.doris.thrift.TQueryOptions queryOptions) {
