@@ -6,43 +6,41 @@
 // 动态规划 时间复杂度O(N^2), 空间复杂度O(N)
 int lengthOfLIS(vector<int>& nums) {
     const int n = nums.size();
-    std::vector<int> dp(n);
-    int maxLen = 0;
+    std::vector<int> dp(n, 1);
+    int ans = 0;
     for (int i = 0; i < n; ++i) {
-        dp[i] = 1;
-        for (int j = 0; j < i; ++j) {
-            if (nums[i] > nums[j]) {
+        for (int j = i; j >= 0; --j) {
+            if (nums[j] < nums[i]) {
                 dp[i] = std::max(dp[i], dp[j] + 1);
             }
+            ans = std::max(ans, dp[i]);
         }
-        maxLen = std::max(dp[i], maxLen);
     }
-    return maxLen;
+    return ans;
 }
 
 // 贪心+二分查找 时间复杂度O(NlogN), 空间复杂度O(N)
 int lengthOfLIS(vector<int>& nums) {
     const int n = nums.size();
-    if (n == 0) return 0;
-
+    std::vector<int> data(n+1);
     int len = 1;
-    std::vector<int> d(n+1);
-    d[len] = nums[0];
+    data[len] = nums[0];
     for (int i = 1; i < n; ++i) {
-        if (nums[i] > d[len]) {
-            d[++len] = nums[i];
+        if (data[len] < nums[i]) {
+            data[++len] = nums[i];
         } else {
+            // 在data中查找比nums[i]小的最右的位置
             int l = 1, r = len, pos = 0;
             while (l <= r) {
-                int mid = (l + r) >> 1;
-                if (d[mid] < nums[i]) {
+                int mid = (l + r + 1) >> 1;
+                if (data[mid] < nums[i]) {
                     pos = mid;
                     l = mid + 1;
                 } else {
                     r = mid - 1;
                 }
             }
-            d[pos + 1] = nums[i];
+            data[pos + 1] = nums[i];
         }
     }
     return len;

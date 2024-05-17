@@ -6,7 +6,7 @@
 
 | 专题                                                     |                                                              |                                                              | 其他                              |
 | -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
-| 动态规划 `O(N^2)`<br/>贪心+二分查找 时间复杂度`O(NlogN)` | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) |                                   |
+| 动态规划 `O(N^2)`<br/>贪心+二分查找 时间复杂度`O(NlogN)` | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) | <font color=FF3933>Hot 100</font> |
 | 动态规划                                                 | [121. 买卖股票的最佳时机](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock/description/) | [LC 121. 买卖股票的最佳时机](02_DP/121_LC_E_best-time-to-buy-and-sell-stock.cpp) | <font color=FF3933>Hot 100</font> |
 | 1. 动态规划<br/>2. 中心扩散法<br/>3. Manacher算法(TODO)  | [5. 最长回文子串]()                                          | [5. 最长回文子串](02_DP/05_LC_M_longest-palindromic-substring.cpp) | <font color=FF3933>Hot 100</font> |
 | 动态规划                                                 | [53. 最大子数组和](https://leetcode.cn/problems/maximum-subarray/description/) | [LC 53. 最大子数组和](02_DP/53_LC_M_maximum-subarray.cpp)    | <font color=FF3933>Hot 100</font> |
