@@ -400,6 +400,7 @@ private def createResultStage(
   // 1. 广度优先遍历RDD依赖树获取ShuffleStage用于创建Stage
   val (shuffleDeps, resourceProfiles) = getShuffleDependenciesAndResourceProfiles(rdd)
   val resourceProfile = mergeResourceProfilesForStage(resourceProfiles)
+
   // 忽略barrier的处理, ......
 
   // 2. 将收集到的ShuffleDepency创建Stage
@@ -418,7 +419,8 @@ private def createResultStage(
 `DAGScheduler.getShuffleDependenciesAndResourceProfiles`根据RDD的依赖树获取ShuffleStage。
 ```scala
 private[scheduler] def getShuffleDependenciesAndResourceProfiles(
-    rdd: RDD[_]): (HashSet[ShuffleDependency[_, _, _]], HashSet[ResourceProfile]) = {
+    rdd: RDD[_]): (HashSet[ShuffleDependency[_, _, _]],
+    HashSet[ResourceProfile]) = {
   // 存储parent dependency
   val parents = new HashSet[ShuffleDependency[_, _, _]]
   val resourceProfiles = new HashSet[ResourceProfile]
@@ -502,3 +504,265 @@ private def getOrCreateShuffleMapStage(
     stage
   }
 ```
+
+## 任务生成
+`DAGScheduler.handleJobSubmitted`生成finalStage后就会为该Job生成一个`org.apache.spark.scheduler.ActiveJob`，并准备计算这个finalStage。
+
+### 提交Stage
+`DAGScheduler`中维护了几个Hash表用于判断stage是否可以提交等
+```scala
+// jobId和Job的映射
+private[scheduler] val jobIdToActiveJob = new HashMap[Int, ActiveJob]
+
+// 等待parent stage未完成，等待parent stage的Stage集合
+private[scheduler] val waitingStages = new HashSet[Stage]
+
+// Task已经提交，运行中的Stage
+private[scheduler] val runningStages = new HashSet[Stage]
+
+// 由于获取到失败信息，需要重新提交的Stage
+private[scheduler] val failedStages = new HashSet[Stage]
+
+private[scheduler] val activeJobs = new HashSet[ActiveJob]
+```
+
+`DAGScheduler.submitStage`用于提交Stage，它实现将parent stage都完成的Stage，生成Task并提交。
+```scala
+private def submitStage(stage: Stage): Unit = {
+  val jobId = activeJobForStage(stage)
+  if (jobId.isDefined) {
+    // 1. 有效的Stage
+    if (!waitingStages(stage) && !runningStages(stage) && !failedStages(stage)) {
+      // 如果当前stage不再等待parent stage的返回
+      // 不是正在运行，且没有提示失败，那么尝试提交它
+      if (stage.getNextAttemptId >= maxStageAttempts) {
+        // 尝试了最大提交次数，直接终止
+        val reason = s"....."
+        abortStage(stage, reason, None)
+      } else {
+        val missing = getMissingParentStages(stage).sortBy(_.id)
+        if (missing.isEmpty) {
+          // 所有的parent stage都已经完成，向TaskScheduler提交stage所包含的task
+          // 当前stage变为正在运行，加入runningStages
+          submitMissingTasks(stage, jobId.get)
+        } else {
+          // 有parent stage未完成，递归提交
+          for (parent <- missing) {
+            submitStage(parent)
+          }
+          // 当前Stage有parent stage未提交，加入waitingStages
+          waitingStages += stage
+        }
+      }
+    }
+  } else {
+    // 2. 无效Stage,直接终止
+    abortStage(stage, "No active job for stage " + stage.id, None)
+  }
+}
+```
+
+### 提交Task
+`DAGScheduler.submitMissingTasks`完成DAGScheduler最后的工作，向`TaskScheduler`提交Task。
+1. 先取得需要计算的Partition，对于最后的Stage，对应的Task是ResultTask，判断该Partition的`ResultTask`是否已经结束，如果结束那么就无需计算；对于其他的Stage，它们对应的Task都是`ShuffleMapTask`，只需要判断Stage是否有缓存的结果即可(结果都会缓存到`Stage#outputLocs`中)。
+2. 判断出哪些Partition需要计算后，就会为每个Partition生成Task，然后这些Task会被封装到`org.apache.spark.scheduler.TaskSet`，然后提交给`TaskScheduler`。
+
+```plantuml
+@startuml
+class TaskSet {
+  + val tasks: Array[Task[_]]
+  + val priority: Int
+}
+note top : DAGScheduler提交TaskSet到TaskScheduler\n包含一组完全相同的Task，处理逻辑相同，处理数据不同\n每个Task处理一个Partition\njobId是其priority
+
+abstract class Stage {
+  + def findMissingPartitions(): Seq[Int]
+}
+
+abstract class Task {
+  + val isBarrier: Boolean
+}
+
+ShuffleMapTask -up-|> Task
+ResultTask -up-|> Task
+Task -left-o TaskSet
+Task -right-- Stage : 根据待计算的\nPartition生成Task
+@enduml
+```
+
+```scala
+  private def submitMissingTasks(stage: Stage, jobId: Int): Unit = {
+    stage match {
+      case sms: ShuffleMapStage if stage.isIndeterminate && !sms.isAvailable =>
+        mapOutputTracker.unregisterAllMapAndMergeOutput(sms.shuffleDep.shuffleId)
+        sms.shuffleDep.newShuffleMergeState()
+      case _ =>
+    }
+    
+    // 1. 获取需要计算的Partition
+    val partitionsToCompute: Seq[Int] = stage.findMissingPartitions()
+
+    val properties = jobIdToActiveJob(jobId).properties
+    addPySparkConfigsToProperties(stage, properties)
+
+    // 当前Stage转化为执行中，加入runningStages集合
+    runningStages += stage
+  
+    stage match {
+      case s: ShuffleMapStage =>
+        outputCommitCoordinator.stageStart(stage = s.id, maxPartitionId = s.numPartitions - 1)
+        // Only generate merger location for a given shuffle dependency once.
+        if (s.shuffleDep.shuffleMergeAllowed) {
+          if (!s.shuffleDep.isShuffleMergeFinalizedMarked) {
+            prepareShuffleServicesForShuffleMapStage(s)
+          } else {
+            s.shuffleDep.setShuffleMergeAllowed(false)
+          }
+        }
+      case s: ResultStage =>
+        outputCommitCoordinator.stageStart(
+          stage = s.id, maxPartitionId = s.rdd.partitions.length - 1)
+    }
+
+    // 计算Task Perferred Location,形成<id, TaskLocation>映射
+    val taskIdToLocations: Map[Int, Seq[TaskLocation]] = try {
+      stage match {
+        case s: ShuffleMapStage =>
+          partitionsToCompute.map { id =>
+          (id, getPreferredLocs(stage.rdd, id))}.toMap
+        case s: ResultStage =>
+          partitionsToCompute.map { id =>
+            val p = s.partitions(id)
+            (id, getPreferredLocs(stage.rdd, p))
+          }.toMap
+      }
+    } catch {
+      case NonFatal(e) =>
+        stage.makeNewStageAttempt(partitionsToCompute.size)
+        listenerBus.post(SparkListenerStageSubmitted(stage.latestInfo,
+          Utils.cloneProperties(properties)))
+        abortStage(stage, s"Task creation failed: $e\n${Utils.exceptionString(e)}", Some(e))
+        runningStages -= stage
+        return
+    }
+
+    // 将stage中nextAttemptId自增1
+    stage.makeNewStageAttempt(partitionsToCompute.size, taskIdToLocations.values.toSeq)
+    if (partitionsToCompute.nonEmpty) {
+      stage.latestInfo.submissionTime = Some(clock.getTimeMillis())
+    }
+    listenerBus.post(SparkListenerStageSubmitted(stage.latestInfo,
+        Utils.cloneProperties(properties)))
+  
+    var taskBinary: Broadcast[Array[Byte]] = null
+    var partitions: Array[Partition] = null
+    // Broadcasted binary for the task, used to dispatch tasks to executors
+    try {
+      RDDCheckpointData.synchronized {
+        taskBinaryBytes = stage match {
+          case stage: ShuffleMapStage =>
+            JavaUtils.bufferToArray(closureSerializer.serialize((
+                stage.rdd, stage.shuffleDep): AnyRef))
+          case stage: ResultStage =>
+            JavaUtils.bufferToArray(closureSerializer.serialize((
+                stage.rdd, stage.func): AnyRef))
+        }
+        partitions = stage.rdd.partitions
+      }
+      taskBinary = sc.broadcast(taskBinaryBytes)
+    } catch {
+      // 序列化失败，直接终止stage
+      case e: NotSerializableException =>
+        abortStage(stage, "Task not serializable: " + e.toString, Some(e))
+        runningStages -= stage
+        return
+      case e: Throwable =>
+        abortStage(stage, s"Task serialization failed: 
+            $e\n${Utils.exceptionString(e)}", Some(e))
+        runningStages -= stage
+        return
+    }
+
+    val artifacts = jobIdToActiveJob(jobId).artifacts
+    // 2. 为需要计算的Partition, 创建Task
+    //    每个Partition对应一个Task
+    val tasks: Seq[Task[_]] = try {
+      val serializedTaskMetrics = closureSerializer.serialize(
+          stage.latestInfo.taskMetrics).array()
+      stage match {
+        // ShuffleMapStage -> ShuffleMapTask
+        case stage: ShuffleMapStage =>
+          stage.pendingPartitions.clear()
+          partitionsToCompute.map { id =>
+            val locs = taskIdToLocations(id)
+            val part = partitions(id)
+            stage.pendingPartitions += id
+            new ShuffleMapTask(stage.id, stage.latestInfo.attemptNumber(),
+              taskBinary, part, stage.numPartitions, locs, artifacts, properties,
+              serializedTaskMetrics, Option(jobId), Option(sc.applicationId),
+              sc.applicationAttemptId,stage.rdd.isBarrier())
+          }
+        // ResultStage -> ResultTask
+        case stage: ResultStage =>
+          partitionsToCompute.map { id =>
+            val p: Int = stage.partitions(id)
+            val part = partitions(p)
+            val locs = taskIdToLocations(id)
+            new ResultTask(stage.id, stage.latestInfo.attemptNumber(),
+              taskBinary, part, stage.numPartitions, locs, id, artifacts, properties,
+              serializedTaskMetrics, Option(jobId), Option(sc.applicationId),
+              sc.applicationAttemptId, stage.rdd.isBarrier())
+          }
+      }
+    } catch {
+      case NonFatal(e) =>
+        abortStage(stage, s"Task creation failed: $e\n${Utils.exceptionString(e)}", Some(e))
+        runningStages -= stage
+        return
+    }
+
+    if (tasks.nonEmpty) {
+      // 3. 待提交的Task不空，向TaskScheduler提交Task
+      val shuffleId = stage match {
+        case s: ShuffleMapStage => Some(s.shuffleDep.shuffleId)
+        case _: ResultStage => None
+      }
+      taskScheduler.submitTasks(new TaskSet(
+        tasks.toArray, stage.id, stage.latestInfo.attemptNumber(),
+        jobId, properties, stage.resourceProfileId, shuffleId))
+    } else {
+      // Because we posted SparkListenerStageSubmitted earlier, we should mark
+      // the stage as completed here in case there are no tasks to run
+      stage match {
+        case stage: ShuffleMapStage =>
+          if (!stage.shuffleDep.isShuffleMergeFinalizedMarked &&
+            stage.shuffleDep.getMergerLocs.nonEmpty) {
+            checkAndScheduleShuffleMergeFinalize(stage)
+          } else {
+            processShuffleMapStageCompletion(stage)
+          }
+        case stage : ResultStage =>
+          markStageAsFinished(stage)
+          submitWaitingChildStages(stage)
+      }
+    }
+  }
+```
+
+提交给`TaskScheduler`的是`TaskSet`，TaskSet保存了Stage包含的一组完全相同的Task，每个Task的处理逻辑完全相同，不同的是处理数据，每个Task负责处理一个Partition。对于一个Task来说，它从数据源获得逻辑，然后按照拓扑顺序，顺序执行。
+```scala
+private[spark] class TaskSet(
+    val tasks: Array[Task[_]],
+    val stageId: Int,
+    val stageAttemptId: Int,
+    // 对应jobId
+    val priority: Int,
+    val properties: Properties,
+    val resourceProfileId: Int,
+    val shuffleId: Option[Int]) {
+  val id: String = s"$stageId.$stageAttemptId"
+  override def toString: String = "TaskSet " + id
+}
+```
+
+# 任务调度实现

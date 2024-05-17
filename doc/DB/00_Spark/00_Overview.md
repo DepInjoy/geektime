@@ -62,8 +62,8 @@ RDD创建后，就可以在RDD上进行数据处理。RDD支持两种操作：
 Spark会根据用户提交的计算逻辑中的RDD的转换和动作来生成RDD之间的依赖关系，同时这个计算链也就生成了逻辑上的DAG。RDD之间的关系可以从两个维度来理解：
 - RDD是从哪些RDD转换而来，也就是RDD的parent RDD(s)是什么
 - 依赖于parent RDD(s)的哪些Partition(s)。这个关系就是RDD之间的依赖，org.apache.spark.Dependency。根据依赖于parent RDD(s)的Partitions的不同情况，Spark将这种依赖分为两种，即窄依赖(narrow dependency)和宽依赖(wide dependency)。
-1. 窄依赖指的是每一个parent RDD的Partition最多被子RDD的一个Partition使用。
-2. 宽依赖指的是多个子RDD的Partition会依赖同一个parent RDD的Partition。宽依赖支持两种Shuffle Manager，即`org.apache.spark.shuffle.hash.HashShuffleManager`(基于Hash的Shuffle机制)和`org.apache.spark.shuffle.sort.SortShuffleManager`(基于排序的Shuffle机制).
+    1. 窄依赖指的是每一个parent RDD的Partition最多被子RDD的一个Partition使用。
+    2. 宽依赖指的是多个子RDD的Partition会依赖同一个parent RDD的Partition。宽依赖支持两种Shuffle Manager，即`org.apache.spark.shuffle.hash.HashShuffleManager`(基于Hash的Shuffle机制)和`org.apache.spark.shuffle.sort.SortShuffleManager`(基于排序的Shuffle机制).
 
 ---
 
