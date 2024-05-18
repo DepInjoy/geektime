@@ -602,7 +602,7 @@ class ConcreteVisitor2 {
 class ObjectStructure {
 
 }
-note top : 实现元素枚举\n提供一个高层的接口以允许访问者访问它的元素
+note top : 实现元素枚举\n提供一个高层接口来允许访问者访问它的元素
 
 class Element {
     + Accept(in visitor : Visitor)
