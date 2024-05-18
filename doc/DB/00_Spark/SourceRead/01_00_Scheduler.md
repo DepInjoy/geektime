@@ -347,13 +347,16 @@ class ShuffleMapStage {
   - mapOutputTrackerMaster: MapOutputTrackerMaster
 }
 
-class Stage {
+abstract class Stage {
   - val id: Int
   - val rdd: RDD[_]
   - val numTasks: Int
   - val parents: List[Stage]
   - val firstJobId: Int
+  + def findMissingPartitions(): Seq[Int]
 }
+
+
 ResultStage -down-|> Stage
 ShuffleMapStage -down-|> Stage
 @enduml
@@ -766,3 +769,283 @@ private[spark] class TaskSet(
 ```
 
 # 任务调度实现
+每个TaskScheduler都对应一个SchedulerBackend。TaskScheduler负责Application的不同Job之间的调度，在Task执行失败时启动重试机制，并且为执行速度慢的Task启动备份的任务。而SchedulerBackend负责与Cluster Manager交互，取得该Application分配到的资源，并且将这些资源传给TaskScheduler，由TaskScheduler为Task最终分配计算资源。
+
+
+
+## 配置参数
+
+| 配置参数                       | 默认值 | 参数意义                                                     |
+| ------------------------------ | ------ | ------------------------------------------------------------ |
+| `spark.task.cpus`              | 1      | 每个任务配置的核心数                                         |
+| `spark.scheduler.mode`         | FIFO   | 任务调度方式                                                 |
+| `spark.speculation`            | false  | 是否开启任务的推测执行                                       |
+| `spark.speculation.interval`   | 100ms  | Spark检测tasks推测机制的间隔时间                             |
+| `spark.speculation.quantile`   | 0.9    | 当一个stage下多少百分比的tasks运行完毕后才开启推测执行机制<br/>0.9，表示90%的任务都运行完毕后开启推测执行 |
+| `spark.speculation.multiplier` | 1.5    | 一个task的运行时间是所有task的运行时间中位数的几倍时<br/>会被认为该task需要重新启动 |
+
+
+## TaskScheduler的创建
+
+`TaskScheduler`由`SparkContext`主构造函数调用`createTaskScheduler`来创建，它会根据传入的Master的URL的规则判断集群的部署方式(或者说资源管理方式)，比如是Standalone、Mesos、YARN或者是Local等。根据不同的部署方式，生成不同的`TaskScheduler`和`SchedulerBackend`。`org.apache.spark.scheduler.SchedulerBackend`是一个trait，作用是分配当前可用的资源，具体就是向当前等待分配计算资源的Task分配计算资源(即Executor)，并且在分配的Executor上启动Task，完成计算的调度过程，由`reviveOffers`完成上述的任务调度, 是它最重要的实现。
+```plantuml
+@startuml
+class SparkContext {
+  - var _schedulerBackend: SchedulerBackend
+  - var _taskScheduler: TaskScheduler
+  - def createTaskScheduler(sc: SparkContext, master: String) : \n\t(SchedulerBackend, TaskScheduler)
+}
+
+class TaskSchedulerImpl {
+  + val maxTaskFailures: Int
+  + isLocal : Boolean
+  + val schedulingMode
+  - var schedulableBuilder: SchedulableBuilder
+  + def initialize(backend: SchedulerBackend): Unit
+}
+
+class TaskScheduler {
+  + def rootPool: Pool
+  + def schedulingMode: SchedulingMode
+  + def submitTasks(taskSet: TaskSet): Unit
+}
+
+
+
+class SchedulerBackend { 
+  + def reviveOffers(): Unit
+}
+
+SchedulerBackend -up-o SparkContext
+TaskScheduler -up-o SparkContext
+
+TaskSchedulerImpl -up-|> TaskScheduler
+
+StandaloneSchedulerBackend-up-|> CoarseGrainedSchedulerBackend
+CoarseGrainedSchedulerBackend -up-|> SchedulerBackend
+@enduml
+```
+
+```scala
+private def createTaskScheduler(sc: SparkContext,
+    master: String): (SchedulerBackend, TaskScheduler) = {
+  import SparkMasterRegex._
+
+  // 本地模式下执行，任务失败不重新执行
+  val MAX_LOCAL_TASK_FAILURES = 1
+
+  def checkResourcesPerTask(executorCores: Int): Unit = {
+    // 配置参数(spark.task.cpus)每个任务配置的核心数
+    val taskCores = sc.conf.get(CPUS_PER_TASK)
+    if (!sc.conf.get(SKIP_VALIDATE_CORES_TESTING)) {
+      validateTaskCpusLargeEnough(sc.conf, executorCores, taskCores)
+    }
+    val defaultProf = sc.resourceProfileManager.defaultResourceProfile
+    ResourceUtils.warnOnWastedResources(defaultProf, sc.conf, Some(executorCores))
+  }
+
+  master match {
+    // Local模式
+    case "local" =>
+      checkResourcesPerTask(1)
+      val scheduler = new TaskSchedulerImpl(sc, MAX_LOCAL_TASK_FAILURES, isLocal = true)
+      val backend = new LocalSchedulerBackend(sc.getConf, scheduler, 1)
+      scheduler.initialize(backend)
+      (backend, scheduler)
+
+    case LOCAL_N_REGEX(threads) =>
+      // local(*)机器可用的核心数, local(N)表示使用N个新城
+      def localCpuCount: Int = Runtime.getRuntime.availableProcessors()
+      val threadCount = if (threads == "*") localCpuCount else threads.toInt
+      checkResourcesPerTask(threadCount)
+      val scheduler = new TaskSchedulerImpl(sc, MAX_LOCAL_TASK_FAILURES, isLocal = true)
+      val backend = new LocalSchedulerBackend(sc.getConf, scheduler, threadCount)
+      scheduler.initialize(backend)
+      (backend, scheduler)
+
+    case LOCAL_N_FAILURES_REGEX(threads, maxFailures) =>
+      def localCpuCount: Int = Runtime.getRuntime.availableProcessors()
+      // local[*, M] means the number of cores on the computer with M failures
+      // local[N, M] means exactly N threads with M failures
+      val threadCount = if (threads == "*") localCpuCount else threads.toInt
+      checkResourcesPerTask(threadCount)
+      val scheduler = new TaskSchedulerImpl(sc, maxFailures.toInt, isLocal = true)
+      val backend = new LocalSchedulerBackend(sc.getConf, scheduler, threadCount)
+      scheduler.initialize(backend)
+      (backend, scheduler)
+
+    // stanalone模式
+    case SPARK_REGEX(sparkUrl) =>
+      val scheduler = new TaskSchedulerImpl(sc)
+      val masterUrls = sparkUrl.split(",").map("spark://" + _)
+      val backend = new StandaloneSchedulerBackend(scheduler, sc, masterUrls)
+      scheduler.initialize(backend)
+      (backend, scheduler)
+
+    case LOCAL_CLUSTER_REGEX(numWorkers, coresPerWorker, memoryPerWorker) =>
+      checkResourcesPerTask(coresPerWorker.toInt)
+      // Check to make sure memory requested <= memoryPerWorker. Otherwise Spark will just hang.
+      val memoryPerWorkerInt = memoryPerWorker.toInt
+      if (sc.executorMemory > memoryPerWorkerInt) {
+        throw new SparkException(
+          "Asked to launch cluster with %d MiB/worker but requested %d MiB/executor".format(
+            memoryPerWorkerInt, sc.executorMemory))
+      }
+      sc.conf.setIfMissing(SHUFFLE_HOST_LOCAL_DISK_READING_ENABLED, false)
+
+      val scheduler = new TaskSchedulerImpl(sc)
+      val localCluster = LocalSparkCluster(
+        numWorkers.toInt, coresPerWorker.toInt, memoryPerWorkerInt, sc.conf)
+      val masterUrls = localCluster.start()
+      val backend = new StandaloneSchedulerBackend(scheduler, sc, masterUrls)
+      scheduler.initialize(backend)
+      backend.shutdownCallback = (backend: StandaloneSchedulerBackend) => {
+        localCluster.stop()
+      }
+      (backend, scheduler)
+
+    case masterUrl =>
+      val cm = getClusterManager(masterUrl) match {
+        case Some(clusterMgr) => clusterMgr
+        case None => throw new SparkException("Could not parse Master URL: '" + master + "'")
+      }
+      val scheduler = cm.createTaskScheduler(sc, masterUrl)
+      val backend = cm.createSchedulerBackend(sc, masterUrl, scheduler)
+      cm.initialize(scheduler, backend)
+      (backend, scheduler)
+  }
+}
+```
+
+## 提交任务
+
+`TaskSchedulerImpl.submitTasks`实现提交任务
+```plantuml
+@startuml
+class TaskSchedulerImpl {
+  + var backend: SchedulerBackend
+  - var schedulableBuilder: SchedulableBuilder
+
+  + def submitTasks(taskSet: TaskSet): Unit
+  - def createTaskSetManager(taskSet: TaskSet,\n\tmaxTaskFailures: Int): TaskSetManager
+}
+
+class SchedulableBuilder {
+  - def rootPool: Pool
+  - def buildPools(): Unit
+  - def addTaskSetManager(manager: Schedulable,\n\tproperties: Properties): Unit
+}
+
+class TaskSetManager {
+  + val taskSet: TaskSet
+  + val maxTaskFailures
+  + sched: TaskSchedulerImpl
+}
+note bottom : 根据数据的就近原则(locality aware)为Task分配计算资源\n监控Task的执行状态并采取必要的措施，比如失败重试\n慢任务的推测性执行
+
+SchedulableBuilder -left-o TaskSchedulerImpl
+TaskSetManager -up-> TaskSchedulerImpl
+TaskSet -left-o TaskSetManager
+@enduml
+```
+```scala
+override def submitTasks(taskSet: TaskSet): Unit = {
+  val tasks = taskSet.tasks
+  this.synchronized {
+    val manager = createTaskSetManager(taskSet, maxTaskFailures)
+    val stage = taskSet.stageId
+    val stageTaskSets = taskSetsByStageIdAndAttempt.
+        getOrElseUpdate(stage, new HashMap[Int, TaskSetManager])
+  
+    stageTaskSets.foreach { case (_, ts) =>
+      ts.isZombie = true
+    }
+    stageTaskSets(taskSet.stageAttemptId) = manager
+    schedulableBuilder.addTaskSetManager(manager, manager.taskSet.properties)
+
+    if (!isLocal && !hasReceivedTask) {
+      starvationTimer.scheduleAtFixedRate(new TimerTask() {
+        override def run(): Unit = {
+          if (!hasLaunchedTask) {
+            logWarning("......")
+          } else {
+            this.cancel()
+          }
+        }
+      }, STARVATION_TIMEOUT_MS, STARVATION_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+    }
+    hasReceivedTask = true
+  }
+  backend.reviveOffers()
+}
+```
+## 任务调度
+
+```plantuml
+@startuml
+class TaskSchedulerImpl {
+  + val schedulingMode
+  - var schedulableBuilder: SchedulableBuilder
+}
+
+class SchedulableBuilder {
+  - def rootPool: Pool
+  - def buildPools(): Unit
+  - def addTaskSetManager(manager: Schedulable,\n\tproperties: Properties): Unit
+}
+note right : trait, 根据spark.scheduler.mode配置\n决定任务调度模式
+
+SchedulableBuilder -up-o TaskSchedulerImpl
+
+FIFOSchedulableBuilder -up-|> SchedulableBuilder
+FairSchedulableBuilder -up-|> SchedulableBuilder
+@enduml
+```
+`TaskSchedulerImpl.initialize`根据用户配置的`spark.scheduler.mode`创建任务调度器
+```scala
+// 在SparkContext创建TaskScheduler时调用该接口
+def initialize(backend: SchedulerBackend): Unit = {
+  this.backend = backend
+  schedulableBuilder = {
+    schedulingMode match {
+      // FIFO调度方式，默认采用
+      case SchedulingMode.FIFO =>
+        new FIFOSchedulableBuilder(rootPool)
+      // FAIR调度
+      case SchedulingMode.FAIR =>
+        new FairSchedulableBuilder(rootPool, sc)
+      case _ =>
+        throw new IllegalArgumentException(s"Unsupported $SCHEDULER_MODE_PROPERTY: " +
+        s"$schedulingMode")
+    }
+  }
+  schedulableBuilder.buildPools()
+}
+```
+在`TaskSchedulerImpl.submitTasks`提交任务是调用`addTaskSetManager`
+```scala
+override def submitTasks(taskSet: TaskSet): Unit = {
+              ......
+  this.synchronized {
+    val manager = createTaskSetManager(taskSet, maxTaskFailures)
+    schedulableBuilder.addTaskSetManager(manager, manager.taskSet.properties)
+              ......
+  }
+               ......
+}
+```
+
+## 任务推测
+推测任务是指对于一个Stage里面拖后腿的Task，会在其他节点的Executor上再次启动这个task，如果其中一个Task实例运行成功则将这个最先完成的Task的计算结果作为最终结果，同时会干掉其他Executor上运行的实例。
+
+```scala
+override def start(): Unit = {
+  backend.start()
+  // 非Local模式且spark.speculation配置为true
+  if (!isLocal && conf.get(SPECULATION_ENABLED)) {
+    speculationScheduler.scheduleWithFixedDelay(
+      () => Utils.tryOrStopSparkContext(sc) { checkSpeculatableTasks() },
+      SPECULATION_INTERVAL_MS, SPECULATION_INTERVAL_MS, TimeUnit.MILLISECONDS)
+  }
+}
+```

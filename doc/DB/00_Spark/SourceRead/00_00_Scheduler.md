@@ -40,85 +40,9 @@ org.apache.spark.scheduler.DAGScheduler#handleJobSubmitted
 
 
 
-
-
-
-## Stage划分
-Job提交后，DAGSchedulerEventProcessLoop对接收到的`JobSubmitted`事件处理，调用`DAGScheduler::handleJobSubmitted`将DAG划分为不同的Stage(阶段)，其中每个Stage可以由一组并发的Task组成，这些Task的执行逻辑相同，只是作用于完全不同的数据。
-
-Spark用`class Stage`进行Stage的进行抽象表达，根据RDD和它依赖的父RDD(s)的关系分为两种类型，即窄依赖(narrow dependency)用`ResultStage`结构表达和宽依赖(wide dependency)用`ShuffleMapStage`数据结构表达。
-
-```plantuml
-@startuml
-abstract class Stage {
-  - val jobIds = new HashSet[Int]
-  + def findMissingPartitions():Seq[Int]
-}
-class ShuffleMapStage {
-
-}
-note top: 宽依赖
-
-class ResultStage {
-  - var _activeJob: Option[ActiveJob]
-  + def findMissingPartitions():Seq[Int]
-}
-note top: 窄依赖
-
-ShuffleMapStage -down-|> Stage
-ResultStage -down-|> Stage
-@enduml
-```
-
-```
-org.apache.spark.scheduler.DAGScheduler#handleJobSubmitted
-  org.apache.spark.scheduler.DAGScheduler#createResultStage(创建finalStage)
-```
-
-```scala
-/** Submits stage, but first recursively submits any missing parents. */
-private def submitStage(stage: Stage): Unit = {
-  val jobId = activeJobForStage(stage)
-  if (jobId.isDefined) {
-    /** 
-      DAGScheduler维护了三个HashSet
-        1. waitingStages(父Stage未完成)
-        2. runningStages(正在执行中)
-        3. failedStages(失败后重新提交的Stage) 
-    */
-    if (!waitingStages(stage) && !runningStages(stage) && !failedStages(stage)) {
-      if (stage.getNextAttemptId >= maxStageAttempts) {
-        // Job重新提交超过尝试上限，停止该Stage
-        val reason = s"$stage (name=${stage.name}) has been resubmitted for the maximum " +
-            s"allowable number of times: ${maxStageAttempts}, which is the max value of " +
-            s"config `spark.stage.maxAttempts` and `spark.stage.maxConsecutiveAttempts`."
-        abortStage(stage, reason, None)
-      } else {
-        val missing = getMissingParentStages(stage).sortBy(_.id)
-        if (missing.isEmpty) {
-          // 所有parent stage都已完成，提交该stage所包含的task
-          submitMissingTasks(stage, jobId.get)
-        } else {
-          for (parent <- missing) {
-            // 存在parent stage未提交，递归地提交
-            submitStage(parent)
-          }
-          waitingStages += stage
-        }
-      }
-    }
-  } else {
-    // 无效的Stage，直接停止
-    abortStage(stage, "No active job for stage " + stage.id, None)
-  }
-}
-```
-
-
-
 # 任务调度实现
 
-每个TaskScheduler都对应一个SchedulerBackend。其中，TaskScheduler负责Application的不同Job之间的调度，在Task执行失败时启动重试机制，并且为执行速度慢的Task启动备份的任务。而SchedulerBackend负责与Cluster Manager交互，取得该Application分配到的资源，并且将这些资源传给TaskScheduler，由TaskScheduler为Task最终分配计算资源。
+
 
 
 
