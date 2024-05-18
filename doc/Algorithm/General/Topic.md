@@ -132,7 +132,7 @@
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 栈   | [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) | [LC 1047. 删除字符串中的所有相邻重复项](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp) |      |
 | 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  | <font color=FF3933>Hot 100</font> |
-|  单调栈 |   [155. 最小栈](https://leetcode.cn/problems/min-stack/) | [LC 155. 最小栈](03_Stack/155_LC_E_min-stack.cpp)   |  <font color=FF3933>Hot 100</font> |
+|  单调栈 |   [155. 最小栈](https://leetcode.cn/problems/min-stack/) | [LC 155. 最小栈](03_Stack/155_LC_E_min-stack.cpp)   |  <font color=FF3933>Hot 100</font> <br/>剑指Offer:30|
 
 
 # 排序
