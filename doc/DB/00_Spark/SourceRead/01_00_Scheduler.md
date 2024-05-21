@@ -919,7 +919,21 @@ private def createTaskScheduler(sc: SparkContext,
 
 ## 提交任务
 
-`TaskSchedulerImpl.submitTasks`实现提交任务
+`TaskSchedulerImpl.submitTasks`实现提交任务，开始Task级资源调度。这些Task会被分配Executor，运行在Worker上的Executor完成任务的最终执行。
+```scala
+1. org.apache.spark.scheduler.TaskSchedulerImpl#submitTasks
+2. org.apache.spark.scheduler.SchedulableBuilder#addTaskSetManager
+3. org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend#reviveOffers
+4. org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend.  DriverActor#makeOffers
+// 调用栈5: 响应backend的资源调度请求，为每个Task具体分配资源
+5. org.apache.spark.scheduler.TaskSchedulerImpl#resourceOffers
+6. org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend.DriverActor#launchTasks
+7. org.apache.spark.executor.CoarseGrainedExecutorBackend.receiveWithLogging#launchTask
+8. org.apache.spark.executor.Executor#launchTask
+```
+1-6在Driver端，7-8在Executor端，8完成最终任务执行。
+
+`TaskSchedulerImpl`主要结构类图：
 ```plantuml
 @startuml
 class TaskSchedulerImpl {
@@ -935,6 +949,7 @@ class SchedulableBuilder {
   - def buildPools(): Unit
   - def addTaskSetManager(manager: Schedulable,\n\tproperties: Properties): Unit
 }
+note bottom : Application级别的调度器,支持FIOFO和公平调度
 
 class TaskSetManager {
   + val taskSet: TaskSet
@@ -976,9 +991,87 @@ override def submitTasks(taskSet: TaskSet): Unit = {
     }
     hasReceivedTask = true
   }
+
+  // 会调用TaskSchedulerImpl.resourceOffers来响应Backend的资源请求
   backend.reviveOffers()
 }
 ```
+
+`TaskSchedulerImpl.resourceOffers`的输入是一个Executor的列表，输出是`org.apache.spark.scheduler.TaskDescription`的二维数组，`TaskDescription`包含了Task ID、Executor ID和Task执行环境的依赖信息等。
+```scala
+def resourceOffers(offers: IndexedSeq[WorkerOffer],
+    isAllFreeResources: Boolean = true): Seq[Seq[TaskDescription]] = synchronized {
+          .......
+  val filteredOffers = healthTrackerOpt.map { healthTracker =>
+    offers.filter { offer =>
+      !healthTracker.isNodeExcluded(offer.host) &&
+        !healthTracker.isExecutorExcluded(offer.executorId)
+    }
+  }.getOrElse(offers)
+
+  //  随机打散，避免将Task集中分配到某些机器
+  val shuffledOffers = shuffleOffers(filteredOffers)
+  // 存储分配好资源的task
+  val tasks = shuffledOffers.map(o => new ArrayBuffer[TaskDescription](o.cores / CPUS_PER_TASK))
+  val availableResources = shuffledOffers.map(_.resources).toArray
+  val availableCpus = shuffledOffers.map(o => o.cores).toArray
+  val resourceProfileIds = shuffledOffers.map(o => o.resourceProfileId).toArray
+  // 获取按照调度策略排序好的TaskSetManager
+  val sortedTaskSets = rootPool.getSortedTaskSetQueue
+  for (taskSet <- sortedTaskSets) {
+    if (newExecAvail) {
+      // 有新的Executor加入，重新计算该TaskSetManager的就近原则
+      taskSet.executorAdded()
+    }
+  }
+
+  // 为从rootPool里获取的TaskSetManager列表分配资源
+  // 分配的原则是就近原则，其中优先分配顺序
+  // PROCESS_LOCAL, NODE_LOCAL, NO_PREF, RACK_LOCAL, ANY
+  for (taskSet <- sortedTaskSets) {
+    val numBarrierSlotsAvailable = if (taskSet.isBarrier) {
+      val rpId = taskSet.taskSet.resourceProfileId
+      val resAmounts = availableResources.map(_.resourceAddressAmount)
+      calculateAvailableSlots(this, conf, rpId, resourceProfileIds, availableCpus, resAmounts)
+    } else {
+      -1
+    }
+    // Skip the barrier taskSet if the available slots are less than the number of pending tasks.
+    if (taskSet.isBarrier && numBarrierSlotsAvailable < taskSet.numTasks) {
+      // Skip the launch process.
+    } else {
+      var launchedAnyTask = false
+      var noDelaySchedulingRejects = true
+      var globalMinLocality: Option[TaskLocality] = None
+      for (currentMaxLocality <- taskSet.myLocalityLevels) {
+        var launchedTaskAtCurrentMaxLocality = false
+        do {
+          // 这里会调用TaskSetManager.resourceOffer为Executor分配Task(核心)
+          val (noDelayScheduleReject, minLocality) = resourceOfferSingleTaskSet(
+            taskSet, currentMaxLocality, shuffledOffers, availableCpus,
+            availableResources, tasks)
+          launchedTaskAtCurrentMaxLocality = minLocality.isDefined
+          launchedAnyTask |= launchedTaskAtCurrentMaxLocality
+          noDelaySchedulingRejects &= noDelayScheduleReject
+          globalMinLocality = minTaskLocality(globalMinLocality, minLocality)
+        } while (launchedTaskAtCurrentMaxLocality)
+      }
+
+          ......
+
+      if (launchedAnyTask && taskSet.isBarrier) {
+        // 忽略对Barrier Task的处理逻辑
+      }
+    }
+  }
+
+  if (tasks.nonEmpty) {
+    hasLaunchedTask = true
+  }
+  return tasks.map(_.toSeq)
+}
+```
+
 ## 任务调度
 
 ```plantuml
@@ -993,14 +1086,42 @@ class SchedulableBuilder {
   - def buildPools(): Unit
   - def addTaskSetManager(manager: Schedulable,\n\tproperties: Properties): Unit
 }
-note right : trait, 根据spark.scheduler.mode配置\n决定任务调度模式
+note right : trait, spark.scheduler.mode配置\n决定任务调度模式
+
+class Pool {
+  + val schedulingMode: SchedulingMode
+  + val schedulableQueue = new ConcurrentLinkedQueue[Schedulable]
+  + def addSchedulable(schedulable: Schedulable): Unit
+  + def getSortedTaskSetQueue: ArrayBuffer[TaskSetManager]
+}
+
+Interface Schedulable {
+  + def schedulableQueue: ConcurrentLinkedQueue[Schedulable]
+  + def schedulingMode: SchedulingMode
+  + def weight: Int
+  + def minShare: Int
+  + def runningTasks: Int
+  + def priority: Int
+  + def stageId: Int
+}
+
+Interface SchedulingAlgorithm {
+  + def comparator(s1: Schedulable, s2: Schedulable): Boolean
+}
 
 SchedulableBuilder -up-o TaskSchedulerImpl
+Pool -left-o TaskSchedulerImpl
+
+Pool -up.|> Schedulable
+Pool -down-- SchedulingAlgorithm : ScheduleMode决定算法\n影响getSortedTaskSetQueue结果
+FIFOSchedulingAlgorithm -up.|> SchedulingAlgorithm
+FairSchedulingAlgorithm -up.|> SchedulingAlgorithm
 
 FIFOSchedulableBuilder -up-|> SchedulableBuilder
 FairSchedulableBuilder -up-|> SchedulableBuilder
 @enduml
 ```
+
 `TaskSchedulerImpl.initialize`根据用户配置的`spark.scheduler.mode`创建任务调度器
 ```scala
 // 在SparkContext创建TaskScheduler时调用该接口
@@ -1034,6 +1155,132 @@ override def submitTasks(taskSet: TaskSet): Unit = {
                ......
 }
 ```
+
+### FIFO调度
+<center>
+  <img src="../img/01_00_FIFO_Schedule_Algorithm.png">
+  <div>FIFO调度逻辑图</div>
+</center>
+<br/>
+
+Job ID较小的先被调度，如果是同一个Job，那么Stage ID小的先被调度，调度算法：
+```scala
+private[spark] class FIFOSchedulingAlgorithm extends SchedulingAlgorithm {
+  override def comparator(s1: Schedulable, s2: Schedulable): Boolean = {
+    // priority对应于Job ID
+    val priority1 = s1.priority
+    val priority2 = s2.priority
+    var res = math.signum(priority1 - priority2)
+    if (res == 0) {
+      // 同一个Job, stage ID小的先调度
+      val stageId1 = s1.stageId
+      val stageId2 = s2.stageId
+      res = math.signum(stageId1 - stageId2)
+    }
+    // Job ID小的先调度
+    res < 0
+  }
+}
+```
+
+### Fair调度
+`spark.scheduler.allocation.file` 
+对于FAIR，需要在rootPool的基础上根据配置文件来构建这课调度树。一个有效的配置文件如下：
+```
+<?xml version="1.0"?>
+<allocations>
+  <pool name="FIFO_Pool">
+    <schedulingMode>FIFO</schedulingMode>
+    <weight>1</weight>
+    <minShare>2</minShare>
+  </pool>
+  <pool name="FARI_POOL">
+    <schedulingMode>FAIR</schedulingMode>
+    <weight>3</weight>
+    <minShare>4</minShare>
+  </pool>
+</allocations>
+```
+
+构造Pool调度树：
+```scala
+override def buildPools(): Unit = {
+  var fileData: Option[(InputStream, String)] = None
+  try {
+    // 1. 根据配置创建FileStream
+    fileData = schedulerAllocFile.map { f =>
+      // 1.1 以spark.scheduler.allocation.file内容来创建
+      val filePath = new Path(f)
+      val fis = filePath.getFileSystem(sc.hadoopConfiguration).open(filePath)
+      Some((fis, f))
+    }.getOrElse {
+      val is = Utils.getSparkClassLoader.getResourceAsStream(DEFAULT_SCHEDULER_FILE)
+      if (is != null) {
+        // 1.2 没有设置spark.scheduler.allocation.file，有fairscheduler.xml内容来创建
+        Some((is, DEFAULT_SCHEDULER_FILE))
+      } else {
+        // 1.3 没有fairscheduler.xml,依默认参数创建Pool
+        val schedulingMode = SchedulingMode.withName(sc.conf.get(SCHEDULER_MODE))
+        rootPool.addSchedulable(new Pool(
+          DEFAULT_POOL_NAME, schedulingMode, DEFAULT_MINIMUM_SHARE, DEFAULT_WEIGHT))
+        None
+      }
+    }
+
+    // 2. 根据文件内容创建Pool
+    fileData.foreach { case (is, fileName) => buildFairSchedulerPool(is, fileName) }
+  } catch {
+                .......
+  } finally {
+    fileData.foreach { case (is, fileName) => is.close() }
+  }
+
+  // 3. 创建名字为default的Pool
+  buildDefaultPool()
+}
+```
+<center>
+  <img src="../img/01_00_FAIR_Schedule_Algorithm.png">
+  <div>FAIR调度逻辑图</div>
+</center>
+<br/>
+
+对于FAIR，首先是挂到rootPool下面的pool先确定调度顺序，然后在每个pool内部使用相同的算法来确定`TaskSetManager`的调度顺序。调度算法：
+```scala
+private[spark] class FairSchedulingAlgorithm extends SchedulingAlgorithm {
+  override def comparator(s1: Schedulable, s2: Schedulable): Boolean = {
+    val minShare1 = s1.minShare
+    val minShare2 = s2.minShare
+    val runningTasks1 = s1.runningTasks
+    val runningTasks2 = s2.runningTasks
+    val s1Needy = runningTasks1 < minShare1
+    val s2Needy = runningTasks2 < minShare2
+    val minShareRatio1 = runningTasks1.toDouble / math.max(minShare1, 1.0)
+    val minShareRatio2 = runningTasks2.toDouble / math.max(minShare2, 1.0)
+    val taskToWeightRatio1 = runningTasks1.toDouble / s1.weight.toDouble
+    val taskToWeightRatio2 = runningTasks2.toDouble / s2.weight.toDouble
+
+    var compare = 0
+    if (s1Needy && !s2Needy) {
+      return true
+    } else if (!s1Needy && s2Needy) {
+      return false
+    } else if (s1Needy && s2Needy) {
+      compare = minShareRatio1.compareTo(minShareRatio2)
+    } else {
+      compare = taskToWeightRatio1.compareTo(taskToWeightRatio2)
+    }
+    if (compare < 0) {
+      true
+    } else if (compare > 0) {
+      false
+    } else {
+      s1.name < s2.name
+    }
+  }
+}
+```
+## Task运行结果处理
 
 ## 任务推测
 推测任务是指对于一个Stage里面拖后腿的Task，会在其他节点的Executor上再次启动这个task，如果其中一个Task实例运行成功则将这个最先完成的Task的计算结果作为最终结果，同时会干掉其他Executor上运行的实例。
