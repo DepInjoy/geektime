@@ -120,7 +120,7 @@ lowbit(n) = n & -n
 
 | 专题                 | 题目                                                         | 相关实现                                                     |
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 单调栈               | [830. 单调栈](https://www.acwing.com/problem/content/832/)   | [ACW 830. 单调栈](02_MonotonicStack/830_ACW_E_monotonic-stack.cpp) |
+| 单调栈               | [830. 单调栈](https://www.acwing.com/problem/content/832/)   | [ACW 830. 单调栈](03_Stack/830_ACW_E_monotonic-stack.cpp) |
 | 单调队列             | [154. 滑动窗口](https://www.acwing.com/problem/content/description/156/) | [ACW 154. 滑动窗口](06_SlidWindow/154_ACW_E_sliding-window.cpp) |
 | 堆                   | [838. 堆排序](https://www.acwing.com/problem/content/840/)<br/>[839 模拟堆](https://www.acwing.com/problem/content/841/) | [ACW 838. 堆排序](04_Heap\838_ACW_E_heap-sort.cpp)<br/>[ACW 839 模拟堆](04_Heap/839_ACW_E_mock-heap.cpp) |
 | Trie(字典树，前缀树) | [835. Trie字符串统计](https://www.acwing.com/problem/content/description/837/)<br/>[143.最大异或对](https://www.acwing.com/problem/content/145/) | [ACW 835. Trie字符串统计](01_00_Trie/835_ACW_E_string-stat.cpp) |

@@ -108,15 +108,15 @@
 
 # 单调栈
 
-1. [496. 下一个更大元素 I](https://leetcode.cn/problems/next-greater-element-i/description/)       [相关实现](02_MonotonicStack/496_E_Next-Greater-Element-i.cpp)      单调栈
+1. ​       [相关实现](02_MonotonicStack/496_E_Next-Greater-Element-i.cpp)      单调栈
 
 # 双指针
 
-| 专题   | 题目                                                         | 实现                                                         | 其他                              |
-| ------ | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
-| 双指针 | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节，                            |
-| 双指针 | [15.三数之和](https://leetcode.cn/problems/3sum/)            | [LC 15.三数之和](00_01_DoublePointer\15_LC_M_3Sums.cpp)      | <font color=FF3933>Hot 100</font> |
-|        |                                                              |                                                              |                                   |
+| 专题                           | 题目                                                         | 实现                                                         | 其他                              |
+| ------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
+| 双指针                         | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节，                            |
+| 双指针                         | [15.三数之和](https://leetcode.cn/problems/3sum/)            | [LC 15.三数之和](00_01_DoublePointer\15_LC_M_3Sums.cpp)      | <font color=FF3933>Hot 100</font> |
+| 双指针<br/>动态规划<br/>单调栈 | [42. 接雨水(H)](https://leetcode-cn.com/problems/trapping-rain-water/) | [LC 42. 接雨水](00_01_DoublePointer/42_LC_H_trapping-rain-water.cpp) | <font color=FF3933>Hot 100</font> |
 
 
 
@@ -133,9 +133,15 @@
 | 栈   | [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) | [LC 1047. 删除字符串中的所有相邻重复项](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp) |      |
 | 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  | <font color=FF3933>Hot 100</font> |
 |  单调栈 |   [155. 最小栈](https://leetcode.cn/problems/min-stack/) | [LC 155. 最小栈](03_Stack/155_LC_E_min-stack.cpp)   |  <font color=FF3933>Hot 100</font> <br/>剑指Offer:30|
+| 单调栈 | [496. 下一个更大元素 I](https://leetcode.cn/problems/next-greater-element-i/description/) | [LC 496. 下一个更大元素 I](03_Stack/496_LC_E_Next-Greater-Element-i.cpp) | |
+| 单调栈 | [ACW 830. 单调栈](https://www.acwing.com/problem/content/832/) | [ACW 830. 单调栈](03_Stack/830_ACW_E_monotonic-stack.cpp) | |
+
+
+
 
 
 # 排序
+
 1. [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  快排/堆+ Hash表
 2. [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) [相关实现](./04_Heap/692_LC_M_top-k-frequent-words.cpp) 快排/堆+Hash表
 
