@@ -38,7 +38,7 @@
 | 专题 | 题目                                                    | 相关实现                                                   | 其他 |
 | ---- | ------------------------------------------------------- | ---------------------------------------------------------- | ---- |
 | 回溯 | [47.全排列II](03_BackTrack/47_LC_M_permutations-ii.cpp) | [LC 47.全排列II](03_BackTrack/47_LC_M_permutations-ii.cpp) |      |
-|      |                                                         |                                                            |      |
+| 回溯 | [46. 全排列](https://leetcode.cn/problems/permutations/)|  [LC 46. 全排列](03_BackTrack/46_LC_M_permutations.cpp) | <font color=FF3933>Hot 100</font> |
 |      |                                                         |                                                            |      |
 
 # 图
