@@ -1281,6 +1281,360 @@ private[spark] class FairSchedulingAlgorithm extends SchedulingAlgorithm {
 }
 ```
 ## Task运行结果处理
+Task在Executor执行完成时，会通过向Driver发送StatusUpdate的消息来通知Driver任务的状态更新为TaskState.FINISHED。
+```scala
+  def statusUpdate(tid: Long, state: TaskState, serializedData: ByteBuffer): Unit = {
+    var failedExecutor: Option[String] = None
+    var reason: Option[ExecutorLossReason] = None
+    synchronized {
+      Option(taskIdToTaskSetManager.get(tid)) match {
+        case Some(taskSet) =>
+          if (state == TaskState.LOST) {
+            val execId = taskIdToExecutorId.getOrElse(tid, {
+              val errorMsg = "......."
+              // TaskSet失败，向DAGSchedule发起TaskSetFailed事件终止Stage
+              taskSet.abort(errorMsg)
+              throw new SparkException("......")
+            })
+
+            if (executorIdToRunningTaskIds.contains(execId)) {
+              reason = Some(ExecutorProcessLost(
+                s"Task $tid was lost, so marking the executor as lost as well."))
+              removeExecutor(execId, reason.get)
+              // 设置failedExecutor，在最后向DAGScheduler发起ExecutorLost事件
+              failedExecutor = Some(execId)
+            }
+          }
+
+          if (TaskState.isFinished(state)) {
+            // 如果Task的状态是FINISHED或者FAILED或者KILLED或者LOST
+            // 认为Task执行结束，清理本地的数据结构
+            cleanupTaskState(tid)
+            // 任务成功完成, TaskSetManager标记该任务已结束
+            // 注意这里不一定是成功结束的
+            taskSet.removeRunningTask(tid)
+            if (state == TaskState.FINISHED) {
+              // 处理任务的执行结果
+              taskResultGetter.enqueueSuccessfulTask(taskSet, tid, serializedData)
+            } else if (Set(TaskState.FAILED, TaskState.KILLED, TaskState.LOST).contains(state)) {
+              // 处理任务失败情况
+              taskResultGetter.enqueueFailedTask(taskSet, tid, state, serializedData)
+            }
+          }
+          if (state == TaskState.RUNNING) {
+            taskSet.taskInfos(tid).launchSucceeded()
+          }
+        case None =>
+          logError("......")
+      }
+    }
+
+    // 存在Failed Executor
+    if (failedExecutor.isDefined) {
+      // 向DAGScheduler发起ExecutorLost事件
+      dagScheduler.executorLost(failedExecutor.get, reason.get)
+      backend.reviveOffers()
+    }
+  }
+```
+处理每次结果都是由一个Daemon线程池(`TaskResultGetter.getTaskResultExecutor`)负责，默认这个线程池由4个线程组成，可以通过`spark.resultGetter.threads`设置。
+Executor在将结果回传到Driver时，会根据结果的大小使用不同的策略：
+1. 如果结果大于`spark.driver.maxResultSize`配置(默认1G)，那么直接丢弃这个结果,Spark1.2中新加的策略。
+2. 对于“较大”的结果，将其以tid为key存入`org.apache.spark.storage.BlockManager`；如果结果不大，则直接回传给Driver。那么如何判定这个阈值呢？
+这里的回传是直接通过AKKA的消息传递机制。因此这个大小首先不能超过这个机制设置的消息的最大值。这个最大值是通过spark.akka.frameSize设置的，单位是MByte，默认值是10MB。除此之外，还有200KB的预留空间。因此这个阈值就是conf.getInt（""spark.akka.frameSize"，10）*1024*1024–200*1024。
+3. 其他的直接通过AKKA回传到Driver。
+
+### 任务成功执行机制
+`TaskResultGetter.enqueueSuccessfulTask`忽略一些异常处理和非重点处理逻辑
+```scala
+def enqueueSuccessfulTask(taskSetManager: TaskSetManager,
+    tid: Long, serializedData: ByteBuffer): Unit = {
+  getTaskResultExecutor.execute(new Runnable {
+    override def run(): Unit = Utils.logUncaughtExceptions {
+      val (result, size) = serializer.get().deserialize[TaskResult[_]](serializedData) match {
+        case directResult: DirectTaskResult[_] =>
+          // 是计算结果，确定是否符合大小要求
+          if (!taskSetManager.canFetchMoreResults(directResult.valueByteBuffer.size)) {
+            scheduler.handleFailedTask(taskSetManager, tid, TaskState.KILLED, TaskKilled("Tasks result size has exceeded maxResultSize"))
+            return
+          }
+          directResult.value(taskResultSerializer.get())
+          (directResult, serializedData.limit().toLong)
+
+        case IndirectTaskResult(blockId, size) =>
+          // 需要向远程的Worker网络获取结果，确定是否符合大小要求
+          if (!taskSetManager.canFetchMoreResults(size)) {
+            // 结果大小比maxResultSize大，Executor丢弃这个结果
+            // 从远程的Worker删除该结果
+            sparkEnv.blockManager.master.removeBlock(blockId)
+            // Kill Task
+            scheduler.handleFailedTask(taskSetManager, tid, TaskState.KILLED,   
+                TaskKilled("Tasks result size has exceeded maxResultSize"))
+            return
+          }
+  
+          // 从远程的BlockManager获取计算结果
+          scheduler.handleTaskGettingResult(taskSetManager, tid)
+          val serializedTaskResult = sparkEnv.blockManager.getRemoteBytes(blockId)
+          if (serializedTaskResult.isEmpty) {
+            // 如果在Executor的任务执行完成和Driver端取结果之间
+            // Executor所在机器出现故障或者其他错误，会导致获取结果失败
+            scheduler.handleFailedTask(
+              taskSetManager, tid, TaskState.FINISHED, TaskResultLost)
+            return
+          }
+
+          // 反序列化
+          val deserializedResult = SerializerHelper
+            .deserializeFromChunkedBuffer[DirectTaskResult[_]](
+              serializer.get(), serializedTaskResult.get)
+          deserializedResult.value(taskResultSerializer.get())
+          // 删除远程的结果
+          sparkEnv.blockManager.master.removeBlock(blockId)
+          (deserializedResult, size)
+      }
+
+      result.accumUpdates = result.accumUpdates.map { a =>
+        if (a.name == Some(InternalAccumulator.RESULT_SIZE)) {
+          val acc = a.asInstanceOf[LongAccumulator]
+          acc.setValue(size)
+          acc
+        } else {
+          a
+        }
+      }
+
+      // 处理获取到的计算结果
+      scheduler.handleSuccessfulTask(taskSetManager, tid, result)
+    }
+  })
+}
+```
+`TaskSchedulerImpl.handleSuccessfulTask`负责处理计算结果,主要调用栈：
+```scala
+TaskSchedulerImpl.handleSuccessfulTask()
+
+  // 如果TaskSetManager所有Task都已成功完成(maybeFinishTaskSet)
+  // 从rootPool中删除它, 参见TaskSchedulerImpl.taskSetFinished
+  TaskSetManager.handleSuccessfulTask(tid, taskResult)
+    DAGScheduler#taskEnded // 发出CompletionEvent事件
+    // 处理CompletionEvent事件
+    DAGScheduler.handleTaskCompletion(completion)
+```
+`DAGScheduler.handleTaskCompletion`完成计算结果的处理。对于ResultTask，通过调用`org.apache.spark.scheduler.JobWaiter`来告知调用者任务已经结束，核心逻辑:
+```scala
+private[scheduler] def handleTaskCompletion(event: CompletionEvent): Unit = {
+          ......
+  task match {
+    case rt: ResultTask[_, _] =>
+      val resultStage = stage.asInstanceOf[ResultStage]
+      resultStage.activeJob match {
+        case Some(job) =>
+          if (!job.finished(rt.outputId)) {
+            job.finished(rt.outputId) = true
+            job.numFinished += 1
+            if (job.numFinished == job.numPartitions) {
+              // 所有Task都已经结束，将该Stage标记为结束
+              markStageAsFinished(resultStage)
+              cancelRunningIndependentStages(job, s"Job ${job.jobId} is finished.")
+              cleanupStateForJobAndIndependentStages(job)
+              try {
+                taskScheduler.killAllTaskAttempts(stageId,
+                  shouldInterruptTaskThread(job),reason = "Stage finished")
+              } catch {
+                case e: UnsupportedOperationException =>
+                  logWarning(s"Could not cancel tasks for stage $stageId", e)
+              }
+              listenerBus.post(SparkListenerJobEnd(job.jobId, 
+                  clock.getTimeMillis(), JobSucceeded))
+            }
+
+            try {
+              // 对于ResultTask，会运行用户自定义的结果处理函数，因此可能会抛出异常
+              job.listener.taskSucceeded(rt.outputId, event.result)
+            } catch {
+              case e: Throwable if !Utils.isFatalError(e) =>
+                job.listener.jobFailed(new SparkDriverExecutionException(e))
+            }
+          }
+        case None =>
+          // 应该有任务的推测执行，因此一个Task可能会运行多次
+          logInfo("Ignoring result from " + rt + " because its job has finished")
+      }
+                ......
+  }
+                ......
+}
+```
+`job.listener.taskSucceeded(rt.outputId, event.result)`实现对结果的进一步处理，这个处理逻辑是由用户自定义的，然后如果所有的Task都返回了，需要通知JobWaiter任务已经能够结束
+```scala
+  override def taskSucceeded(index: Int, result: Any): Unit = {
+    synchronized {
+      // 调用用户处理逻辑
+      resultHandler(index, result.asInstanceOf[T])
+    }
+    if (finishedTasks.incrementAndGet() == totalTasks) {
+      jobPromise.success(())
+    }
+  }
+```
+`DAGScheduler#handleTaskCompletion`含容错处理，暂时不细看
+```scala
+private[scheduler] def handleTaskCompletion(event: CompletionEvent): Unit = {
+              ......
+  task match {
+              ......
+    case smt: ShuffleMapTask =>
+      val shuffleStage = stage.asInstanceOf[ShuffleMapStage]
+      val ignoreIndeterminate = stage.isIndeterminate &&
+        task.stageAttemptId < stage.latestInfo.attemptNumber()
+      if (!ignoreIndeterminate) {
+        shuffleStage.pendingPartitions -= task.partitionId
+        val status = event.result.asInstanceOf[MapStatus]
+        val execId = status.location.executorId
+        if (executorFailureEpoch.contains(execId) &&
+          smt.epoch <= executorFailureEpoch(execId)) {
+        } else {
+          // 该Stage的所有Task都结束了，将整体结果注册到MapOutputTrackerMaster
+          // 下一个Stage的Task就可以通过它来获取Shuffle结果的元数据信息
+          // 进而从Shuffle数据所在的节点获取数据
+          // MapOutputTrackerMaster内部存在shuffleStatuses<shuffleId,
+          //      ShuffleStatus(partitionId, status)>
+          mapOutputTracker.registerMapOutput(
+            shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
+        }
+      }
+
+      if (runningStages.contains(shuffleStage) && shuffleStage.pendingPartitions.isEmpty) {
+        if (!shuffleStage.shuffleDep.isShuffleMergeFinalizedMarked &&
+          shuffleStage.shuffleDep.getMergerLocs.nonEmpty) {
+          checkAndScheduleShuffleMergeFinalize(shuffleStage)
+        } else {
+          // 如果!shuffleStage.isAvailable重新提交该Stage
+          // 否则,parent stage已完成,提交child stage
+          processShuffleMapStageCompletion(shuffleStage)
+        }
+      }
+  }
+              ......
+}
+```
+
+```scala
+private def processShuffleMapStageCompletion(
+    shuffleStage: ShuffleMapStage): Unit = {
+  markStageAsFinished(shuffleStage)
+  mapOutputTracker.incrementEpoch()
+  clearCacheLocs()
+
+  if (!shuffleStage.isAvailable) {
+    // 1. 重新提交该Stage
+    submitStage(shuffleStage)
+  } else {
+    markMapStageJobsAsFinished(shuffleStage)
+    // 2. parent stage已完成,提交child stage
+    submitWaitingChildStages(shuffleStage)
+  }
+}
+```
+到这里，一个Stage就执行完成了。如果Stage是最后一个Stage，即对应ResultTask的Stage，那么说明该Job执行完成。
+
+### 任务执行失败容错机制
+失败Task，`TaskSchedulerImpl#statusUpdate`调用`TaskResultGetter#enqueueFailedTask`来处理，和处理成功的Task一样共用一个线程池来执行处理逻辑，`TaskResultGetter#enqueueFailedTask`主处理逻辑：
+
+```scala
+def enqueueFailedTask(taskSetManager: TaskSetManager, tid: Long, taskState: TaskState,
+  serializedData: ByteBuffer): Unit = {
+  var reason : TaskFailedReason = UnknownReason
+  getTaskResultExecutor.execute(() => Utils.logUncaughtExceptions {
+    val loader = Utils.getContextOrSparkClassLoader
+    try {
+      if (serializedData != null && serializedData.limit() > 0) {
+        reason = serializer.get().deserialize[TaskFailedReason](
+          serializedData, loader)
+      }
+    } catch {
+                // 异常处理, .......
+      case _: Exception => // No-op
+    } finally {
+      // TaskSchedulerImpl处理失败任务(核心)
+      scheduler.handleFailedTask(taskSetManager, tid, taskState, reason)
+    }
+  })
+}
+```
+
+```scala
+def handleFailedTask(taskSetManager: TaskSetManager,
+    tid: Long, taskState: TaskState,
+    reason: TaskFailedReason): Unit = synchronized {
+  // TaskSetManager处理失败任务
+  taskSetManager.handleFailedTask(tid, taskState, reason)
+  if (!taskSetManager.isZombie && !taskSetManager.someAttemptSucceeded(tid)) {
+    // 对于需要重新调度的任务，通过addPendingTask接口
+    // TaskSetManager已经将失败的任务放入待运行的队列等待下一次的调度
+    // 开始新一轮的调度，以便失败的Task有机会获得资源
+    backend.reviveOffers()
+  }
+}
+```
+
+#### TaskSetManager级别容错处理
+TaskSetManager首先会根据失败的原因来采取不同的动作，比如如果是因为Task的结果发序列化失败，那么说明任务的执行是有问题的，这种任务即使重试也不会成功，因此这个TaskSetManager会直接失败。
+```scala
+def handleFailedTask(tid: Long, state: TaskState,
+  reason: TaskFailedReason): Unit = {
+            ......
+    val failureException: Option[Throwable] = reason match {
+    case ef: ExceptionFailure =>
+            ......
+      val task = taskName(tid)
+      // 序列化失败，终止Stage
+      if (ef.className == classOf[NotSerializableException].getName) {
+        emptyTaskInfoAccumulablesAndNotifyDagScheduler(tid, tasks(index), reason, null,
+          accumUpdates, metricPeaks)
+        // 调用DAGScheduler.taskSetFailed(发起TaskSetFailed事件)
+        // 调用DAGScheduler.handleTaskSetFailed进行处理
+        // 主要执行abortStage
+        abort(s"$task had a not serializable result: ${ef.description}")
+        return
+      }
+      if (ef.className == classOf[TaskOutputFileAlreadyExistException].getName) {
+        emptyTaskInfoAccumulablesAndNotifyDagScheduler(tid, tasks(index), reason, null,
+          accumUpdates, metricPeaks)
+        abort("Task %s in stage %s (TID %d) can not write to output file: %s".format(
+          info.id, taskSet.id, tid, ef.description))
+        return
+      }
+      ......
+  }
+```
+
+如果这些任务需要重试，那么它会重新将这些任务标记为等待调度
+```scala
+def handleFailedTask(tid: Long, state: TaskState,
+      reason: TaskFailedReason): Unit = {
+          ......
+  if (successful(index)) {
+    logInfo(s"......")
+  } else {
+    // 标记为等待调度
+    addPendingTask(index)
+  }
+  maybeFinishTaskSet()
+}
+```
+
+#### DAGScheduler级别TaskSet容错处理
+`DAGScheduler.taskSetFailed`(发起`TaskSetFailed`事件)调用`DAGScheduler.handleTaskSetFailed`进行处理,主要调用`abortStage`
+调用栈
+```scala
+TaskSetManager.handleFailedTask
+  TaskSetManager.abort // 对于重试无法成功的任务直接失败
+    DAGScheduler.taskSetFailed // 提交TaskSetFailed事件
+    DAGScheduler.handleTaskSetFailed // 事件处理
+      DAGScheduler.abortStage
+```
 
 ## 任务推测
 推测任务是指对于一个Stage里面拖后腿的Task，会在其他节点的Executor上再次启动这个task，如果其中一个Task实例运行成功则将这个最先完成的Task的计算结果作为最终结果，同时会干掉其他Executor上运行的实例。
