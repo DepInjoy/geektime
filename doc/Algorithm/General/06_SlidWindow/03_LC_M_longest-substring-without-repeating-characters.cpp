@@ -1,7 +1,7 @@
 /**
  *  3. 无重复字符的最长子串
- *  https://leetcode.cn/problems/longest-substring-without-repeating-characters/description/
- * 
+ *  https://leetcode.cn/problems/longest-substring-without-repeating-characters
+ *  https://leetcode.cn/problems/wtcaE1/
  *  实现方式：
  *    1. 滑动窗口, 时间复杂度O(N), 空间复杂度O(字符集大小)
  */
