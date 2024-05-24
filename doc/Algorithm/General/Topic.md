@@ -1,11 +1,13 @@
 # 动态规划
-1. [2. 01背包问题](https://www.acwing.com/problem/content/2/) [相关实现](02_DP/02_ACW_E_01-bag.cpp) 01背包问题
-2. [3. 完全背包问题](https://www.acwing.com/problem/content/3/) [相关实现](02_DP/03_ACW_E_full-bag.cpp) 完全背包问题
+1. [相关实现]() 01背包问题
+2.  [相关实现]() 完全背包问题
 
 ---
 
 | 专题                                                     |                                                              |                                                              | 其他                              |
 | -------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
+| <b><font color=FF3933>动态规划：01背包</font></b>        | [2. 01背包问题](https://www.acwing.com/problem/content/2/)   | [ACW 2. 01背包问题](02_DP/02_ACW_E_01-bag.cpp)               | <b>模版题</b>                     |
+| <b><font color=FF3933>动态规划：完全背包</font></b>      | [3. 完全背包问题](https://www.acwing.com/problem/content/3/) | [ACW 3. 完全背包问题](02_DP/03_ACW_E_full-bag.cpp)           | <b>模版题</b>                     |
 | 动态规划 `O(N^2)`<br/>贪心+二分查找 时间复杂度`O(NlogN)` | [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/) | [LC 300. 最长递增子序列](02_DP/300_LC_M_longest-increasing-subsequence.cpp) | <font color=FF3933>Hot 100</font> |
 | 动态规划                                                 | [121. 买卖股票的最佳时机](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock/description/) | [LC 121. 买卖股票的最佳时机](02_DP/121_LC_E_best-time-to-buy-and-sell-stock.cpp) | <font color=FF3933>Hot 100</font> |
 | 1. 动态规划<br/>2. 中心扩散法<br/>3. Manacher算法(TODO)  | [5. 最长回文子串]()                                          | [5. 最长回文子串](02_DP/05_LC_M_longest-palindromic-substring.cpp) | <font color=FF3933>Hot 100</font> |
@@ -39,7 +41,7 @@
 | ---- | ------------------------------------------------------- | ---------------------------------------------------------- | ---- |
 | 回溯 | [47.全排列II](03_BackTrack/47_LC_M_permutations-ii.cpp) | [LC 47.全排列II](03_BackTrack/47_LC_M_permutations-ii.cpp) |      |
 | 回溯 | [46. 全排列](https://leetcode.cn/problems/permutations/)|  [LC 46. 全排列](03_BackTrack/46_LC_M_permutations.cpp) | <font color=FF3933>Hot 100</font> |
-|      |                                                         |                                                            |      |
+| 回溯 | [39. 总组合数](https://leetcode.cn/problems/combination-sum/) | [LC 39. 总组合数](03_BackTrack/39_LC_M_combination-sum.cpp) |      |
 
 # 图
 
@@ -95,30 +97,26 @@
 
 100  [相关实现]() 
 
-| 专题                        | 题目                                                         | 实现                                                         | 其他                                                    |
-| --------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------- |
-| 堆                          | [838. 堆排序-ACW](https://www.acwing.com/problem/content/840/) | [ACW 838. 堆排序-ACW](04_Heap/838_ACW_E_heap-sort.cpp)       | 手写堆(优化建堆时间复杂度为`O(N))`                      |
-| 快排<br/>堆                 | [215. 数组中的第K个最大元素](https://leetcode.cn/problems/kth-largest-element-in-an-array/description/) | [LC 215. 数组中的第K个最大元素](04_Heap/215_LC_M_kth-largest-element-in-an-array.cpp) | <font color=FF3933>Hot 100</font>                       |
-| 堆<br/>快排+Hash表          | [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description)z | [LC 347. 前 K 个高频元素](04_Heap/347_LC_M_top-k-frequent-elements.cpp) |                                                         |
-| 堆+Hash表<br/>Hash表 + 快排 | [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) | [LC 692. 前K个高频单词](04_Heap/692_LC_M_top-k-frequent-words.cpp) |                                                         |
-| 堆                          | [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) | [LC 703. 数据流中的第 K 大元素](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp) | 剑指Offer(专项突破)[59]                                 |
-| 堆                          | [23. 合并 K 个升序链表](https://leetcode.cn/problems/merge-k-sorted-lists/description/) | [LC 23. 合并 K 个升序链表](04_Heap/23_LC_H_merge-k-sorted-lists.cpp) | ](04_Heap/215_LC_M_kth-largest-element-in-an-array.cpp) |
+| 专题                        | 题目                                                         | 实现                                                         | 其他                                     |
+| --------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------- |
+| 堆                          | [838. 堆排序-ACW](https://www.acwing.com/problem/content/840/) | [ACW 838. 堆排序-ACW](04_Heap/838_ACW_E_heap-sort.cpp)       | 手写堆(优化建堆时间复杂度为`O(N))`       |
+| 快排<br/>堆                 | [215. 数组中的第K个最大元素](https://leetcode.cn/problems/kth-largest-element-in-an-array/description/) | [LC 215. 数组中的第K个最大元素](04_Heap/215_LC_M_kth-largest-element-in-an-array.cpp) | <b><font color=FF3933>Hot 100</font></b> |
+| 堆<br/>快排+Hash表          | [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) | [LC 347. 前 K 个高频元素](04_Heap/347_LC_M_top-k-frequent-elements.cpp) |                                          |
+| 堆+Hash表<br/>Hash表 + 快排 | [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) | [LC 692. 前K个高频单词](04_Heap/692_LC_M_top-k-frequent-words.cpp) |                                          |
+| 堆                          | [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) | [LC 703. 数据流中的第 K 大元素](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp) | 剑指Offer(专项突破)[59]                  |
+| 堆                          | [23. 合并 K 个升序链表](https://leetcode.cn/problems/merge-k-sorted-lists/description/) | [LC 23. 合并 K 个升序链表](04_Heap/23_LC_H_merge-k-sorted-lists.cpp) | <b><font color=FF3933>Hot 100</font></b> |
 
 # 双指针
 
-| 专题                           | 题目                                                         | 实现                                                         | 其他                              |
-| ------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
-| 双指针                         | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节，                            |
-| 双指针                         | [15.三数之和](https://leetcode.cn/problems/3sum/)            | [LC 15.三数之和](00_01_DoublePointer\15_LC_M_3Sums.cpp)      | <font color=FF3933>Hot 100</font> |
-| 双指针<br/>动态规划<br/>单调栈 | [42. 接雨水(H)](https://leetcode-cn.com/problems/trapping-rain-water/) | [LC 42. 接雨水](00_01_DoublePointer/42_LC_H_trapping-rain-water.cpp) | <font color=FF3933>Hot 100</font> |
-
-
-
-
-
-1. [344. 反转字符串](https://leetcode.cn/problems/reverse-string/description/) 双指针 [相关实现](01_DoublePointer/344_LC_E_reverse-string.cpp)
-2. [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) [相关实现](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) 双指针/直接计算+排序
-3. [125. 验证回文](https://leetcode.cn/problems/valid-palindrome/description) [相关实现](01_DoublePointer/125_LC_E_valid-palindrome.cpp)
+| 专题                           | 题目                                                         | 实现                                                         | 其他                                     |
+| ------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------- |
+|                                |                                                              |                                                              |                                          |
+| 双指针                         | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) | 字节，                                   |
+| 双指针                         | [15.三数之和](https://leetcode.cn/problems/3sum/)            | [LC 15.三数之和](00_01_DoublePointer\15_LC_M_3Sums.cpp)      | <b><font color=FF3933>Hot 100</font></b> |
+| 双指针<br/>动态规划<br/>单调栈 | [42. 接雨水(H)](https://leetcode-cn.com/problems/trapping-rain-water/) | [LC 42. 接雨水](00_01_DoublePointer/42_LC_H_trapping-rain-water.cpp) | <b><font color=FF3933>Hot 100</font></b> |
+| 双指针                         | [344. 反转字符串](https://leetcode.cn/problems/reverse-string/description/) | [LC 344. 反转字符串](01_DoublePointer/344_LC_E_reverse-string.cpp) |                                          |
+| 双指针<br/>直接计算+排序       | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) |                                          |
+|                                | [125. 验证回文](https://leetcode.cn/problems/valid-palindrome/description) | [125. 验证回文](01_DoublePointer/125_LC_E_valid-palindrome.cpp) |                                          |
 
 # 栈
 
@@ -136,12 +134,23 @@
 
 # 排序
 
-1. [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) [相关实现](04_Heap/347_LC_M_top-k-frequent-elements.cpp)  快排/堆+ Hash表
-2. [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) [相关实现](./04_Heap/692_LC_M_top-k-frequent-words.cpp) 快排/堆+Hash表
+| 专题                | 题目                                                         | 实现                                                         | 其他                                     |
+| ------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------- |
+| 快排<br/>堆+ Hash表 | [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) | [LC 347. 前 K 个高频元素](04_Heap/347_LC_M_top-k-frequent-elements.cpp) | <b><font color=FF3933>Hot 100</font></b> |
+| 快排<br/>堆+Hash表  | [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) | [LC 692. 前K个高频单词](04_Heap/692_LC_M_top-k-frequent-words.cpp) |                                          |
+|                     | [215. 数组中的第K个最大元素](https://leetcode.cn/problems/kth-largest-element-in-an-array/) | [LC 215. 数组中的第K个最大元素]()                            |                                          |
+
+
 
 # 二分
-1. [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) [相关实现](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp) 二分/位运算/快慢指针
-2. [69. x 的平方根](https://leetcode.cn/problems/sqrtx/description/) [相关实现](05_BinarySearch/69_LC_E_sqrtx.cpp) 二分实现
+
+| 专题                         | 题目                                                         | 实现                                                         | 其他 |
+| ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
+| 二分<br/>位运算<br/>快慢指针 | [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) | [LC 287. 寻找重复数](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp) |      |
+| 二分                         | [69. x 的平方根](https://leetcode.cn/problems/sqrtx/description/) | [LC 69. x 的平方根](05_BinarySearch/69_LC_E_sqrtx.cpp)       |      |
+|                              |                                                              |                                                              |      |
+
+
 
 
 # Floyd判圈算法(龟兔赛跑)
