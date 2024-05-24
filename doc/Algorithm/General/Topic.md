@@ -86,7 +86,7 @@
 | 专题       | 题目                                                         | 相关实现                                                     | 其他 |
 | ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 前缀树+DFS | [212. 单词搜索 II](https://leetcode.cn/problems/word-search-ii/) | [LC 212. 单词搜索 II](01_00_Trie/212_LC_H_word-search-ii.cpp) |      |
-|            |                                                              |                                                              |      |
+| 前缀树| [208. 实现 Trie (前缀树)](https://leetcode.cn/problems/implement-trie-prefix-tree/) | [LC 208. 实现 Trie (前缀树)](01_00_Trie/208_LC_M_implement-trie-prefix-tree.cpp)|<b><font color=FF3933>Hot 100</font></b>|
 |            |                                                              |                                                              |      |
 
 
@@ -103,12 +103,6 @@
 | 堆+Hash表<br/>Hash表 + 快排 | [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) | [LC 692. 前K个高频单词](04_Heap/692_LC_M_top-k-frequent-words.cpp) |                                                         |
 | 堆                          | [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) | [LC 703. 数据流中的第 K 大元素](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp) | 剑指Offer(专项突破)[59]                                 |
 | 堆                          | [23. 合并 K 个升序链表](https://leetcode.cn/problems/merge-k-sorted-lists/description/) | [LC 23. 合并 K 个升序链表](04_Heap/23_LC_H_merge-k-sorted-lists.cpp) | ](04_Heap/215_LC_M_kth-largest-element-in-an-array.cpp) |
-
-
-
-# 单调栈
-
-1. ​       [相关实现](02_MonotonicStack/496_E_Next-Greater-Element-i.cpp)      单调栈
 
 # 双指针
 
@@ -181,10 +175,7 @@
 | 快慢指针(Floyd判圈算法即龟兔赛跑) | [141. 环形链表](https://leetcode.cn/problems/linked-list-cycle/description/) | [LC 141. 环形链表](00_LinkedList/141_LC_E_linked-list-cycle.cpp) |  |
 | 快慢指针 | [142. 环形链表 II](https://leetcode.cn/problems/linked-list-cycle-ii/description/) | [LC 142. 环形链表 II](00_LinkedList/142_LC_M_linked-list-cycle-ii.cpp) | <font color=FF3933>Hot 100</font> |
 | 双链表+Hash表 | [146. LRU缓存](https://leetcode.cn/problems/lru-cache/) | [LC 146.LRU缓存](00_LinkedList/146_LC_M_LRU.cpp) | <font color=FF3933>Hot 100</font> |
-
-
-
-
+| Hash表+链表<br/>双指针 | [160. 相交链表](https://leetcode.cn/problems/intersection-of-two-linked-lists) | [LC 160. 相交链表](00_LinkedList/160_LC_E_intersection-of-two-linked-lists.cpp) | <b><font color=FF3933>Hot 100</font></b>|
 
 # Hash表
 
@@ -201,6 +192,6 @@
 | 专题     | 题目                                                         | 实现                                                         | 其他                              |
 | -------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------- |
 | 滑动窗口 | [3. 无重复字符的最长子串](https://leetcode.cn/problems/longest-substring-without-repeating-characters/description/) | [LC 3. 无重复字符的最长子串](06_SlidWindow/03_LC_M_longest-substring-without-repeating-characters.cpp) | <font color=FF3933>Hot 100</font> |
-|          |                                                              |                                                              |                                   |
+|滑动窗口| [438. 找到字符串中所有字母异位词](https://leetcode.cn/problems/find-all-anagrams-in-a-string/)|   [LC 438. 找到字符串中所有字母异位词](06_SlidWindow/438_LC_M_find-all-anagrams-in-a-string.cpp)| <b><font color=FF3933>Hot 100</font></b>|
 |          |                                                              |                                                              |                                   |
 
