@@ -1650,3 +1650,6 @@ override def start(): Unit = {
   }
 }
 ```
+
+# 参考资料
+1. Spark技术内幕：深入解析Spark内核架构设计与实现原理
