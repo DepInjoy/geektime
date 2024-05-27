@@ -4,47 +4,42 @@
 */
 
 // ---------------------- 快排 + Hash表 ---------------------------
-bool cmp(const std::pair<int, int>& l, const std::pair<int, int>& r) {
-    return l.second > r.second;
+using PII = std::pair<int, int>;
+bool cmp(const PII& lhs, const PII& rhs) {
+    return lhs.second > rhs.second;
 }
 
-void quick_sort(std::vector<std::pair<int, int>>& data, int l , int r, int k) {
+void quickSort(std::vector<PII>& data, int l, int r, int k) {
     if (l >= r) return;
-    
-    std::pair<int, int> x = data[rand() % (r - l + 1) + l];
+
     int i = l - 1, j = r + 1;
+    PII x = data[random() % (r - l + 1) + l];
     while (i < j) {
-        while(cmp(data[++i], x));
-        while(cmp(x, data[--j]));
-        if (i < j) std::swap(data[i],data[j]);
+        while (cmp(data[++i], x));
+        while (cmp(x, data[--j]));
+        if (i < j) std::swap(data[i], data[j]);
     }
 
-    if (j - l + 1 > k) {
-        quick_sort(data, l, j, k);
+    if (j - l + 1 >= k) {
+        quickSort(data, l, j, k);
     } else {
-        quick_sort(data, j + 1, r, k - (j - l + 1));
+        quickSort(data, j + 1, r, k - (j - l + 1));
     }
 }
 
 vector<int> topKFrequent(vector<int>& nums, int k) {
-    const int n = nums.size();
-    std::unordered_map<int, int> ump(n);
-    for (int num : nums) {
-        ump[num]++;
-    }
+    std::unordered_map<int, int> freqs;
+    for (int num : nums) ++freqs[num];
 
-    const int dn = ump.size();
-    std::vector<std::pair<int, int>> data(dn);
-    int i = 0;
-    for (auto& [val, cnt] : ump) {
-        data[i++] = std::make_pair<>(val, cnt);
-    }
+    std::vector<PII> data;
+    const int n = freqs.size();
+    data.reserve(freqs.size());
+    for (auto item : freqs) data.emplace_back(item);
 
-    quick_sort(data, 0, dn - 1, k);
+    quickSort(data, 0, n-1, k);
+
     std::vector<int> ans(k);
-    for (int i = 0; i < k; i++) {
-        ans[i] = data[i].first;
-    }
+    for (int i = 0; i < k; ++i) ans[i] = data[i].first;
     return ans;
 }
 // ---------------------- 快排 + Hash表 ---------------------------
