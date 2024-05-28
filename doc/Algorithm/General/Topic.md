@@ -101,10 +101,11 @@
 | --------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------- |
 | 堆                          | [838. 堆排序-ACW](https://www.acwing.com/problem/content/840/) | [ACW 838. 堆排序-ACW](04_Heap/838_ACW_E_heap-sort.cpp)       | 手写堆(优化建堆时间复杂度为`O(N))`       |
 | 快排<br/>堆                 | [215. 数组中的第K个最大元素](https://leetcode.cn/problems/kth-largest-element-in-an-array/description/) | [LC 215. 数组中的第K个最大元素](04_Heap/215_LC_M_kth-largest-element-in-an-array.cpp) | <b><font color=FF3933>Hot 100</font></b> |
-| 堆<br/>快排+Hash表          | [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) | [LC 347. 前 K 个高频元素](04_Heap/347_LC_M_top-k-frequent-elements.cpp) |                                          |
+| 堆<br/>快排+Hash表          | [347. 前 K 个高频元素](https://leetcode.cn/problems/top-k-frequent-elements/description) | [LC 347. 前 K 个高频元素](04_Heap/347_LC_M_top-k-frequent-elements.cpp) | <b><font color=FF3933>Hot 100</font></b> |
 | 堆+Hash表<br/>Hash表 + 快排 | [692. 前K个高频单词](https://leetcode.cn/problems/top-k-frequent-words/description) | [LC 692. 前K个高频单词](04_Heap/692_LC_M_top-k-frequent-words.cpp) |                                          |
 | 堆                          | [703. 数据流中的第 K 大元素](https://leetcode.cn/problems/kth-largest-element-in-a-stream/description/) | [LC 703. 数据流中的第 K 大元素](04_Heap/703_LC_E_kth-largest-element-in-a-stream.cpp) | 剑指Offer(专项突破)[59]                  |
 | 堆                          | [23. 合并 K 个升序链表](https://leetcode.cn/problems/merge-k-sorted-lists/description/) | [LC 23. 合并 K 个升序链表](04_Heap/23_LC_H_merge-k-sorted-lists.cpp) | <b><font color=FF3933>Hot 100</font></b> |
+|                             | [295. 数据流的中位数](https://leetcode.cn/problems/find-median-from-data-stream/) | [LC 295. 数据流的中位数]()                                   | <b><font color=FF3933>Hot 100</font></b> |
 
 # 双指针
 
@@ -123,8 +124,8 @@
 | 专题 | 题目                                                         | 实现                                                         | 其他 |
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 栈   | [1047. 删除字符串中的所有相邻重复项](https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string/description) | [LC 1047. 删除字符串中的所有相邻重复项](03_Stack/1047_LC_E_remove-all-adjacent-duplicates-in-string.cpp) |      |
-| 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  | <font color=FF3933>Hot 100</font> |
-|  单调栈 |   [155. 最小栈](https://leetcode.cn/problems/min-stack/) | [LC 155. 最小栈](03_Stack/155_LC_E_min-stack.cpp)   |  <font color=FF3933>Hot 100</font> <br/>剑指Offer:30|
+| 栈   | [20. 有效的括号](https://leetcode.cn/problems/valid-parentheses/) | [LC 20. 有效的括号](03_Stack/20_LC_E_valid-parentheses.cpp)  | <b><font color=FF3933>Hot 100</font></b> |
+|  单调栈 |   [155. 最小栈](https://leetcode.cn/problems/min-stack/) | [LC 155. 最小栈](03_Stack/155_LC_E_min-stack.cpp)   | <b><font color=FF3933>Hot 100</font> <br/></b>剑指Offer:30 |
 | 单调栈 | [496. 下一个更大元素 I](https://leetcode.cn/problems/next-greater-element-i/description/) | [LC 496. 下一个更大元素 I](03_Stack/496_LC_E_Next-Greater-Element-i.cpp) | |
 | 单调栈 | [ACW 830. 单调栈](https://www.acwing.com/problem/content/832/) | [ACW 830. 单调栈](03_Stack/830_ACW_E_monotonic-stack.cpp) | |
 
@@ -148,7 +149,7 @@
 | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---- |
 | 二分<br/>位运算<br/>快慢指针 | [287. 寻找重复数](https://leetcode.cn/problems/find-the-duplicate-number/description) | [LC 287. 寻找重复数](05_BinarySearch/278_LC_M_find-the-duplicate-number.cpp) |      |
 | 二分                         | [69. x 的平方根](https://leetcode.cn/problems/sqrtx/description/) | [LC 69. x 的平方根](05_BinarySearch/69_LC_E_sqrtx.cpp)       |      |
-|                              |                                                              |                                                              |      |
+| 二分                         | [704. 二分查找](https://leetcode.cn/problems/binary-search/) | [LC 704. 二分查找](05_BinarySearch/704_LC_E_binary-search.cpp) |      |
 
 
 
