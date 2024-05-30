@@ -36,8 +36,6 @@ ORCA架构分成以下几个模块：
 Cardinality estimation用来估算每一个SQL节点的输入和输出量。每一组逻辑表达式其实是一个 SQL 节点的一部分，举个例子，scan of table1 估计出有多少行数据被输出。ORCA 内部用 column histogram 来预估 cardinality 和可能的数据分布情况。Cardinality estimation 是自底向上进行，也就是先从叶 group 开始，最后至根节点。
 
 
-数据库内核杂谈（九）：开源优化器ORCA
-原文链接： https://www.infoq.cn/article/5o16ehoz5zk6fzpsjpt2
 ### Property Enforcement
 > 在优化过程中，有些算子的实现需要一些先决条件。比如:
 > - sortGroupBy需要input是排序过的。这时候就需要enforce order属性property。加入了这个property，ORCA 在优化的过程中就会要求子节点能满足这个要求。比如要让子节点满足sort order property，一个可能的方法是对其进行排序，或者，有些子节点的算子可以直接满足条件，比如 index scan[1].
@@ -58,4 +56,3 @@ Cardinality estimation用来估算每一个SQL节点的输入和输出量。每�
 ![ORCA与不同的数据库获取元数据信息](./img/get-md.png)
 
 # 参考资料
-  - 1 [数据库内核杂谈（九）：开源优化器ORCA](https://www.infoq.cn/article/5o16ehoz5zk6fzpsjpt2)

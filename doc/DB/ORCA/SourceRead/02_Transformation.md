@@ -128,7 +128,7 @@ void CGroupExpression::Transform(CMemoryPool *mp, CMemoryPool *pmpLocal, CXform 
 	CExpressionHandle exprhdl(mp);
 	exprhdl.Attach(this);
 	exprhdl.DeriveProps(nullptr /*pdpctxt*/);
-    // 
+    // 计算xfrom promise
 	if (CXform::ExfpNone == pxform->Exfp(exprhdl)) {
 		return;
 	}
