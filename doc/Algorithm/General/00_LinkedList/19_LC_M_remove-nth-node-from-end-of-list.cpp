@@ -38,7 +38,6 @@ ListNode* removeNthFromEnd(ListNode* head, int n) {
 // 双指针
 ListNode* removeNthFromEnd(ListNode* head, int n) {
     ListNode dummy(0, head);
-    ListNode* cur = &dummy;
     ListNode* first = head, *second = &dummy;
     while (n--) first = first->next;
     while (first) {
