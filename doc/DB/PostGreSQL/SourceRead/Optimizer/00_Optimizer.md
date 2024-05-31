@@ -1,5 +1,5 @@
 
-查询优化的入口在`src\backend\optimizer\plan\planner.c`的`planner`接口，其调用栈：
+SQL字符串下发给Postgres到查询优化，调用栈：
 ```c
 exec_simple_query(query_string)
     // 1. 语法解析
@@ -127,7 +127,7 @@ typedef struct Query {
 
 # 查询优化
 
-它支持通过`planner_hook`来自定义优化方法，如果没有采用PG自定义的标准的查询优化函数`standard_planner`。
+查询优化的入口在`src\backend\optimizer\plan\planner.c`的`planner`接口,它支持通过`planner_hook`来自定义优化方法，如果没有采用PG自定义的标准的查询优化函数`standard_planner`。
 ```C++
 PlannedStmt * planner(Query *parse, const char *query_string,
                       int cursorOptions, ParamListInfo boundParams)
