@@ -18,6 +18,107 @@ public AnalyticEvalNode {
 }
 ```
 
+## Pipeline模型
+```C++
+Status PipelineFragmentContext::_build_pipelines(
+        ExecNode* node, PipelinePtr cur_pipe) {
+    auto node_type = node->type();
+    switch (node_type) {
+                ......
+        case TPlanNodeType::ANALYTIC_EVAL_NODE: {
+            auto new_pipeline = add_pipeline();
+            RETURN_IF_ERROR(_build_pipelines(node->child(0), new_pipeline));
+
+            OperatorBuilderPtr analytic_sink =
+                    std::make_shared<AnalyticSinkOperatorBuilder>(node->id(), node);
+            RETURN_IF_ERROR(new_pipeline->set_sink_builder(analytic_sink));
+
+            OperatorBuilderPtr analytic_source =
+                    std::make_shared<AnalyticSourceOperatorBuilder>(node->id(), node);
+            RETURN_IF_ERROR(cur_pipe->add_operator(analytic_source));
+            break;
+        }
+            ......
+    }
+```
+`AnalyticSource`和`AnalyticSink`在Pipeline Task中执行阶段主要涉及source的get_block和Sink的sink接口，相关实现
+```C++
+class AnalyticSinkOperatorBuilder final : public OperatorBuilder<vectorized::VAnalyticEvalNode> {
+public:
+    AnalyticSinkOperatorBuilder(int32_t, ExecNode*);
+    // build为AnalyticSinkOperator
+    // 实际执行的ExecNode是VAnalyticEvalNode
+    OperatorPtr build_operator() override;
+
+    bool is_sink() const override { return true; }
+};
+
+// AnalyticSinkOperator是StreamingOperator的一种
+// PipeleTask执行调用sink接口，实际上执行StreamingOperator::sink
+class AnalyticSinkOperator final : public 
+    StreamingOperator<vectorized::VAnalyticEvalNode> {
+public:
+    // _node是VAnalyticEvalNode
+    AnalyticSinkOperator(OperatorBuilderBase* operator_builder, ExecNode* node);
+
+    bool can_write() override { return _node->can_write(); }
+};
+
+template <typename StreamingNodeType>
+class StreamingOperator : public OperatorBase {
+public:
+            ......
+    Status sink(RuntimeState* state, vectorized::Block* in_block,
+                SourceState source_state) override {
+        // 对于窗口算子实际上执行VAnalyticEvalNode::sink
+        return _node->sink(state, in_block, source_state == SourceState::FINISHED);
+    }
+            ......
+protected:
+    StreamingNodeType* _node = nullptr;
+    bool _use_projection;
+};
+```
+
+```C++
+class AnalyticSourceOperatorBuilder final : public
+        OperatorBuilder<vectorized::VAnalyticEvalNode> {
+public:
+    AnalyticSourceOperatorBuilder(int32_t, ExecNode*);
+    bool is_source() const override { return true; }
+    // build的是AnalyticSourceOperator
+    // 实际执行Execnode是VAnalyticEvalNode
+    OperatorPtr build_operator() override;
+};
+
+// AnalyticSourceOperator是SourceOperator的一种
+// PipeleTask调用get_block，实际上执行SourceOperator::get_block
+class AnalyticSourceOperator final : public
+    SourceOperator<vectorized::VAnalyticEvalNode> {
+public:
+    // _node是VAnalyticEvalNode
+    AnalyticSourceOperator(OperatorBuilderBase*, ExecNode*);
+    Status open(RuntimeState*) override { return Status::OK(); }
+};
+
+template <typename SourceNodeType>
+class SourceOperator : public StreamingOperator<SourceNodeType> {
+public:
+            ......
+    Status get_block(RuntimeState* state, vectorized::Block* block,
+                     SourceState& source_state) override {
+        auto& node = StreamingOperator<SourceNodeType>::_node;
+        bool eos = false;
+        // 对于窗口实际上执行的是VAnalyticEvalNode::pull
+        RETURN_IF_ERROR(node->get_next_after_projects(
+                state, block, &eos,
+                std::bind(&ExecNode::pull, node, std::placeholders::_1,
+                std::placeholders::_2, std::placeholders::_3)));
+        source_state = eos ? SourceState::FINISHED : SourceState::DEPEND_ON_SOURCE;
+        return Status::OK();
+    }
+};
+```
 ## 数据结构
 前端采用`AnalyticEvalNode`表达窗口，转化为`TAnalyticNode` Thrift结构发送给后端来执行，后端由`VAnalyticEvalNode`算子执行窗口计算。
 
