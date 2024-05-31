@@ -329,7 +329,23 @@ Exception 处理机制带来的第二种成本来自 try 语句块。**粗略估
 ## terminate
 
 [cppreference:std::terminate](https://en.cppreference.com/w/cpp/error/terminate)
+```C++
+#include <iostream>
+#include <exception>
 
+void myTerminateHandler() {
+    std::cout << "Error catch uncatched exception!" << std::endl;
+    exit(-1);
+}
+
+int main(int argc, char* argv[]) {
+    // 自定义terminate_handler行为
+    std::set_terminate(myTerminateHandler);
+    // 抛出一个未捕获的异常,将会触发terminate_handler
+    throw std::runtime_error("This's just a test");
+    return 0;
+}
+```
 
 # rethrow数据竞争
 > Concurrently calling rethrow_exception on exception_ptr objects that refer to the same exception is safe.
