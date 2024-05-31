@@ -1,3 +1,27 @@
+模板
+模板属性(Template Attributes),用于控制模板实例化的行为
+模板变量(Template Variables), C++17 中引入的一个特性，用于创建通用的变量。
+
+模板元编程
+
+如果在类中有一个模板成员函数，并且需要在该成员函数中调用其他模板函数或模板类的成员，可以使用this->template显式指定模板成员函数的名称
+```C++
+template<typename T>
+class MyClass {
+public:
+    template<typename U>
+    void myTemplateFunction(U val) {
+        // 调用其他模板函数或模板类的成员
+        this->template myOtherTemplateFunction<U>(val);
+    }
+
+    template<typename U>
+    void myOtherTemplateFunction(U val) {
+        // 实现
+    }
+};
+```
+
 # 函数模板
 函数模板提供了一种函数行为，该函数行为可以用多种不同的类型进行调用；也就是说，函数模板代表一个函数家族。它看起来和普通的函数很相似，唯一的区别就是有些函数元素是未确定的：这些元素将在使用时被参数化。
 
