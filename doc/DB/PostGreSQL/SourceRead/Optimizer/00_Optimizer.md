@@ -22,7 +22,7 @@ exec_simple_query(query_string)
 // 将用户输入字符串形式的SQL解析成查询树
 List * raw_parser(const char *str, RawParseMode mode)
 ```
-## 查询树数据结构
+## 语法树数据结构
 
 PostgreSQL中的结构体采用了统一的形式，它们都是基于`Node`结构体进行的“扩展”，Node结构体中只包含一个`NodeTag`成员变量，`NodeTag`是枚举类型
 ```C
@@ -94,6 +94,20 @@ typedef struct SelectStmt {
 	struct SelectStmt *rarg;	/* right child */
 } SelectStmt;
 ```
+```c
+// src/include/nodes/primnodes.h
+// 语法树FROM clause, relation_expr经list_make1处理为List
+typedef struct RangeVar {
+	NodeTag		type;
+	char	   *catalogname;
+	char	   *schemaname;
+	char	   *relname;
+	bool		inh;
+	char		relpersistence;
+	Alias	   *alias;
+	int			location;
+} RangeVar;
+```
 `List`也是对Node的扩展，它的第一个成员也是`NodeTag`用于表示不同类型的List
 ```c
 // src/include/nodes/pg_list.h
@@ -124,6 +138,115 @@ typedef struct Query {
             ......
 } Query;
 ```
+### Var结构
+```C
+typedef struct Var {
+	Expr		xpr;
+    // 列属性所在表在Query->rtable中的rtindex
+	int			varno;
+    // 列属性在表中的编号(第几列)
+	AttrNumber	varattno;
+
+	// 列属性对应的类型
+	Oid			vartype pg_node_attr(query_jumble_ignore);
+	// 列属性的精度(长度)
+	int32		vartypmod pg_node_attr(query_jumble_ignore);
+	/* OID of collation, or InvalidOid if none */
+	Oid			varcollid pg_node_attr(query_jumble_ignore);
+	Bitmapset  *varnullingrels pg_node_attr(query_jumble_ignore);
+
+	// 列属性的相对位置,和子查询相关
+    // 确定列属性对应的表所在的层次(相对值)
+	Index		varlevelsup;
+
+	Index		varnosyn pg_node_attr(equal_ignore, query_jumble_ignore);
+	AttrNumber	varattnosyn pg_node_attr(equal_ignore, query_jumble_ignore);
+
+	// 列属性出现在SQL语句中的位置
+	int			location;
+} Var;
+```
+
+### RangeTblEntry结构
+RangeTblEntry(范围表，简称RTE)描述了查询中出现的表，它通常出现在查询语句的FROM子句中，范围表中既有常规意义上的堆表，还有子查询、连接表等。
+```c
+typedef struct RangeTblEntry{
+	NodeTag		type;
+    // 范围表的类型
+	RTEKind		rtekind;
+
+    // For RTE_RELATION,普通的表
+	Oid			relid;
+	char		relkind;
+	int			rellockmode;
+	struct TableSampleClause *tablesample;
+	Index		perminfoindex;
+
+	// for RTE_SUBQUERY,子查询类型的表
+	Query	   *subquery;
+	bool		security_barrier;
+
+    // For RTE_JOIN,连接类型的表
+	JoinType	jointype;
+	int			joinmergedcols;
+    // Join的表的所有列集合
+	List	   *joinaliasvars;
+	List	   *joinleftcols;
+	List	   *joinrightcols;
+
+                ......
+} RangeTblEntry;
+```
+### RangeTblRef结构
+`RangeTblEntry`只保留在查询树的`Query->rtable`链表中，而链表是一个线性结构，它如何保存树状的关系代数表达式中的连接操作呢？答案是在`Query->jointree`中保存各个范围表之间的连接关系。
+
+如果在`Query->jointree`中还保存同样的一份`RangeTblEntry`，那么一方面会造成存储的冗余，另一方面也容易产生数据不一致的问题，因此在查询树的其他任何地方都不再存放新的`RangeTblEntry`，每个范围表在Query->rtable链表中有且只能有一个，在其他地方使用到范围表都使用`RangeTblRef`来代替。`RangeTblRef`是对`RangeTblEntry`的引用，因为`RangeTblEntry`在`Query->rtable`中的位置是确定的，因此可以用它在`Query->rtable`链表中的位置`rtindex`来标识。
+
+```C
+// src/include/nodes/primnodes.h
+typedef struct RangeTblRef {
+	NodeTag		type;
+	int			rtindex;
+} RangeTblRef;
+```
+### 表连接
+查询语句中如果显式地指定两个表之间的连接关系，例如`A LEFT JOIN B ON Pab`这种形式，用`JoinExpr`来表示
+```c
+typedef struct JoinExpr {
+	NodeTag		type;
+    // Join类型，例如JOIN_INNER等
+	JoinType	jointype;
+    // 是否是自然连接
+	bool		isNatural;
+    // 连接操作的LHS(左侧)表
+	Node	   *larg;
+    // 连接操作的RHS(右侧)表
+	Node	   *rarg;
+    // USING子句对应的约束条件
+	List	   *usingClause pg_node_attr(query_jumble_ignore);
+	/* alias attached to USING clause, if any */
+	Alias	   *join_using_alias pg_node_attr(query_jumble_ignore);
+	// on子句对应的约束条件
+	Node	   *quals;
+	// 连接操作的投影列
+	Alias	   *alias pg_node_attr(query_jumble_ignore);
+	// 当前JoinExpr对应的RangeTblRef->rtindex
+	int			rtindex;
+} JoinExpr;
+```
+
+`FromExpr`和`JoinExpr`是用来表示表之间的连接关系的结构体。通常来说，`FromExpr`中的各个表之间的连接关系是Inner Join，这样就可以在`FromExpr->fromlist`中保存任意多个表，默认是内连接的关系
+```C
+typedef struct FromExpr {
+	NodeTag		type;
+    // FromExpr中包含的表
+	List	   *fromlist;
+    // fromlist中表间的约束条件
+	Node	   *quals;
+} FromExpr;
+```
+
+
 
 # 查询优化
 
