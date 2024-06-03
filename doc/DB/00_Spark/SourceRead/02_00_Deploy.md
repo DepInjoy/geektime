@@ -95,14 +95,22 @@ case class RegisteredWorker(
 ## Client和Executor
 
 # 集群启动
-`spark.worker.timeout`
-`spark.deploy.recoveryMode` NONE
-`spark.deploy.recoveryMode.factory`
-`spark.deploy.recoveryDirectory`
-`spark.deploy.zookeeper.url`
-`spark.deploy.zookeeper.dir`
-`spark.deploy.maxExecutorRetries` 10
+| 配置参数                            | 默认值 | 参数意义                                                     |
+| ----------------------------------- | ------ | ------------------------------------------------------------ |
+| `spark.worker.timeout`              |        |                                                              |
+| `spark.deploy.recoveryMode`         | NONE   | 恢复模式，支持四种：<br/>1. ZOOKEEPER<br/>2. FILESYSTEM<br/>3. CUSTOM<br/>4. NONE |
+| `spark.deploy.zookeeper.url`        |        | ZooKeeper的Server地址                                        |
+| `spark.deploy.zookeeper.dir`        |        | ZooKeeper保存集群元数据信息的根目录，<br/>其中保存的元数据信息包括Worker， Driver Client和Application |
+| `spark.deploy.recoveryMode.factory` |        |                                                              |
+| `spark.deploy.recoveryDirectory`    |        |                                                              |
+| `spark.deploy.zookeeper.url`        |        |                                                              |
+| `spark.deploy.zookeeper.dir`        |        |                                                              |
+| `spark.deploy.maxExecutorRetries`   | 10     |                                                              |
+
+
+
 ## Master启动
+
 Master的实现是`org.apache.spark.deploy.master.Master`。一个集群可以部署多个Master，以达到高可用性的目的，因此它还实现了`org.apache.spark.deploy.master.LeaderElectable`以在多个Master中选举出一个Leader。LeaderElectable是一个trait：
 ```scala
 @DeveloperApi
@@ -127,14 +135,15 @@ trait LeaderElectable {
 集群的元数据信息会保存在本地文件系统，Master启动后则会立即成为Active的Master。如果不考虑机器本身的故障和在设置了Master进程退出后能自动重启的前提下，这种方式也是可以接受的。
 
 3. CUSTOM
-这个是用户自定义的。如果需要自定义的机制，那么需要实现`org.apache.spark.deploy.master.StandaloneRecoveryModeFactory`，并且将实现的类的名字配置到spark.deploy.recoveryMode.factory。主要实现的是两个接口：
+   这个是用户自定义的。如果需要自定义的机制，那么需要实现`org.apache.spark.deploy.master.StandaloneRecoveryModeFactory`，并且将实现的类的名字配置到spark.deploy.recoveryMode.factory。主要实现的是两个接口：
+   
     ```scala
     @DeveloperApi
     abstract class StandaloneRecoveryModeFactory(
         conf: SparkConf, serializer: Serializer) {
     // 实现持久化数据和恢复数据，包括Worker、Application和Driver Client
     def createPersistenceEngine(): PersistenceEngine
-
+   
     // 实现选举机制, 即从几个Standby的Master中选举出一个Master作为集群的管理者
     def createLeaderElectionAgent(master: LeaderElectable): 
             LeaderElectionAgent
@@ -277,7 +286,12 @@ Master在判定恢复已经结束时会调用`completeRecovery()`，由它来完
   }
 ```
 ## Worker启动
-`spark.worker.preferConfiguredMasterAddress` false
+
+| 配置参数                                     | 默认值 | 参数意义 |
+| -------------------------------------------- | ------ | -------- |
+| `spark.worker.preferConfiguredMasterAddress` | false  |          |
+
+
 
 Worker启动只会做一件事情，就是向Master注册。在接到Worker的注册请求后，如果Master是Active的并且Worker没有注册过，那么Master会回复Worker消息RegisterWorker，表示Worker注册成功；若注册失败，Master会回复消息RegisterWorkerFailed，Worker接到该消息后直接退出(由于Worker会重复多次发送请求，因此退出前需要判断是否注册成功了，如果没有注册成功才会退出；如果已经注册成功了，那么忽略这个消息)。
 
@@ -365,7 +379,13 @@ Worker在向Master注册的时候有重试机制，即在指定时间如果收�
 
 对于一个集群来说，机器故障、网络故障等都被视为常态，尤其是当集群达到一定规模后，可能每天都会有物理故障导致某台机器不能提供服务。对于分布式系统来说，应对这种场景的容错也是设计目标之一。接下来将从Master、Worker和Executor的异常退出出发，讨论Spark是如何处理的。
 
-`spark.worker.timeout` 60秒
+
+
+| 配置参数               | 默认值 | 参数意义 |
+| ---------------------- | ------ | -------- |
+| `spark.worker.timeout` |        | 60秒     |
+
+
 
 ## Master异常退出
 如果Master异常退出，此时新的计算任务就无法进行提交了。虽然老的计算任务可以继续运行，由于状态更新等中断，很多功能也同时会受到影响。比如计算任务完成后的资源回收，这个回收指令是Master发送给Worker的。因此，Master的异常退出，是一个非常严重的错误。
@@ -411,7 +431,7 @@ Worker退出时，集群是如何进行容错处理的呢？
       worker.setState(WorkerState.DEAD)
       idToWorker -= worker.id
       addressToWorker -= worker.endpoint.address
-
+    
       // 将Worker上所有运行的Executor状态标记为ExecutorState.LOST
       // 发送ExecutorUpdated消息
       for (exec <- worker.executors.values) {
@@ -420,7 +440,7 @@ Worker退出时，集群是如何进行容错处理的呢？
         exec.state = ExecutorState.LOST
         exec.application.removeExecutor(exec)
       }
-
+    
       for (driver <- worker.drivers.values) {
         if (driver.desc.supervise) {
           // 设置了supervise的Driver Client,重新调度重启
@@ -430,12 +450,12 @@ Worker退出时，集群是如何进行容错处理的呢？
           removeDriver(driver.id, DriverState.ERROR, None)
         }
       }
-
+    
       // 发送WorkerRemoved消息通知Application Worker退出
       apps.filterNot(completedApps.contains(_)).foreach { app =>
         app.driver.send(WorkerRemoved(worker.id, worker.host, msg))
       }
-
+    
       // 持久化worker信息
       persistenceEngine.removeWorker(worker)
       schedule()
@@ -457,10 +477,10 @@ Worker退出时，集群是如何进行容错处理的呢？
           listener.executorDecommissioned(fullId,
             ExecutorDecommissionInfo(message.getOrElse(""), workerHost))
         }
-
+    
       case WorkerRemoved(id, host, message) =>
         listener.workerRemoved(id, host, message)
-
+    
                   ......
     }
     ```
@@ -500,7 +520,7 @@ Worker退出时，集群是如何进行容错处理的呢？
         }
     }
     ```
-然后重新进行调度，Task会被分配新的Executor，完成最终的计算。
+    然后重新进行调度，Task会被分配新的Executor，完成最终的计算。
 
 
 ## Executor异常退出
@@ -623,7 +643,164 @@ override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit
 # Master HA实现
 Standalone是一个采用Master/Slave的典型架构，Master会出现单点故障(Single Point of Failure，SPOF)问题, Spark可以选用ZooKeeper来实现高可用性(High Availability，HA)。
 
+ZooKeeper提供了一个Leader选举机制，利用这个机制可以保证虽然集群存在多个Master但是只有一个是Active的。当Active的Master出现故障时，另外的一个Standby Master会被选举出来。由于集群的信息，包括Worker、Driver Client和Application的信息都已经持久化到ZooKeeper中，因此在切换的过程中只会影响新Job的提交，对于正在进行的Job没有任何的影响。加入ZooKeeper的集群整体架构:
+
+<center>
+  <img src="../img/02_00_zk_ha.png">
+  <div>基于ZooKeeper的整体架构图</div>
+</center>
+<br/>
 
 
+
+## Master启动的选举和数据恢复策略
+
+除了集群的第一次启动，Master每次启动都会恢复集群当前的运行状态。这些状态包括当前正在运行的Application、DriverClient和Worker。当前Standalone模式支持四种策略：ZOOKEEPER, FILESYSTEM, CUSTOM,NONE。
+
+| 配置参数                            | 默认值 | 参数意义                                                     |
+| ----------------------------------- | ------ | ------------------------------------------------------------ |
+| `spark.deploy.recoveryMode`         | NONE   | 恢复模式，支持四种：<br/>1. ZOOKEEPER<br/>2. FILESYSTEM<br/>3. CUSTOM<br/>4. NONE |
+| `spark.deploy.zookeeper.url`        |        | ZooKeeper的Server地址                                        |
+| `spark.deploy.zookeeper.dir`        |        | ZooKeeper保存集群元数据信息的根目录，<br/>其中保存的元数据信息包括Worker， Driver Client和Application |
+| `spark.deploy.recoveryMode.factory` |        | CUSTOM模式自定义实现类                                       |
+
+Master会在`onStart()`中根据`spark.deploy.recoveryMode`配置来选择不同的选举机制和元数据持久化/恢复机制：
+
+```scala
+override def onStart(): Unit = {
+    ......
+    val serializer = new JavaSerializer(conf)
+    // 根据spark.deploy.recoveryMode构建persistenceEngine_
+    val (persistenceEngine_, leaderElectionAgent_) = recoveryMode match {
+      case "ZOOKEEPER" => // Zookeeper模式
+        val zkFactory = new ZooKeeperRecoveryModeFactory(conf, serializer)
+        (zkFactory.createPersistenceEngine(), zkFactory.createLeaderElectionAgent(this))
+      case "FILESYSTEM" => // 使用系统文件模式
+        val fsFactory = new FileSystemRecoveryModeFactory(conf, serializer)
+        (fsFactory.createPersistenceEngine(), fsFactory.createLeaderElectionAgent(this))
+      case "CUSTOM" => // 用户自定义模式
+        val clazz = Utils.classForName(conf.get(RECOVERY_MODE_FACTORY))
+        val factory = clazz.getConstructor(classOf[SparkConf], classOf[Serializer])
+          .newInstance(conf, serializer)
+          .asInstanceOf[StandaloneRecoveryModeFactory]
+        (factory.createPersistenceEngine(), factory.createLeaderElectionAgent(this))
+      case _ => // 无
+        (new BlackHolePersistenceEngine(), new MonarchyLeaderAgent(this))
+    }
+    persistenceEngine = persistenceEngine_
+    leaderElectionAgent = leaderElectionAgent_
+}
+```
+`PersistenceEngine`实现了元数据的持久化和元数据恢复。
+
+```scala
+abstract class PersistenceEngine {
+  // 元数据持久化
+  def persist(name: String, obj: Object): Unit
+  
+  // 恢复元数据
+  final def readPersistedData(rpcEnv: RpcEnv): (
+      Seq[ApplicationInfo], Seq[DriverInfo], Seq[WorkerInfo]) = {
+    rpcEnv.deserialize { () => (read[ApplicationInfo]("app_"),
+            read[DriverInfo]("driver_"), read[WorkerInfo]("worker_"))
+    }
+  }
+
+  // 
+  def unpersist(name: String): Unit
+    						......
+}
+```
+
+`LeaderElectionAgent`实现Leader选举。
+
+```scala
+trait LeaderElectionAgent {
+  val masterInstance: LeaderElectable
+  def stop(): Unit = {}
+}
+```
+
+对于FILESYSTEM 和NONE，`MonarchyLeaderAgent`创建时
+
+```scala
+private[spark] class MonarchyLeaderAgent(val masterInstance: LeaderElectable)
+  extends LeaderElectionAgent {
+  // 直接将传入的Master设置Leader
+  masterInstance.electedLeader()
+}
+```
+
+对于NONE来说，它不会持久化集群的任何数据，通过`org.apache.spark.deploy.master.BlackHolePersistenceEngine`
+
+一个空实现，这样可以确保对外接口的统一。
+
+
+
+
+
+##  Curator Framework简介
+
+
+
+##  ZooKeeperLeaderElectionAgent的实现
+采用Curator后，Spark不用管理与ZooKeeper的连接，数据读和写的接口更加简单. `ZooKeeperLeaderElectionAgent`实现了`LeaderLatchListener`接口
+```scala
+private[master] class ZooKeeperLeaderElectionAgent(
+    val masterInstance: LeaderElectable, conf: SparkConf)
+      extends LeaderLatchListener
+      with LeaderElectionAgent with Logging  {......}
+```
+在`isLeader()`确认所属的Master被选为Leader后，向Master发送消息`ElectedLeader`，Master会在恢复了元数据后将自己的状态改为ALIVE。当`noLeader()`被调用时，它会向Master发送消息`RevokedLeadership`，此时，Master直接退出。
+
+```scala
+private def start(): Unit = {
+  // 采用Curator管理与Zookeeper的连接
+  zk = SparkCuratorUtil.newClient(conf)
+  leaderLatch = new LeaderLatch(zk, workingDir)
+  // 实现LeaderLatchListener
+  leaderLatch.addListener(this)
+  // 启动Leader的竞争和选举
+  leaderLatch.start()
+}
+```
+
+```scala
+override def isLeader(): Unit = {
+  synchronized {
+    // 有可能状态已经再次改变，即Leader已再次变化，需要再次确认
+    if (!leaderLatch.hasLeadership) {
+      return
+    }
+    // 当选为Leader
+    updateLeadershipStatus(true)
+  }
+}
+
+override def notLeader(): Unit = {
+  synchronized {
+    // 有可能状态已经再次改变，即Leader已再次变化，需要再次确认
+    if (leaderLatch.hasLeadership) {
+      return
+    }
+    // 被剥夺Leader
+    updateLeadershipStatus(false)
+  }
+}
+```
+`updateLeadershipStatus`逻辑很简单，就是向Master发送消息:
+```scala
+private def updateLeadershipStatus(isLeader: Boolean): Unit = {
+  if (isLeader && status == LeadershipStatus.NOT_LEADER) {
+    status = LeadershipStatus.LEADER
+    // 通知Master已当选Leader
+    masterInstance.electedLeader()
+  } else if (!isLeader && status == LeadershipStatus.LEADER) {
+    status = LeadershipStatus.NOT_LEADER
+    // 通知Master，已被剥夺Leader
+    masterInstance.revokedLeadership()
+  }
+}
+```
 # 参考资料
 1. Spark技术内幕：深入解析Spark内核架构设计与实现原理
