@@ -3,3 +3,4 @@ algorithm/.vscode/*
 algorithm/Java/.idea/*
 algorithm/Java/algorithm-project/.idea/
 *.exe
+.vscode/*

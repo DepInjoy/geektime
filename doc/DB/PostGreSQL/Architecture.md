@@ -1,38 +1,5 @@
 # 进程架构
 
-PostgreSQL是C/S结构的关系型数据库，采用多进程架构，运行在单台主机上。PostgreSQL Server实际上是一系列协同工作的进程集合，其中包含下列进程：
-
-- Postgres服务器进程(postgres server process)是所有数据库集簇管理进程的父进程。
-- 每个后端进程(backend process)负责处理客户端发出的查询和语句。
-- 各种后台进程(background process)负责执行各种数据库管理任务（例如清理过程与存档过程）。
--  各种复制相关进程(replication associated process)负责流复制。
--  后台工作进程(background worker process)在9.3版本中被引入，它能执行任意由用户实现的处理逻辑。
-
-<center>
-	<img src="./img/PostGre-Process-Arch.png" width=75% height=75%>
-	<div>不同资源组的查询占用CPU的实时对比</div>
-</center>
-
-## 服务器进程
-
-postgres服务器进程是 PostgreSQL服务器中所有进程的父进程，在早期版本中被称为“postmaster”。带start参数执行pg_ctl实用程序会启动一个postgres服务器进程。它会在内存中分配共享内存区域，启动各种后台进程，如有必要还会启动复制相关进程与后台工作进程，并等待来自客户端的连接请求。每当接收到来自客户端的连接请求时，它都会启动一个后端进程，然后由启动的后端进程处理该客户端发出的所有查询。
-
-
-
-## 后端进程
-
-每个后端进程（也称为“postgres”）由 postgres 服务器进程启动，并处理连接另一侧的客户端发出的所有查询。它通过单条TCP连接与客户端通信，并在客户端断开连接时终止。因为一条连接只允许操作一个数据库，所以必须在连接到PostgreSQL服务器时显式地指定要连接的数据库。PostgreSQL允许多个客户端同时连接，配置参数max_connections用于控制最大客户端连接数（默认为100）。
-
-因为 PostgreSQL 没有原生的连接池功能，所以如果许多客户端频繁地重复与 PostgreSQL服务器建立断开连接（譬如Web 应用），则会导致建立连接与创建后端进程的开销变大。这种情况对数据库服务器的性能有负面影响，通常可以使用池化中间件（pgbouncer或pgpool-II）来避免该问题。
-
-
-
-## 后台进程
-
-<center>
-    <img src="./img/background-process.png" width=75% height=75%>
-    <div>后台进程</div>
-</center>
 
 
 
