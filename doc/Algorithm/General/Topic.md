@@ -42,6 +42,7 @@
 | 回溯 | [47.全排列II](03_BackTrack/47_LC_M_permutations-ii.cpp) | [LC 47.全排列II](03_BackTrack/47_LC_M_permutations-ii.cpp) |      |
 | 回溯 | [46. 全排列](https://leetcode.cn/problems/permutations/)|  [LC 46. 全排列](03_BackTrack/46_LC_M_permutations.cpp) | <font color=FF3933>Hot 100</font> |
 | 回溯 | [39. 总组合数](https://leetcode.cn/problems/combination-sum/) | [LC 39. 总组合数](03_BackTrack/39_LC_M_combination-sum.cpp) |      |
+| 回溯 | [78. 子集](https://leetcode.cn/problems/subsets/description/) | [LC 78. 子集](03_BackTrack/78_LC_M_subsets.cpp) | <font color=FF3933>Hot 100</font> |
 
 # 图
 
