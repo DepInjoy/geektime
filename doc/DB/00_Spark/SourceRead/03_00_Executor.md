@@ -478,21 +478,23 @@ override def run(): Unit = {
   }
 ```
 
-runTask（context）在不同的Task会有不同的实现。现在有两种Task：
+`task.runTask(context)`在不同的Task会有不同的实现。现在有两种Task：
+
 1. `org.apache.spark.scheduler.ResultTask`
-对于最后一个Stage，会根据生成结果的Partition来生成与Partition数量相同的ResultTask。然后，ResultTask会将计算的结果汇报到Driver端。具体实现如下：
-    ```scala
-    override def runTask(context: TaskContext): U = {
-      // 获取反序列化实例
-      val ser = SparkEnv.get.closureSerializer.newInstance()
-      // 获取RDD和作用于RDD的函数
-      val (rdd, func) = ser.deserialize[(RDD[T], (TaskContext,Iterator[T]) => U)](
-        ByteBuffer.wrap(taskBinary.value),
-        Thread.currentThread.getContextClassLoader)
-      // 调用rdd.iterator执行rdd上的计算
-      func(context, rdd.iterator(partition, context))
-    }
-    ```
+  对于最后一个Stage，会根据生成结果的Partition来生成与Partition数量相同的ResultTask。然后，ResultTask会将计算的结果汇报到Driver端。具体实现如下：
+
+   ```scala
+   override def runTask(context: TaskContext): U = {
+     // 获取反序列化实例
+     val ser = SparkEnv.get.closureSerializer.newInstance()
+     // 获取RDD和作用于RDD的函数
+     val (rdd, func) = ser.deserialize[(RDD[T], (TaskContext,Iterator[T]) => U)](
+       ByteBuffer.wrap(taskBinary.value),
+       Thread.currentThread.getContextClassLoader)
+     // 调用rdd.iterator执行rdd上的计算
+     func(context, rdd.iterator(partition, context))
+   }
+   ```
 
 2. `org.apache.spark.scheduler.ShuffleMapTask`. 对于非最后的Stage，会根据每个Stage的Partition数量来生成`ShuffleMapTask`。`ShuffleMapTask`会根据下游Task的Partition数量和Shuffle的策略来生成一系列文件。它的计算过程
     ```scala
@@ -503,7 +505,7 @@ runTask（context）在不同的Task会有不同的实现。现在有两种Task�
       val rddAndDep = ser.deserialize[(RDD[_], ShuffleDependency[_, _, _])](
         ByteBuffer.wrap(taskBinary.value),
         Thread.currentThread.getContextClassLoader)
-
+    
       val rdd = rddAndDep._1
       val dep = rddAndDep._2
       val mapId = if (SparkEnv.get.conf.get(config.SHUFFLE_USE_OLD_FETCH_PROTOCOL)) {
@@ -549,8 +551,171 @@ runTask（context）在不同的Task会有不同的实现。现在有两种Task�
       mapStatus.get
     }
     ```
+
+
+
 ## 任务结果处理
+
+```scala
+override def run(): Unit = {
+                    ......
+    // 1。 执行任务获取计算结果，保存在value中
+    val value = Utils.tryWithSafeFinally {
+      val res = task.run(taskAttemptId = taskId,
+        attemptNumber = taskDescription.attemptNumber,
+        metricsSystem = env.metricsSystem, cpus = taskDescription.cpus,
+        resources = taskDescription.resources, plugins = plugins)
+      threwException = false
+      res
+    } {
+                ......
+    // 获取序列化实例
+    val resultSer = env.serializer.newInstance()
+    // 2. 获取序列化执行结果
+    val valueByteBuffer = SerializerHelper.serializeToChunkedBuffer(resultSer, value)
+    val accumUpdates = task.collectAccumulatorUpdates()
+    val metricPeaks = metricsPoller.getTaskMetricPeaks(taskId)
+    // 3. 首先将结果直接放入org.apache.spark.scheduler.DirectTaskResult
+    val directResult = new DirectTaskResult(valueByteBuffer, accumUpdates, metricPeaks)
+
+    // 4. 根据结果大小使用不同策略将serializedDirectResult传回Driver
+    val serializedDirectResult = SerializerHelper.serializeToChunkedBuffer(ser, directResult,
+      valueByteBuffer.size + accumUpdates.size * 32 + metricPeaks.length * 8)
+    val resultSize = serializedDirectResult.size
+    val serializedResult: ByteBuffer = {
+      if (maxResultSize > 0 && resultSize > maxResultSize) {
+        // 4.1 如果结果的大小大于spark.driver.maxResultSize(默认1G), 直接丢弃
+        ser.serialize(new IndirectTaskResult[Any](TaskResultBlockId(taskId), resultSize))
+      } else if (resultSize > maxDirectResultSize) {
+        // 4.2 结果大于直接网络形式返回结果的大小设置
+        // 结果放入BlockManager等待调用者以网络形式获取
+        val blockId = TaskResultBlockId(taskId)
+        env.blockManager.putBytes(blockId, serializedDirectResult,
+          StorageLevel.MEMORY_AND_DISK_SER)
+        ser.serialize(new IndirectTaskResult[Any](blockId, resultSize))
+      } else {
+        // 4.3 结果直接传回Driver
+        serializedDirectResult.toByteBuffer
+      }
+    }
+                    ......
+    // 5. 向Driver端发送StatusUpdate消息，汇报本次Task已完成
+    execBackend.statusUpdate(taskId, TaskState.FINISHED, serializedResult)
+  } 
+}
+```
+
+TaskRunner会将Task执行状态汇报给Drive(`org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend`)，而Driver会转给`org.apache.spark.scheduler.TaskSchedulerImpl#statusUpdate`。
+
+```scala
+// CoarseGrainedSchedulerBackend对接收到的消息进行处理
+override def receive: PartialFunction[Any, Unit] = {
+  case StatusUpdate(executorId, taskId, state, data, taskCpus, resources) =>
+    // 转给TaskSchedulerImpl处理
+    scheduler.statusUpdate(taskId, state, data.value)
+    		.....
+}
+
+// TaskSchedulerImpl.statusUpdate对结果处理
+def statusUpdate(tid: Long, state: TaskState, serializedData: ByteBuffer): Unit = {
+synchronized {
+    Option(taskIdToTaskSetManager.get(tid)) match {
+      case Some(taskSet) =>
+                    ......
+        if (TaskState.isFinished(state)) {
+          cleanupTaskState(tid)
+          taskSet.removeRunningTask(tid)
+          if (state == TaskState.FINISHED) {
+            // 对正常执行完成的任务的结果处理
+            taskResultGetter.enqueueSuccessfulTask(taskSet, tid, serializedData)
+          } else if (Set(TaskState.FAILED, TaskState.KILLED, TaskState.LOST).contains(state)) {
+            taskResultGetter.enqueueFailedTask(taskSet, tid, state, serializedData)
+          }
+        }
+        			......
+    }
+    				
+}
+```
+
+
+
 ## Driver端的处理
 
+`TaskRunner`将Task执行状态汇报给Driver，Driver调用`org.apache.spark.scheduler.TaskSchedulerImpl#statusUpdate`。不同的状态有不同的处理：
+
+- 如果是`TaskState.FAILED`或`TaskState.KILLED`或`TaskState.LOST`，调用`org.apache.spark.scheduler.TaskResultGetter#enqueueFailedTask`进行处理。
+
+- 对于`TaskState.LOST`，还需要将其所在的Executor标记为FAILED，并且根据更新后的Executor重新调度。
+
+- 如果是`TaskState.FINISHED`，调用`org.apache.spark.scheduler.TaskResultGetter#enqueueSuccessfulTask`处理，调用栈：
+
+  ```scala
+  org.apache.spark.scheduler.TaskSchedulerImpl#handleSuccessfulTask
+  	org.apache.spark.scheduler.TaskSetManager#handleSuccessfulTask
+  		org.apache.spark.scheduler.DAGScheduler#taskEnded
+  			org.apache.spark.scheduler.DAGScheduler.entProcessLoop.post(CompletionEvent)
+  
+  // 对CompletionEvent事件处理
+  org.apache.spark.scheduler.DAGScheduler#handleTaskCompletion
+  ```
+
+  如果Task是ShuffleMapTask，那么它需要将结果通过某种机制告诉下游的Stage，以便其可以作为下游Stage的输入。这个机制是怎么实现的？
+
+  ```scala
+  private[scheduler] def handleTaskCompletion(event: CompletionEvent): Unit = {
+  	val task = event.task
+                      ......
+      event.reason match {
+        case Success =>
+                          ......
+          task match {
+            case rt: ResultTask[_, _] =>
+                          ......
+            case smt: ShuffleMapTask =>
+              val shuffleStage = stage.asInstanceOf[ShuffleMapStage]
+              val ignoreIndeterminate = stage.isIndeterminate &&
+                task.stageAttemptId < stage.latestInfo.attemptNumber()
+              if (!ignoreIndeterminate) {
+                shuffleStage.pendingPartitions -= task.partitionId
+                val status = event.result.asInstanceOf[MapStatus]
+                val execId = status.location.executorId
+                if (executorFailureEpoch.contains(execId) &&
+                  smt.epoch <= executorFailureEpoch(execId)) {
+                } else {
+                  // status是org.apache.spark.scheduler.MapStatus
+                  // 更新内部的几个Hash结构
+                  mapOutputTracker.registerMapOutput(
+                    shuffleStage.shuffleDep.shuffleId, smt.partitionId, status)
+                }
+              }
+  
+              if (runningStages.contains(shuffleStage) && shuffleStage.pendingPartitions.isEmpty) {
+                if (!shuffleStage.shuffleDep.isShuffleMergeFinalizedMarked &&
+                  shuffleStage.shuffleDep.getMergerLocs.nonEmpty) {
+                  checkAndScheduleShuffleMergeFinalize(shuffleStage)
+                } else {
+                  // 提交子Stage
+                  processShuffleMapStageCompletion(shuffleStage)
+                }
+              }
+          }
+  }
+  ```
+
+  
 
 # 参数设置
+
+| 模块     | 参数                                 | 默认值              | 参数意义                                                     |
+| -------- | ------------------------------------ | ------------------- | ------------------------------------------------------------ |
+|          | `spark.executor.memory`              | 1g                  | 配置Executor可以最多使用的内存大小<br/>通过设置Executor的JVM的Heap尺寸来实现 |
+| 日志相关 | `spark.eventLog.enabled`             | false               |                                                              |
+|          | `spark.eventLog.dir`                 | `/tmp/spark-events` | 日志写入路径                                                 |
+|          | `spark.eventLog.compress`            | false               |                                                              |
+|          | `spark.eventLog.rolling.enabled`     |                     |                                                              |
+|          | `spark.eventLog.rolling.maxFileSize` | 128M                |                                                              |
+| 心跳     | `spark.executor.heartbeatInterval`   | 10s                 | Executor和Driver之间心跳的间隔<br/>心跳主要是Executor向Driver汇报运行状态和Executor上报Task的统计信息(metric) |
+| 结果策略 | `spark.task.maxDirectResultSize `    | `1 >> 20`           |                                                              |
+|          | `spark.rpc.message.maxSize`          | 128M                |                                                              |
+
