@@ -570,30 +570,30 @@ override def receive: PartialFunction[Any, Unit] = synchronized {
 
 如果Executor退出，`ExecutorRunner`将向Work发送`ExecutorStateChanged`消息，Worker会将这个消息转发到Master(参见`syncExecutorStateWithMaster`)。由于Executor是异常退出，Master将会为该Application分配新的Executor。如果失败次数超过10次，那么将这个Application标记为失败
 ```scala
-private def fetchAndRunExecutor(): Unit = {
-  try {
-              ....
-    val builder = CommandUtils.buildProcessBuilder(...)
-          ......
+  private def fetchAndRunExecutor(): Unit = {
+    try {
+                ....
+      val builder = CommandUtils.buildProcessBuilder(...)
+            ......
 
-    process = builder.start()
-              ......
-    val exitCode = process.waitFor()
-    state = ExecutorState.EXITED
-    val message = "Command exited with code " + exitCode
-    worker.send(ExecutorStateChanged(appId, execId,
-        state, Some(message), Some(exitCode)))
-  } catch {
-    case interrupted: InterruptedException =>
-      logInfo("Runner thread for executor " + fullId + " interrupted")
-      state = ExecutorState.KILLED
-      killProcess(None)
-    case e: Exception =>
-      logError("Error running executor", e)
-      state = ExecutorState.FAILED
-      killProcess(Some(e.toString))
+      process = builder.start()
+                ......
+      val exitCode = process.waitFor()
+      state = ExecutorState.EXITED
+      val message = "Command exited with code " + exitCode
+      worker.send(ExecutorStateChanged(appId, execId,
+          state, Some(message), Some(exitCode)))
+    } catch {
+      case interrupted: InterruptedException =>
+        logInfo("Runner thread for executor " + fullId + " interrupted")
+        state = ExecutorState.KILLED
+        killProcess(None)
+      case e: Exception =>
+        logError("Error running executor", e)
+        state = ExecutorState.FAILED
+        killProcess(Some(e.toString))
+    }
   }
-}
 ```
 
 Master接收到`ExecutorStateChanged`进行消息处理
