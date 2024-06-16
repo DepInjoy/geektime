@@ -445,7 +445,7 @@ $$
 - [52. N皇后 II](https://leetcode-cn.com/problems/n-queens-ii/)
 
 # 练习题
-- [LeetCode 42. 接雨水(H)](https://leetcode-cn.com/problems/trapping-rain-water/)
+- 
 
 # 参考资料
 - 1 《剑指Offer(专项突破版)：数据结构与算法名企面试题精讲》
