@@ -560,3 +560,9 @@ static Expr * process_duplicate_ors(List *orlist) {
         return make_andclause(pull_ands(winners));
 }
 ```
+
+## 生成执行计划
+最优的执行路径生成后，虽然Path Tree已经足够清楚地指出查询计划要进行的物理操作，但含有代价计算的冗余信息，不便于查询执行器使用，并且有些参数还没有建立好，因此通过将其转换成执行计划来生成更适合查询执行器的Plan Tree，然后将Plan Tree转交给执行器。
+
+PostgreSQL数据库的每个Path节点都一一对应一个Plan节点(相关实现见`create_plan_recurse`)，最优的执行路径需要通过`create_plan`函数转换成对应的执行计划(Plan)。
+
