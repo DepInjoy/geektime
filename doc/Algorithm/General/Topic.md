@@ -110,7 +110,9 @@
 | 双指针<br/>动态规划<br/>单调栈 | [42. 接雨水(H)](https://leetcode-cn.com/problems/trapping-rain-water/) | [LC 42. 接雨水](00_01_DoublePointer/42_LC_H_trapping-rain-water.cpp) | <b><font color=FF3933>Hot 100</font></b> |
 | 双指针                         | [344. 反转字符串](https://leetcode.cn/problems/reverse-string/description/) | [LC 344. 反转字符串](01_DoublePointer/344_LC_E_reverse-string.cpp) |                                          |
 | 双指针<br/>直接计算+排序       | [977. 有序数组的平方](https://leetcode.cn/problems/squares-of-a-sorted-array/description/) | [LC 977. 有序数组的平方](01_DoublePointer/977_LC_E_squares-of-a-sorted-array.cpp) |                                          |
-|                                | [125. 验证回文](https://leetcode.cn/problems/valid-palindrome/description) | [125. 验证回文](01_DoublePointer/125_LC_E_valid-palindrome.cpp) |                                          |
+|                                | [125. 验证回文](https://leetcode.cn/problems/valid-palindrome/description) | [LC 125. 验证回文](01_DoublePointer/125_LC_E_valid-palindrome.cpp) |                                          |
+|  双指针 | [283. 移动零](https://leetcode.cn/problems/move-zeroes) | [LC 283. 移动零](00_01_DoublePointer/283_LC_E_move-zeroes.cpp) | <b><font color=FF3933>Hot 100</font></b> |
+|  双指针 | [11. 盛最多水的容器](https://leetcode.cn/problems/container-with-most-water) | [LC 11. 盛最多水的容器](00_01_DoublePointer/11_LC_M_container-with-most-water.cpp) | <b><font color=FF3933>Hot 100</font></b> |
 
 # 栈
 
@@ -186,7 +188,7 @@
 | ------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------ |
 | Hash表+前缀和 | [523.连续的子数组和](https://leetcode.cn/problems/continuous-subarray-sum/description/) | [523.连续的子数组和](09_Hash/523_M_LC-continuous-subarray-sum.cpp) |                                            |
 | Hash表        | [1. 两数之和](https://leetcode.cn/problems/two-sum/description/) | [LC 1. 两数之和](09_Hash/01_LC_E_two-sum.cpp)                | <font color=FF3933>Hot 100</font><br/>腾讯 |
-|               |                                                              |                                                              |                                            |
+| Hash表| [128. 最长连续序列](https://leetcode.cn/problems/longest-consecutive-sequence) |  [LC 128. 最长连续序列](09_Hash/128_LC_M_longest-consecutive-sequence.cpp)|   |
 
 
 
