@@ -22,7 +22,9 @@ $$
 | Range类型基于边界的直方图         | Range类型生基于边界的直方图,这种类型直方图通过`range_typanalyze`系统函数来进行统计 |
 
 相关系数的计算公式
+
 $$
+
 \begin{array}{l}
 
 \rho = \frac{n\sum{xy} - \sum{x}\sum{y}}{\sqrt{n\sum{x^2} - ({\sum{x}})^2} \sqrt{n\sum{y^2}-(\sum {y})^2}} \\
@@ -33,25 +35,12 @@ $$
 因此：\\
 \rho = \frac{n\sum{xy} - {\sum{x}}^2}{n\sum{x^2} - ({\sum{x}})^2}
 \end{array}
+
 $$
 
-`PostgreSQL`使用`PG_STATISTIC`系统表保存单列的统计信息， 如果用户要给某一个表成生统计信息使用`ANALYZE`语句进行统计分析，给该表生成统计信息并且保存在`PG_STATISTIC`系统表中。`PostgreSQL`对每一个属性（列）的统计目前最多只能应用 `STATISTIC_NUM_SLOTS`=5种方法，因此在 PG_STATISTIC 会有 `stakind(l-5)`、 `staop(l-5 )`、` stanumbers[1](1-5)`、`stavalues(1-5)`分别是 槽位。如果`stakind` 不为0 ，那么表明这个槽位有统计信息。
+`PostgreSQL`使用`PG_STATISTIC`系统表保存单列的统计信息， 如果用户要给某一个表成生统计信息使用`ANALYZE`语句进行统计分析，给该表生成统计信息并且保存在`PG_STATISTIC`系统表中。如果`stakind` 不为0 ，那么表明这个槽位有统计信息。
 
-```C
-// 列可以应用的统计方法
-#define STATISTIC_NUM_SLOTS  5
 
-// 高频值, 表示一个列中出现最频繁的值
-#define STATISTIC_KIND_MCV 1 
-// 直方图
-#define STATISTIC_KIND_HISTOGRAM 2
-// 相关系数, 记录的是当前列未排序的数据分布和排序后的数据分布的相关性
-#define STATISTIC_KIND_CORRELATION 3
-// 类型高频值
-#define STATISTIC_KIND_MCELEM 4 
-// 数组类型高频值
-#define STATISTIC_KIND_DECHIST 5 
-```
 
 | 列属性        | 数据类型   | 描述                                                         |
 | ------------- | ---------- | ------------------------------------------------------------ |
@@ -80,23 +69,6 @@ PG_STATISTIC_EXT系统表保存多列的统计信息 用户需要显式地使用
 | `stxndistinct`    | `pg_ndistinct`    | N-distinct计数，序列化为`pg_ndistinct`类型                   |
 | `stxdependencies` | `pg_dependencies` | 函数依赖性统计信息，序列化为`pg_dependencies`类型            |
 
-```c
-#define STATS_EXT_NDISTINCT			'd'
-#define STATS_EXT_DEPENDENCIES		'f'
-#define STATS_EXT_MCV				'm'
-#define STATS_EXT_EXPRESSIONS		'e'
-```
-在`optimizer\cost.h`定义了不同的代价
-
-```c
-#define DEFAULT_SEQ_PAGE_COST  1.0  		// 顺序读单页代价
-#define DEFAULT_RANDOM_PAGE_COST  4.0		// 随机读单页代价
-#define DEFAULT_CPU_TUPLE_COST	0.01		
-#define DEFAULT_CPU_INDEX_TUPLE_COST 0.005
-#define DEFAULT_CPU_OPERATOR_COST  0.0025
-#define DEFAULT_PARALLEL_TUPLE_COST 0.1
-#define DEFAULT_PARALLEL_SETUP_COST  1000.0
-```
 ### 单列统计信息生成源码
 
 ```c
