@@ -5,12 +5,14 @@ exec_simple_query(query_string)
   // 1. 语法解析
   pg_parse_query
     raw_parser
+
   // 2. Analyze和rewrite
   pg_analyze_and_rewrite_fixedparams
     // Analyse原始语法树并转化为Query
     parse_analyze_fixedparams
     // Rewrite the query
     pg_rewrite_query
+
   // 3. 执行查询优化
   pg_plan_queries
     pg_plan_query
@@ -798,6 +800,31 @@ Algorithm S from Knuth 3.4.2 https://rosettacode.org/wiki/Knuth%27s_algorithm_S
 ## 扫描路径
 扫描路径是对基表进行遍历时的执行路径，针对不同的基表有不同的扫描路径，例如针对堆表有顺序扫描(SeqScan)、针对索引有索引扫描(IndexScan)和位图扫描(BitmapScan)、针对子查询有子查询扫描(SubqueryScan)、针对通用表达式有通用表达式扫描(CteScan)等，扫描路径通常是执行计划树的叶子节点。
 
+### 路径
+
+```c
+// src/include/nodes/pathnodes.h
+typedef struct RelOptInfo {
+  NodeTag		type;
+  RelOptKind	reloptkind;
+      ......
+} RelOptInfo;
+
+
+typedef enum RelOptKind {
+  // 基表
+  RELOPT_BASEREL,
+  RELOPT_JOINREL,
+  RELOPT_OTHER_MEMBER_REL,
+  RELOPT_OTHER_JOINREL,
+  RELOPT_UPPER_REL,
+  RELOPT_OTHER_UPPER_REL
+} RelOptKind;
+```
+### 代价
+
+#### 代价基准单位
+PostgreSQL数据库采用顺序读写一个页面的IO代价作为单位1，用DEFAULT_SEQ_PAGE_COST来表示。
 
 ```c
 // src/include/optimizer/cost.h
@@ -809,10 +836,12 @@ Algorithm S from Knuth 3.4.2 https://rosettacode.org/wiki/Knuth%27s_algorithm_S
 #define DEFAULT_RANDOM_PAGE_COST  4.0
 
 // 基于元组的CPU代价
+// 1. 处理一条元组的代价
 #define DEFAULT_CPU_TUPLE_COST	0.01
+// 2. 处理一个索引元组的代价
 #define DEFAULT_CPU_INDEX_TUPLE_COST 0.005
 
-// 基于表达式的COU代价
+// 基于表达式的CPU代价
 #define DEFAULT_CPU_OPERATOR_COST  0.0025
 
 // 并行查询产生的基准代价
@@ -833,7 +862,91 @@ Algorithm S from Knuth 3.4.2 https://rosettacode.org/wiki/Knuth%27s_algorithm_S
 #define DEFAULT_EFFECTIVE_CACHE_SIZE  524288
 ```
 
+#### 启动代价和整体代价
+PostgreSQL数据库将代价分成了两个部分：启动代价(Startup Cost)和执行代价(Run Cost)，两者的和是整体代价(Total Cost)。
+```
+Total Cost=Startup Cost + Run Cost
+```
+
+```c
+typedef struct Path {
+        ......
+  Cardinality rows;			/* estimated number of result tuples */
+  // 启动代价
+  // 从语句开始执行到查询引擎返回第一条元组的代价
+  Cost		startup_cost;	
+  // 整体代价
+  // SQL语句从开始执行到结束的所有代价
+  Cost		total_cost;		/* total cost (assuming all tuples fetched) */ 
+  List	   *pathkeys;
+} Path;
+```
+
+#### 表达式代价计算
+
+表达式代价主要包括如下方面：
+- 对投影列的表达式进行计算产生的代价。
+- 对约束条件中的表达式进行计算产生的代价。
+- 对函数参数中的表达式进行计算产生的代价。
+- 对聚集函数中的表达式进行计算产生的代价。
+- 子计划等执行计算产生的代价。
+
+表达式代价的计算是通过cost_qual_eval函数(针对表达式列表)或cost_qual_eval_node函数(针对单个表达式)来计算,它们两个没有区别，前者是对一个列表递归处理，它们都调用递归函数`cost_qual_eval_walker`.
+```c
+void cost_qual_eval(QualCost *cost, List *quals,
+    PlannerInfo *root) {
+  cost_qual_eval_context context;
+  ListCell  *l;
+
+  context.root = root;
+  context.total.startup = 0;
+  context.total.per_tuple = 0;
+  foreach(l, quals) {
+    Node  *qual = (Node *) lfirst(l);
+    cost_qual_eval_walker(qual, &context);
+  }
+  *cost = context.total;
+}
+
+void cost_qual_eval_node(QualCost *cost, Node *qual,
+    PlannerInfo *root) {
+  cost_qual_eval_context context;
+  context.root = root;
+  context.total.startup = 0;
+  context.total.per_tuple = 0;
+  cost_qual_eval_walker(qual, &context);
+  *cost = context.total;
+}
+```
+cost_qual_eval_walker函数递归处理表达式并且将表达式的估计代价逐层累加到QualCost.
+
+```c
+typedef struct QualCost {
+  // 计入启动代价的部分
+  Cost		startup;
+  // 应用到元组上的代价
+  Cost		per_tuple;
+} QualCost;
+```
+
 `compute_parallel_worker`函数来获得实际可用的并行度
+
+## 动态规划和遗传算法
+动态规划方法需要遍历全部的解空间，它一定能够获得最优解，因此是我们首选的方法，遗传算法则只能尝试从局部最优解向全局最优解不断逼近，但由于遗传代际的数量的限制，最终可能产生的是局部最优解，这种方法在表比较多的时候被采用，因为在表比较多的时候，动态规划的解空间快速地膨胀，可能会导致查询性能的下降，遗传算法的复杂度则可以限制在一定的范围内。
+
+### 动态规划
+动态规划方法适用于包含大量重复子问题的最优解问题，通过记忆每个子问题的最优解，使相同的子问题只求解一次，下次可以重复利用上次子问题求解的结果，这就要求这些子问题的最优解能够构成整个问题的最优解，也就是要具有最优子结构的性质（无后效性），假如最优的子问题无法构成整个问题的最优解，就无法采用动态规划的方法。
+
+动态规划从求解的方式而言通常有递归和迭代两种方法，递归方法通常是不断地划分子问题然后自我调用的过程，迭代则是从子问题直接出发，先求子问题的解，用子问题的解“堆积”整个问题的解，从直观感受上来看，递归是逆向的，迭代是正向的。PostgreSQL数据库采用的是迭代的方式进行求解，它先尝试求两个表的最优子路径，然后依次迭代成3个表、4个表……依此类推。
+
+### 遗传算法
+遗传算法则是一个选择的过程，它通过将染色体杂交构建新染色体的方法增大解空间，并在解空间中随时通过适应度函数进行筛选，推举良好的基因，也淘汰掉不良的基因。动态规划获得的解一定是全局最优解，遗传算法最终不一定能达到全局最优解，但可以通过改进杂交和变异的方式，来争取尽量地靠近全局最优解。
+
+在PostgreSQL数据库中，遗传算法是动态规划方法的有益补充，只有在enable_geqo打开并且待连接的RelOptInfo的数量超过geqo_threshold（默认为12个）的情况下，才会使用遗传算法。
+
+## 物理连接路径
+相同的两个基表(RelOptInfo)要建立连接关系，由于它们采用的物理路径不同，对应的路径的代价也就不同，因此在建立连接路径的过程中，需要不断地尝试对路径进行筛选，尽早地淘汰掉一些明显比较差的路径，从时间和空间上减少查询优化器的时间消耗。
+
 
 ## 生成执行计划
 最优的执行路径生成后，虽然Path Tree已经足够清楚地指出查询计划要进行的物理操作，但含有代价计算的冗余信息，不便于查询执行器使用，并且有些参数还没有建立好，因此通过将其转换成执行计划来生成更适合查询执行器的Plan Tree，然后将Plan Tree转交给执行器。
