@@ -1,8 +1,6 @@
 # 安全
 
-## 基本安全
-
-### 密码管理
+## 基本安全:密码管理
 
 密码会过期，并且账户有可能会由于多次连续失败而被锁定。在修改密码之后，需要维护密码历史记录，以防止重用以前的密码。账户密码到期的特性是由指定给账户的配置文件决定的。配置文件由CREATE PROFILE命令创建，并由DBA(数据库管理员)管理。
 
@@ -52,7 +50,22 @@ alter profile limited_profile limit
     password_reuse_time unlimited;
 ```
 
-## 
+## 高级安全性：虚拟数据库
+虚拟专用数据库(Virtual Private Database，VPD）在应用程序的表之间提供记录级别的安全性。在VPD中，可以直接在表、视图和同义词上实施安全策略，这样用户就无法绕过安全设置了。
+
+
+## 有限资源授权
+
+在Oracle数据库中分配资源限额时，可以使用`CREATE USER`或`ALTER USER`命令中的`QUOTA`参数：
+```sql
+-- 给bob分配USERS表空间中100MB的限额
+alter user bob quota 100g on users;
+```
+用户空间限额可在通过CREATE USER命令创建用户时设置。如果想撤消用户空间限额，以便不受限制，可以将`UNLIMITED TABLESPACE`系统权限授予该用户。
+
+配置文件也可以限制其他的资源，例如规定用户对Oracle的请求可占用的CPU时间或空闲时间量。可创建详细规定这些资源限额的配置文件，并将之分配给一个或多个用户。
+
+
 
 # 参考资料
 1. 《Oracle Database 12c完全参考手册(第7版)》
