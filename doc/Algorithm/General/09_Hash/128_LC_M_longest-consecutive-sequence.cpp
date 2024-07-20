@@ -4,19 +4,16 @@
 */
 
 int longestConsecutive(vector<int>& nums) {
-    const int n = nums.size();
-    std::unordered_set<int> usets;
-    for (int num : nums) usets.insert(num);
+    std::unordered_set<int> uset;
+    for (int num : nums) uset.insert(num);
 
-    int max_len = 0;
-    for (int num : nums) {
-        if (!usets.count(num - 1)) {
-            int cur_num = num, cur_len = 1;
-            while (usets.count(cur_num + 1)) {
-                ++cur_len, ++cur_num;
-            }
-            max_len = std::max(max_len, cur_len);
+    int mlen = 0;
+    for (int num : uset) {
+        if (!uset.count(num - 1)) {
+            int cur_len = 1, cur = num;
+            while (uset.count(++cur)) ++cur_len;
+            mlen = std::max(mlen, cur_len); 
         }
     }
-    return max_len;
+    return mlen;
 }

@@ -181,6 +181,7 @@
 | 快慢指针 | [142. 环形链表 II](https://leetcode.cn/problems/linked-list-cycle-ii/description/) | [LC 142. 环形链表 II](00_LinkedList/142_LC_M_linked-list-cycle-ii.cpp) | <font color=FF3933>Hot 100</font> |
 | 双链表+Hash表 | [146. LRU缓存](https://leetcode.cn/problems/lru-cache/) | [LC 146.LRU缓存](00_LinkedList/146_LC_M_LRU.cpp) | <font color=FF3933>Hot 100</font> |
 | Hash表+链表<br/>双指针 | [160. 相交链表](https://leetcode.cn/problems/intersection-of-two-linked-lists) | [LC 160. 相交链表](00_LinkedList/160_LC_E_intersection-of-two-linked-lists.cpp) | <b><font color=FF3933>Hot 100</font></b>|
+|  |  |  | |
 
 # Hash表
 
@@ -189,6 +190,7 @@
 | Hash表+前缀和 | [523.连续的子数组和](https://leetcode.cn/problems/continuous-subarray-sum/description/) | [523.连续的子数组和](09_Hash/523_M_LC-continuous-subarray-sum.cpp) |                                            |
 | Hash表        | [1. 两数之和](https://leetcode.cn/problems/two-sum/description/) | [LC 1. 两数之和](09_Hash/01_LC_E_two-sum.cpp)                | <font color=FF3933>Hot 100</font><br/>腾讯 |
 | Hash表| [128. 最长连续序列](https://leetcode.cn/problems/longest-consecutive-sequence) |  [LC 128. 最长连续序列](09_Hash/128_LC_M_longest-consecutive-sequence.cpp)|   |
+| Hash表 | [49. 字母异位词分组](https://leetcode.cn/problems/group-anagrams/description) | [LC 49. 字母异位词分组](09_Hash/49_LC_M_group-anagrams.cpp) | <font color=FF3933>Hot 100</font> |
 
 
 
