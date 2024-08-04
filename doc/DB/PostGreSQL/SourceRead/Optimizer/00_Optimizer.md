@@ -1,5 +1,38 @@
+# 查看执行计划
+
+EXPLAIN语句来展示查询语句的执行计划，其语法定义如下：
+
+```sql
+EXPLAIN [(_option_ [, ...])] _statement_
+EXPLAIN [ANALYZE] [VERBOSE] _statement_
+```
+
+`_option_`可以是
+
+```sql
+ANALYZE [ _boolen_ ]
+VERBOSE [ _boolen_ ]
+COSTS [ _boolen_ ]
+BUFFERS [ _boolen_ ]
+TIMING [ _boolen_ ]
+FORMAT {TEXT | XML | JSON | YAML}
+```
+
+| 关键字  | 描述                                                         |
+| ------- | ------------------------------------------------------------ |
+| VERBOSE | 打印信息更丰富                                               |
+| ANALYZE | 打印查询优化模块估算代价，还会打印语句执行的实际代价<br/>注意，添加了ANALYZE，语句会真的执行 |
+| COSTS   | 默认打印代价，可以通过COSTS OFF关闭代价打印，本选项默认打开。 |
+| BUFFERS | 需要和ANALYZE同时使用，打印缓冲区命中率                      |
+| TIMING  | 需要和ANALYZE同时使用，ANALYZE默认会统计各个节点实际运行时间<br/>通过TIMING OFF可以让ANALYZE不统计时间，值统计处理的元组数量。 |
+| FORMAT  |                                                              |
+
+
+
+---
 
 SQL字符串下发给Postgres到查询优化，调用栈：
+
 ```c
 exec_simple_query(query_string)
   // 1. 语法解析
@@ -19,7 +52,9 @@ exec_simple_query(query_string)
       planner   // 查询优化入口
 ```
 # Parser
+
 `src/backend/parser/gram.y`词法分析，`src/backend/parser/scan.l`语法分析。
+
 ```C
 // 将用户输入字符串形式的SQL解析成查询树
 List * raw_parser(const char *str, RawParseMode mode)
@@ -110,7 +145,10 @@ typedef struct RangeVar {
   int      location;
 } RangeVar;
 ```
+### List结构
+
 `List`也是对Node的扩展，它的第一个成员也是`NodeTag`用于表示不同类型的List
+
 ```c
 // src/include/nodes/pg_list.h
 typedef struct List {
@@ -126,20 +164,36 @@ typedef struct List {
 } List;
 ```
 
-# Analyze
-`Query *parse_analyze_fixedparams(RawStmt *parseTree, ...)`实现对原始的语法树Analyze并转化为`Query`。首先了解一下`Query`结构。
 
-## Query数据结构
-```C
+
+### 窗口结构
+
+```c
 // src/include/nodes/parsenodes.h
-typedef struct Query {
-  // 取值为T_Query
-  NodeTag    type;
-  CmdType    commandType;
-  QuerySource querySource pg_node_attr(query_jumble_ignore);
-      ......
-} Query;
+typedef struct WindowDef {
+	NodeTag		type;
+	char	   *name;
+	char	   *refname;
+    // 分区表达式列表
+	List	   *partitionClause;
+    // ORDER BY列表
+	List	   *orderClause;
+    // Frame的类型，ROWS|RANGE
+	int			frameOptions;
+    // start和end Frame
+	Node	   *startOffset;
+	Node	   *endOffset;
+	int			location;
+} WindowDef;
 ```
+
+
+
+# Analyze
+
+`Query *parse_analyze_fixedparams(RawStmt *parseTree, ...)`实现对原始的语法树经过语义分析后会设呢成一颗查询树(用Query结构体表示)。首先了解一下`Query`结构。
+
+## 查询树结构
 ### Var结构
 ```C
 typedef struct Var {
@@ -200,7 +254,7 @@ typedef struct RangeTblEntry{
 } RangeTblEntry;
 ```
 ### RangeTblRef结构
-`RangeTblEntry`只保留在查询树的`Query->rtable`链表中，而链表是一个线性结构，它如何保存树状的关系代数表达式中的连接操作呢？答案是在`Query->jointree`中保存各个范围表之间的连接关系。
+`RangeTblEntry`只保留在查询树的`Query->rtable`链表中，而链表是一个线性结构，`Query->jointree`中保存各个范围表之间的连接关系。
 
 如果在`Query->jointree`中还保存同样的一份`RangeTblEntry`，那么一方面会造成存储的冗余，另一方面也容易产生数据不一致的问题，因此在查询树的其他任何地方都不再存放新的`RangeTblEntry`，每个范围表在Query->rtable链表中有且只能有一个，在其他地方使用到范围表都使用`RangeTblRef`来代替。`RangeTblRef`是对`RangeTblEntry`的引用，因为`RangeTblEntry`在`Query->rtable`中的位置是确定的，因此可以用它在`Query->rtable`链表中的位置`rtindex`来标识。
 
@@ -226,7 +280,7 @@ typedef struct JoinExpr {
   Node     *rarg;
   // USING子句对应的约束条件
   List     *usingClause pg_node_attr(query_jumble_ignore);
-  /* alias attached to USING clause, if any */
+  // USING子句的别名
   Alias     *join_using_alias pg_node_attr(query_jumble_ignore);
   // on子句对应的约束条件
   Node     *quals;
@@ -237,7 +291,18 @@ typedef struct JoinExpr {
 } JoinExpr;
 ```
 
-`FromExpr`和`JoinExpr`是用来表示表之间的连接关系的结构体。通常来说，`FromExpr`中的各个表之间的连接关系是Inner Join，这样就可以在`FromExpr->fromlist`中保存任意多个表，默认是内连接的关系
+例如
+
+```sql
+SELECT * FROM STUDENT INNER JOIN SCORE
+		-- quals保存的是STUDENT.sno = SCORE.sno
+		ON STUDENT.sno = SCORE.sno;
+```
+
+
+
+`FromExpr`和`JoinExpr`是用来表示表之间的连接关系的结构体。
+
 ```C
 typedef struct FromExpr {
   NodeTag    type;
@@ -248,9 +313,108 @@ typedef struct FromExpr {
 } FromExpr;
 ```
 
+### 子查询
+
+PG根据子查询出现的位置不同将其分为子查询和子连接，出现在FROM关键字后的子句是子查询语句，出现在WHERE/ON等约束条件中或投影是子连接语句。
+
+```c
+typedef struct SubLink {
+	Expr		xpr;
+    // 子连接的类型
+	SubLinkType subLinkType;
+	int			subLinkId;
+    // ALL/ANY/ROWCOMPARE的outer-query
+    // 例如, a_expr NOT IN b_expr,testexpr是a_expr
+	Node	   *testexpr;
+    // 参见gram.y的subquery_Op定义
+	// 例如：a_expr LIKE ANY，其中LIKE的operName是~~
+	List	   *operName pg_node_attr(query_jumble_ignore);
+	// 关联的SELECT语句
+	Node	   *subselect;
+	int			location;
+} SubLink;
+```
+
+子查询的语法树结构：
+
+```c
+// src/include/nodes/parsenodes.h
+typedef struct RangeSubselect {
+	NodeTag		type;
+    // 该子查询前是否有LATERAL
+	bool		lateral;
+    // 关联的SELECT语句
+	Node	   *subquery;
+    // 子查询的别名
+	Alias	   *alias;
+} RangeSubselect;
+```
+
+
+
+### Query结构
+
+```c
+// src/include/nodes/parsenodes.h
+typedef struct Query {
+  // 取值为T_Query
+  NodeTag    type;
+  CmdType    commandType;
+  QuerySource querySource pg_node_attr(query_jumble_ignore);
+      ......
+  // WITH语句列表
+  List	   *cteList;
+  // 查询中出现的RangeTblEntry只出现在这里
+  // 其他地方出现范围表通过RangeTblRef对范围表引用
+  List	   *rtable;
+  // 保存各个范围表的连接关系
+  FromExpr   *jointree;
+} Query;
+```
+
+### 窗口结构
+
+```c
+// 语义分析阶段transformWindowDefinitions函数将
+// WindowDef转化为WindowClause
+typedef struct WindowClause {
+	NodeTag		type;
+	/* window name (NULL in an OVER clause) */
+	char	   *name pg_node_attr(query_jumble_ignore);
+	/* referenced window name, if any */
+	char	   *refname pg_node_attr(query_jumble_ignore);
+    // 分别表示分区列表和ORDER BY列表
+	List	   *partitionClause;
+	List	   *orderClause;
+    
+    // Frame表达，类型, starting bound表达式和ending bound表达式
+	int			frameOptions;
+	Node	   *startOffset;
+	Node	   *endOffset;
+   
+	/* qual to help short-circuit execution */
+	List	   *runCondition pg_node_attr(query_jumble_ignore);
+	/* in_range function for startOffset */
+	Oid			startInRangeFunc pg_node_attr(query_jumble_ignore);
+	/* in_range function for endOffset */
+	Oid			endInRangeFunc pg_node_attr(query_jumble_ignore);
+	/* collation for in_range tests */
+	Oid			inRangeColl pg_node_attr(query_jumble_ignore);
+	/* use ASC sort order for in_range tests? */
+	bool		inRangeAsc pg_node_attr(query_jumble_ignore);
+	/* nulls sort first for in_range tests? */
+	bool		inRangeNullsFirst pg_node_attr(query_jumble_ignore);
+	Index		winref;			/* ID referenced by window functions */
+	/* did we copy orderClause from refname? */
+	bool		copiedOrder pg_node_attr(query_jumble_ignore);
+} WindowClause;
+```
+
 
 
 # 查询优化
+
+查询优化模块在获取到查询树之后，开始对查询树进行逻辑优化，也就是对查询树进行等价变换，将其重写成一棵新的查询树，这个新的查询树又作为物理优化的输入参数，进行物理优化。
 
 ## 逻辑重写优化
 
