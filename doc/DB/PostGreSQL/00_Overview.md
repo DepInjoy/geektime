@@ -16,3 +16,11 @@ psql -h <ip> -p <query port> -d <database> -U <user name> -f xx.sql
 -- 退出psql
 \q
 ```
+
+```sql
+-- namespace oid是隐藏字段，须显式加oid
+SELECT oid, * FROM pg_namespace;
+
+-- 
+SELECT * FROM current_schema();
+```

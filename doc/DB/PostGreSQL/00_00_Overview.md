@@ -44,8 +44,8 @@ PostgreSQL是C/S结构的关系型数据库，采用多进程架构，运行在�
 - Postgres服务器进程(postgres server process)是所有数据库集簇管理进程的父进程。
 - 每个后端进程(backend process)负责处理客户端发出的查询和语句。
 - 各种后台进程(background process)负责执行各种数据库管理任务(例如清理过程与存档过程)。
--  各种复制相关进程(replication associated process)负责流复制。
--  后台工作进程(background worker process)在9.3版本中被引入，它能执行任意由用户实现的处理逻辑。
+- 各种复制相关进程(replication associated process)负责流复制。
+- 后台工作进程(background worker process)在9.3版本中被引入，它能执行任意由用户实现的处理逻辑。
 <center>
 	<img src="./img/PostGre-Process-Arch.png" width=75% height=75%>
 	<div>不同资源组的查询占用CPU的实时对比</div>

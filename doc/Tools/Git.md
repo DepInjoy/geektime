@@ -59,6 +59,15 @@ git submodule update --init --recursive
 ## 参考资料
 1. [Git工具 - 子模块](https://git-scm.com/book/zh/v2/Git-%E5%B7%A5%E5%85%B7-%E5%AD%90%E6%A8%A1%E5%9D%97)
 
+# 分支管理
+```shell
+# 拉取远程仓库的最新变化，只更新本地的远程追踪分支
+git fetch origin
+
+# 拉取并合并远程分支的内容到当前分支
+git pull origin <远程分支名>
+```
+
 # 日常查询定位
 ## 查看某个文件某行的改动历史
 使用`git blame`和`git show`命令，查看一个文件，某些行的修改记录。相关步骤:
@@ -72,6 +81,25 @@ git show commitID
 ### 参考资料
 1. [git查看某个文件某些行的改动](https://blog.csdn.net/zhezhebie/article/details/82378809)
 
+## 合并某分支并删除某提交
+```shell
+# 首先切换到目标分支
+git checkout <目标分支名>
+
+# 合并指定分支，用--no-commit暂时不提交合并结果
+git merge --no-commit <要合并的分支名>
+
+# 剔除不想要的提交，可以通过git log查看提交的哈希值
+git revert <不想要的提交的哈希值>
+```
+如果剔除不想要的提交，存在冲突，手动合并冲突，执行`git revert --continue`
+
+最后，提交合并结果
+```shell
+git commit -m "xxx"
+```
+
+如果想完全删除某次提交的痕迹，可以考虑使用`git rebase -i`来修改提交历史
 
 # Git报错处理
 
