@@ -9,9 +9,19 @@
 <b><font color=ff5533>分组加密算法有ECB,CBC,CFB,OFB算法模式。</font></b>
 
 - ECB(Electronic Code Book)/电码本模式
-- CBC(Cipher Block Chaining)/密文分组链接方式
+  - 最简单的加密模式：每个分组独立加密。
+  - 缺点：相同的明文块会被加密成相同的密文块，容易被攻击者识别相同的模式，存在较大的安全隐患。
+- CBC(Cipher Block Chaining)/密文分组链接方式，常用于文件加密、数据传输等场景。
+  - 分组依赖：每个明文块在加密前与前一个密文块进行异或操作。
+  - 初始化向量 (IV)：第一个块需要一个随机的初始化向量，确保相同的明文会生成不同的密文。
+  - 错误传播：一个密文块的错误会影响后续的所有块。
+
 - Cipher Feedback (CFB)/密文反馈模式
 - Output Feedback (OFB)/输出反馈模式
+- Counter Mode(CTR)/计算器模式，适用于需要高效处理大数据流的场景，如网络传输加密。
+  - 流模式：将块加密算法变成流加密算法，通过计数器生成唯一的密钥流分组。
+  - 并行处理：各分组加密独立，可并行处理。
+  - 灵活性：加密和解密过程相同。
 
 ---
 
@@ -44,9 +54,9 @@ SM4是中国国家密码管理局发布的一种对称加密算法，广泛应�
 [Mysql旋转密钥](../../MySQL/00_Overview.md#主密钥轮换)
 
 ## 透明加密TDE
-
+[OceanBase:透明加密](https://www.oceanbase.com/docs/common-oceanbase-database-cn-10000000001698734)
 [PolarDB: TDE透明数据加密](https://docs.polardbpg.com/1714370867366/features/v11/security/tde.html)
-(OpenGuass:TDE)(https://docs-opengauss.osinfra.cn/zh/docs/3.0.0/docs/Developerguide/%E8%AE%BE%E7%BD%AE%E9%80%8F%E6%98%8E%E6%95%B0%E6%8D%AE%E5%8A%A0%E5%AF%86_TDE.html)
+[OpenGuass:TDE](https://docs-opengauss.osinfra.cn/zh/docs/3.0.0/docs/Developerguide/%E8%AE%BE%E7%BD%AE%E9%80%8F%E6%98%8E%E6%95%B0%E6%8D%AE%E5%8A%A0%E5%AF%86_TDE.html)
 
 # 参考资料
 1. [分组加密的四种模式(ECB、CBC、CFB、OFB)](https://www.cnblogs.com/yanzi-meng/p/9640578.html)

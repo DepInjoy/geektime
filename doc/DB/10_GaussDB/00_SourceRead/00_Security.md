@@ -410,7 +410,26 @@ void GetTdeInfoFromRel(Relation rel, TdeInfo *tde_info)
     }
 }
 ```
+## Key Manager
+```plantuml
+class TDEKeyManager {
+    + const TDEData* create_dek();
+    + const char* get_key(const char* cmk_id, const char* dek_cipher);
 
+    - char* get_cmk_id();
+    - TDEData* tde_create_data;
+    - TDEData* tde_get_data;
+    - KMSInterface* kms_instance;
+}
+
+class TDEKeyStorage {
+    + char* search_cache(const char* dek_cipher);
+    + bool insert_cache(TDECacheEntry* tde_cache_entry);
+    - HTAB* tde_cache;
+}
+
+TDEKeyManager -- TDEKeyStorage
+```
 ```c
 // src/include/utils/rel.h
 typedef struct RelationData* Relation;
@@ -458,8 +477,69 @@ typedef struct {
 } TdeInfo;
 ```
 
+```c
+/* encrypt page data before write buffer to page when reloption of enable_tde is on */
+char* PageDataEncryptForBuffer(Page page, BufferDesc *bufdesc, bool is_segbuf)
+{
+    char *bufToWrite = NULL;
+    TdeInfo tde_info = {0};
 
+    if (bufdesc->extra->encrypt) {
+        TDE::TDEBufferCache::get_instance().search_cache(bufdesc->tag.rnode, &tde_info);
+        bufToWrite = PageDataEncryptIfNeed(page, &tde_info, true, is_segbuf);
+    } else {
+        bufToWrite = (char*)page;
+    }
+    return bufToWrite;
+}
+```
 
+```c
+// src/include/storage/buf/buf_internals.h
+
+typedef struct BufferDesc {
+    // 缓冲区对应的页信息
+    BufferTag tag; /* ID of page contained in buffer */
+    /* state of the tag, containing flags, refcount and usagecount */
+    pg_atomic_uint64 state;
+    int buf_id;    /* buffer's index number (from 0) */
+
+    ThreadId wait_backend_pid; /* backend PID of pin-count waiter */
+    LWLock* io_in_progress_lock; /* to wait for I/O to complete */
+    LWLock* content_lock;        /* to lock access to buffer contents */
+
+    BufferDescExtra *extra;
+#ifdef USE_ASSERT_CHECKING
+    volatile uint64 lsn_dirty;
+#endif
+} BufferDesc;
+
+typedef struct BufferDescExtra {
+    /* Cached physical location for segment-page storage, used for xlog */
+    uint8 seg_fileno;
+    BlockNumber seg_blockno;
+
+    /* below fields are used for incremental checkpoint */
+    pg_atomic_uint64 rec_lsn;        /* recovery LSN */
+    volatile uint64 dirty_queue_loc; /* actual loc of dirty page queue */
+    // 使能数据加密
+    bool encrypt;
+
+    volatile uint64 lsn_on_disk;
+    volatile bool aio_in_progress; /* indicate aio is in progress */
+} BufferDescExtra;
+
+// 标识缓冲池中的一个页，包含用于定位数据库页的元数据信息
+// 比如数据库的 ID、表空间 ID、关系 ID 和页号。
+typedef struct BufferTag {
+    // 数据库和表空间的相关信息
+    RelFileNode rnode;
+    // 指定数据的类型(main、fsm、vm 等，表示主数据页或其他辅助页)
+    ForkNumber forkNum;
+    // 页号(页在关系中的位置)
+    BlockNumber blockNum;
+} BufferTag;
+```
 
 # 全密态
 ```C++
