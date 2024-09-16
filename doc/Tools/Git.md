@@ -133,4 +133,4 @@ git config http.postBuffer 24288000
 
 ## 参考资料
 1. [StackOverflow:RPC failed; curl transfer closed with outstanding read data remaining](https://stackoverflow.com/questions/38618885/error-rpc-failed-curl-transfer-closed-with-outstanding-read-data-remaining)
-2. [git bash: error: RPC failed; result = 18, HTP code = 200B | 1KiB/s](https://stackoverflow.com/questions/17683295/git-bash-error-rpc-failed-result-18-htp-code-200b-1kib-s)
+2. [git bash: error: RPC failed; result = 18, HTP code = monitor200B | 1KiB/s](https://stackoverflow.com/questions/17683295/git-bash-error-rpc-failed-result-18-htp-code-200b-1kib-s)

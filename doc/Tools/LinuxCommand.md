@@ -18,3 +18,13 @@ ll -h core.* | grep Jun | awk -F " " '{print $9}' | xargs rm -fr
 
 # awk命令
 
+# 
+netstat 是一个显示网络连接、路由表、接口统计、伪装连接等的工具。ss 是 netstat 的现代替代工具，速度更快，信息更加详细。ßßß
+```shell
+netstat -tulnp | grep :<端口号>
+```
+- `-t`：显示 TCP 连接。
+- `-u`：显示 UDP 连接。
+- `-l`：显示监听的套接字。
+- `-n`：显示数字格式的地址和端口。
+- `-p`：显示相关的进程 ID 和进程名称。

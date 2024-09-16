@@ -19,3 +19,18 @@ set pagination off
 # 打印所有线程信息
 info threads
 ```
+
+```shell
+# 显示默认打印最大长度
+show print elements;
+
+# 不限制最大打印长度
+print elements 0
+```
+
+postgres gdb调试
+```shell
+gdb pqsl
+
+set args -p port -d db_name -U user_name
+```
