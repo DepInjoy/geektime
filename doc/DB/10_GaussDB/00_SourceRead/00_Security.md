@@ -46,7 +46,8 @@ static void raw_heap_insert(RewriteState state, HeapTuple tup)
 
     len = MAXALIGN(heaptup->t_len); /* be conservative */
     /* Compute desired extra freespace due to fillfactor option */
-    save_free_space = RelationGetTargetPageFreeSpace(state->rs_new_rel, HEAP_DEFAULT_FILLFACTOR);
+    save_free_space = RelationGetTargetPageFreeSpace(
+            state->rs_new_rel, HEAP_DEFAULT_FILLFACTOR);
 
     // 2. 检查是否有足够的空闲空间
     if (state->rs_buffer_valid) {
@@ -81,14 +82,16 @@ static void raw_heap_insert(RewriteState state, HeapTuple tup)
     xmin = HeapTupleGetRawXmin(heaptup);
     xmax = HeapTupleGetRawXmax(heaptup);
     rewrite_page_prepare_for_xid(page, xmin, false);
-    (void)rewrite_page_prepare_for_xid(page, xmax, (heaptup->t_data->t_infomask & HEAP_XMAX_IS_MULTI) ? true : false);
+    (void)rewrite_page_prepare_for_xid(page, xmax,
+        (heaptup->t_data->t_infomask & HEAP_XMAX_IS_MULTI) ? true : false);
 
     HeapTupleCopyBaseFromPage(heaptup, page);
     HeapTupleSetXmin(heaptup, xmin);
     HeapTupleSetXmax(heaptup, xmax);
 
     /* And now we can insert the tuple into the page */
-    newoff = PageAddItem(page, (Item)heaptup->t_data, heaptup->t_len, InvalidOffsetNumber, false, true);
+    newoff = PageAddItem(page, (Item)heaptup->t_data,
+        heaptup->t_len, InvalidOffsetNumber, false, true);
 
     /* Update caller's t_self to the actual position where it was stored */
     ItemPointerSet(&(tup->t_self), state->rs_blockno, newoff);
@@ -257,6 +260,128 @@ bool ctr_enc_partial_mode(const char* encalgoText, ENGINE* engine, const EVP_CIP
     return true;
 }
 ```
+##
+```c
+void PageDataDecryptIfNeed(Page page) {
+    TdeInfo tde_info = {0};
+    TdePageInfo* tde_page_info = NULL;
+
+    if (PageIsEncrypt(page) && PageIsTDE(page)) {
+        size_t plainLength = 0;
+        size_t cipherLength = ((PageHeader)page)->pd_special - ((PageHeader)page)->pd_upper;
+        tde_page_info = (TdePageInfo*)((char*)(page) + BLCKSZ - sizeof(TdePageInfo));
+        // 1. 从Page中获取TdeInfo
+        transformTdeInfoFromPage(&tde_info, tde_page_info);
+
+        // 2. 对Block或CU数据解密，主逻辑是decrypt_partial_mode
+        decryptBlockOrCUData(page + ((PageHeader)page)->pd_upper,
+            cipherLength,
+            page + ((PageHeader)page)->pd_upper,
+            &plainLength,  &tde_info);
+
+        /* clear the encryption flag */
+        PageClearEncrypt(page);
+    }
+}
+```
+
+### 解密计算
+对Block或CU除Header和填充数据进行解密运算。
+```c
+// src/gausskernel/cbb/utils/aes/cipherfn.cpp
+void decryptBlockOrCUData(const char* cipherText, const size_t cipherLength,
+    char* plainText, size_t* plainLength, TdeInfo* tdeInfo) {
+    int retryCnt = 3;
+    unsigned char* iv = tdeInfo->iv;
+    TdeAlgo algo = (TdeAlgo)tdeInfo->algo;
+    unsigned char key[KEY_128BIT_LEN] = {0};
+    const char* plain_key = NULL;
+    unsigned int i, j;
+    errno_t ret = 0;
+
+    // 1. 根据cmk_id和dek_cipher获取数据密钥的明文
+    TDEKeyManager *tde_key_manager = New(CurrentMemoryContext) TDEKeyManager();
+    tde_key_manager->init();
+    plain_key = tde_key_manager->get_key(tdeInfo->cmk_id, tdeInfo->dek_cipher);
+
+    // 将数据密钥明文16进制转换为int
+    for (i = 0, j = 0; i < KEY_128BIT_LEN && j < strlen(plain_key); i++, j += 2) {
+        key[i] = hex2int(plain_key[j]) << 4 | hex2int(plain_key[j + 1]);
+    }
+    DELETE_EX2(tde_key_manager);
+
+    // 2. 执行解密运算，如果失败，最多尝试3次
+    do {
+        if (decrypt_partial_mode(cipherText, cipherLength,
+                plainText, plainLength, key, iv, algo)) {
+            break;
+        }
+        retryCnt--;
+    } while (retryCnt > 0);
+
+    ret = memset_s(key, KEY_128BIT_LEN, 0, KEY_128BIT_LEN);
+    securec_check(ret, "\0", "\0");
+
+    if (retryCnt == 0) {
+        ereport(PANIC, .....);
+    }
+}
+
+bool decrypt_partial_mode(const char* cipherText, const size_t cipherLength,
+    char* plainText, size_t* plainLength, unsigned char* key,
+    unsigned char* iv, TdeAlgo algo) {
+    const char* algoText = NULL;
+    ENGINE* engine = NULL;
+    const EVP_CIPHER* cipher = NULL;
+    // 1. 创建EVP对象指针
+    switch (algo) {
+        case TDE_ALGO_AES_128_CTR:
+            algoText = "aes-128-ctr";
+            cipher = EVP_aes_128_ctr();
+            break;
+        case TDE_ALGO_SM4_CTR:
+            algoText = "sm4-ctr";
+            engine = init_cipher_engine();
+            cipher = EVP_sm4_ctr();
+            break;
+        default:
+            break;
+    }
+
+    // 2. 开始数据解密
+    bool result = ctr_dec_partial_mode(algoText, engine, cipher, cipherText,
+        cipherLength, plainText, plainLength, key, iv);
+    return result;
+}
+
+bool ctr_dec_partial_mode(const char* decalgoText, ENGINE* engine, const EVP_CIPHER* cipher,   
+    const char* cipherText, const size_t cipherLength, char* plainText,
+    size_t* plainLength, unsigned char* key, unsigned char* iv) {
+    int segPlainLength = 0;
+    int lastSegPlainLength = 0;
+    int ret = 0;
+
+    // 1.创建并始化上下文
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+
+    // 2. 初始化解密操作
+    ret = EVP_DecryptInit_ex(ctx, cipher, engine, key, iv);
+
+    // 3. 解密数据
+    ret = EVP_DecryptUpdate(ctx, (unsigned char*)plainText, &segPlainLength,
+            (unsigned char*)cipherText, cipherLength);
+
+    // 4. 完成解密操作
+    ret = EVP_DecryptFinal_ex(ctx, (unsigned char*)plainText + segPlainLength,
+            &lastSegPlainLength);
+    
+    *plainLength = segPlainLength + lastSegPlainLength;
+    // 5. 释放
+    EVP_CIPHER_CTX_free(ctx);
+    return true;
+}
+```
+
 ---
 
 `GetTdeInfoFromRel`从输入的`Relation`中构建出`TdeInfo`.
