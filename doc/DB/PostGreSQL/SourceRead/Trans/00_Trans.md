@@ -112,81 +112,10 @@ txid 可以相互比较大小，大于txid属于"未来"，对当前事务不可
 
 # 元组结构
 
-可以将表页中的堆元组分为普通数据元组与TOAST元组两类。
+
 
 ## 普通元组
 
-堆元组由三个部分组成，即 HeapTupleHeaderData 结构、空值位图及用户数据。
-
-<center>
-    <img src="./img/00_PG_Trans_HeapTuple.png">
-    <div>元组结构</div>
-</center>
-
-
-```C++
-// src/include/storage/itemptr.h
-typedef struct ItemPointerData {
-	BlockIdData ip_blkid;
-	OffsetNumber ip_posid;
-} ItemPointerData;
-```
-
-```C
-// src/include/access/htup_details.h
-typedef struct HeapTupleFields {
-    // 插入此元组的事务ID
-	TransactionId t_xmin;
-    // 删除或更新此元组的事务ID,若尚未删除或更新此元组,则为0,即无效
-	TransactionId t_xmax;
-	union {
-         // 命令标识(command id, cid)
-         // 表示当前事务中，执行当前命令之前执行了多少SQL命令
-		CommandId	t_cid;
-         // 老式VACUUM FULL的事务ID
-		TransactionId t_xvac;
-	} t_field3;
-} HeapTupleFields;
-
-typedef struct DatumTupleFields {
-    // 可变收不长度
-	int32		datum_len_;
-    // -1或record类型标识
-	int32		datum_typmod;
-    // composite type OID, or RECORDOID
-	Oid			datum_typeid;
-} DatumTupleFields;
-
-struct HeapTupleHeaderData {
-	union {
-		HeapTupleFields t_heap;
-		DatumTupleFields t_datum;
-	} t_choice;
-	// 指向自身或新元组的元组标识符(tid)
-    // 更新元组时,t_ctid会指向新版本元组，否则指向自己
-	ItemPointerData t_ctid;
-
-	/* Fields below here must match MinimalTupleData! */
-
-#define FIELDNO_HEAPTUPLEHEADERDATA_INFOMASK2 2
-	uint16		t_infomask2;	/* number of attributes + various flags */
-
-#define FIELDNO_HEAPTUPLEHEADERDATA_INFOMASK 3
-	uint16		t_infomask;		/* various flag bits, see below */
-
-#define FIELDNO_HEAPTUPLEHEADERDATA_HOFF 4
-	uint8		t_hoff;			/* sizeof header incl. bitmap, padding */
-
-	/* ^ - 23 bytes - ^ */
-
-#define FIELDNO_HEAPTUPLEHEADERDATA_BITS 5
-	bits8		t_bits[FLEXIBLE_ARRAY_MEMBER];	/* bitmap of NULLs */
-
-	/* MORE DATA FOLLOWS AT END OF STRUCT */
-};
-// src/include/access/htup.h
-typedef HeapTupleHeaderData *HeapTupleHeader;
-```
 
 在PostgreSQL中，通常不需要的元组被称为死元组(dead tuple)。死元组最终将从页面中被移除。清除死元组的过程被称为清理(VACUUM)过程。
 
