@@ -1,6 +1,16 @@
 基于`REL_16_STABLE`分进行源码解读。
+# 逻辑结构
+数据库集簇(database cluster)是一组数据库(database)的集合，由一个PostgreSQL服务器管理。数据库是数据库对象(database object)的集合。在关系型数据库理论中，数据库对象用于存储或引用数据的数据结构。(堆)表就是一个典型的例子，还有更多对象，例如索引、序列、视图、函数等。PostgreSQL中，数据库本身也是数据库对象，并在逻辑上彼此分离。所有其他的数据库对象（例如表、索引等）都归属于各自相应的数据库。
+
+在PostgreSQL内部，所有的数据库对象都通过相应的对象标识符（object identifier, oid）进行管理，这些标识符是无符号的4字节整型。数据库对象与相应oid 之间的关系存储在对应的系统目录中，依具体的对象类型而异。例如数据库和堆表对象的 oid 分别存储在pg_database和pg_class中.
+```sql
+SELECT datname, oid RROM pg_database WHERE datname = 'db_name';
+
+SELECT relname, oid RROM pg_class WHERE rel = 'tbl_name';
+```
+
 # 物理结构
-PostgreSQL 的数据文件是按特定的目录和文件名组成：
+PostgreSQL数据库集簇在本质上就是一个文件目录，即基础目录，包含着一系列子目录与文件。执行initdb 命令会在指定目录下创建基础目录，从而初始化一个新的数据库集簇。通常基础目录的路径会被配置到环境变量PGDATA中。PostgreSQL的数据文件是按特定的目录和文件名组成：
 1. 如果是特定的tablespace 的表/索引数据，则文件名形如
 	```
 	$PGDATA/pg_tblspc/$tablespace_oid/$database_oid/$relation_oid.no
@@ -9,6 +19,25 @@ PostgreSQL 的数据文件是按特定的目录和文件名组成：
 	```
 	$PGDATA/base/$database_oid/$relation_oid.num
 	```
+
+在9.0或更高版本中，内建函数pg_relation_filepath 能够根据oid 或名称返回关系对应的文件路径
+```sql
+SELECT pg_relation_filepath(＇sampletbl＇);
+pg_relation_filepath
+----------------------
+base/16384/18812
+```
+
+当表和索引的文件大小超过1GB(构建PostgreSQL时，`--with-segsize`配置项可以更改表和索引的最大文件大小)时，PostgreSQL会创建并使用一个名为`relfilenode.1`的新文件。如果新文件也填满了，则会创建下一个名为`relfilenode.2`的新文件，以此类推。
+
+在数据库系统内部，每个关系(relation)可能会有4种分支，分支编号分别为0、1、2、3
+- 0号分支: main为关系数据文件本体
+- 1号分支: fsm保存了main分支中空闲空间的信息
+- 2号分支: vm保存了main分支中可见性的信息
+- 3号分支: init是很少见的特殊分支，通常表示不被日志记录（unlogged）的表与索引。
+
+主体数据文件、空闲空间映射文件、可见性映射文件等也被称为相应关系的分支(fork)。每个分支都会被存储为磁盘上的一或多个文件：PostgreSQL会将过大的分支文件切分为若干个段，以免文件的尺寸超过某些特定文件系统允许的大小，也便于一些归档工具进行并发复制，默认的段大小为1GB。
+
 
 ## 页(Page)
 数据文件(堆表、索引，也包括空闲空间映射和可见性映射)内部都是按照固定长度的页(Page)为单位存储的，页也叫区块，每个页的大小通常是 8KB(8192字节)，也可以配置为其他大小。每个文件中的页从0开始按顺序编号，这些数字称为区块号。如果文件已填满，PostgreSQL就通过在文件末尾追加一个新的空页。每个页包含以下部分：
