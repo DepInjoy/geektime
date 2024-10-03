@@ -317,3 +317,20 @@ Strategy -up-o Batch
 
 SQLConf -left-o SQLConfHelper
 ```
+
+# SparkPlan
+```scala
+/**
+ * When planning take() or collect() operations, this special node is inserted at the top of
+ * the logical plan before invoking the query planner.
+ *
+ * Rules can pattern-match on this node in order to apply transformations that only take effect
+ * at the top of the logical query plan.
+ */
+case class ReturnAnswer(child: LogicalPlan) extends UnaryNode {
+  override def maxRows: Option[Long] = child.maxRows
+  override def output: Seq[Attribute] = child.output
+  override protected def withNewChildInternal(newChild: LogicalPlan): ReturnAnswer =
+    copy(child = newChild)
+}
+```
