@@ -334,3 +334,45 @@ case class ReturnAnswer(child: LogicalPlan) extends UnaryNode {
     copy(child = newChild)
 }
 ```
+
+# 物理计划
+
+```plantuml
+@startuml
+class OrderedDistribution {
+
+} 
+
+class Distribution {
+  + requiredNumPartitions: Option[Int]
+  + createPartitioning(numPartitions: Int): Partitioning
+}
+
+class Partitioning {
+  + numPartitions: Int
+  + satisfies(required: Distribution): Boolean
+  + createShuffleSpec(distribution: ClusteredDistribution): ShuffleSpec
+  + def satisfies0(required: Distribution): Boolean
+}
+OrderedDistribution -down.|> Distribution
+UnspecifiedDistribution -down.|> Distribution
+AllTuples -down.|> Distribution
+ClusteredDistribution -down.|> Distribution
+StatefulOpClusteredDistribution -down.|> Distribution
+BroadcastDistribution -down.|> Distribution
+
+Distribution -down- Partitioning
+ShuffleSpec -left- Partitioning
+
+UnknownPartitioning -up.|> Partitioning
+RoundRobinPartitioning -up.|> Partitioning
+SinglePartition -up.|> Partitioning
+HashPartitioningLike -up.|> Partitioning
+KeyGroupedPartitioning -up.|> Partitioning
+RangePartitioning -up.|> Partitioning
+BroadcastPartitioning -up.|> Partitioning
+
+HashPartitioning -up.|> HashPartitioningLike
+CoalescedHashPartitioning -up.|> HashPartitioningLike
+@enduml
+```
