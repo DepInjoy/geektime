@@ -1,3 +1,238 @@
+# Parser
+```scala
+class CatalystSqlParser extends AbstractSqlParser {
+  override val astBuilder: AstBuilder = new AstBuilder
+}
+
+// Concrete parser for Spark SQL statements
+class SparkSqlParser extends AbstractSqlParser {
+  val astBuilder = new SparkSqlAstBuilder()
+  private val substitutor = new VariableSubstitution()
+
+  protected override def parse[T](command: String)(toResult: SqlBaseParser => T): T = {
+    super.parse(substitutor.substitute(command))(toResult)
+  }
+}
+```
+Catalyst中提供了直接面向用户的ParseInterface接口，该接口中包含了对SQL语句、Expression表达式和TableIdentifier数据表标识符的解析方法。AbstractSqlParser是实现了ParseInterface的虚类，其中定义了返回AstBuilder的函数。CatalystSqlParser仅用于Catalyst内部，而SparkSqlParser用于外部调用。比较核心的是AstBuilder，它继承了ANTLR4生成的默认SqlBaseBaseVisitor，用于生成SQL对应的抽象语法树AST(UnresolvedLogicalPlan)；SparkSqlAstBuilder继承AstBuilder，并在其基础上定义了一些DDL语句的访问操作，主要在SparkSqlParser中调用。
+
+```plantuml
+class CatalystSqlParser {
+  - val astBuilder: AstBuilder
+}
+note top: 仅用于Catalyst内部
+
+class SparkSqlParser {
+  - val astBuilder = new SparkSqlAstBuilder
+}
+note top: 用于外部调用
+
+abstract class AbstractSqlParser {
+  + def parsePlan(sqlText: String): LogicalPlan
+  + def parseExpression(sqlText: String): Expression
+  + def parseTableIdentifier(sqlText: String): TableIdentifier
+}
+
+class ParserInterface {
+  + parsePlan(sqlText: String): LogicalPlan
+  + parseExpression(sqlText: String): Expression
+  + parseTableIdentifier(sqlText: String): TableIdentifier
+  + parseFunctionIdentifier(sqlText: String): FunctionIdentifier
+  + parseMultipartIdentifier(sqlText: String): Seq[String]
+  + parseQuery(sqlText: String): LogicalPlan
+}
+
+SparkSqlParser -down-|> AbstractSqlParser
+CatalystSqlParser -down-|> AbstractSqlParser
+AbstractSqlParser -down-|> ParserInterface
+
+CatalystSqlParser -right-- AstBuilder
+AstBuilder -down-|> DataTypeAstBuilder
+DataTypeAstBuilder -down.|> SqlBaseParserBaseVisitor
+
+ParserInterface -down.|> DataTypeParserInterface
+```
+# Catalyst重要概念
+
+
+
+## InternalRow体系
+
+```plantuml
+abstract class InternalRow {
+  + def numFields: Int
+  + setNullAt(i: Int): Unit
+  + update(i: Int, value: Any): Unit
+  + def setBoolean(i: Int, value: Boolean): Unit = update(i, value)
+  + def setByte(i: Int, value: Byte): Unit = update(i, value)
+  + def setShort(i: Int, value: Short): Unit = update(i, value)
+  + def setInt(i: Int, value: Int): Unit = update(i, value)
+  + def setLong(i: Int, value: Long): Unit = update(i, value)
+  + def setFloat(i: Int, value: Float): Unit = update(i, value)
+  + def setDouble(i: Int, value: Double): Unit = update(i, value)
+  + def setDecimal(i: Int, value: Decimal, precision: Int): Unit = update(i, value)
+  + def setInterval(i: Int, value: CalendarInterval): Unit = update(i, value)
+  + def toSeq(fieldTypes: Seq[DataType]): Seq[Any]
+  + def toSeq(schema: StructType): Seq[Any]
+}
+
+class MutableColumnarRow {
+  + int rowId
+  - WritableColumnVector[] columns
+}
+
+class BaseGenericInternalRow {
+  # def genericGet(ordinal: Int): Any
+}
+note right : 是一种特质
+
+class GenericInternalRow {
+  # def genericGet(ordinal: Int) = values(ordinal)
+}
+
+class JoinedRow {
+  - var row1: InternalRow
+  - var row2: InternalRow
+}
+
+ProjectingInternalRow -down.|> InternalRow
+MutableColumnarRow -down.|> InternalRow
+
+BaseGenericInternalRow -down.|> InternalRow
+GenericInternalRow -down.|> BaseGenericInternalRow
+
+UnsafeRow -down.|> InternalRow
+JoinedRow -down.|> InternalRow
+```
+
+## TreeNode体系
+```plantuml
+abstract class TreeNode {
+  + children: Seq[BaseType]
+}
+
+abstract class QueryPlan {
+  + def output: Seq[Attribute]
+}
+
+abstract class LogicalPlan {
+}
+note top : 逻辑算子树
+
+abstract class SparkPlan {}
+note top : 物理算子树
+
+QueryPlan -down.|> TreeNode
+TreeNode -down.|> Product
+TreeNode -down.|> TreePatternBits
+
+LogicalPlan -down.|> QueryPlan
+SparkPlan -down.|> QueryPlan
+```
+
+```scala
+abstract class TreeNode[BaseType <: TreeNode[BaseType]]
+  extends Product with TreePatternBits with WithOrigin {
+          ......
+  // Catalyst提供了节点位置功能(Origin)
+  // 可以根据TreeNode定位到对应SQL字符串行数和起始位置
+  override val origin: Origin = CurrentOrigin.get
+
+  // 获取当前TreeNode所有叶子节点
+  def collectLeaves(): Seq[BaseType]
+  // 先序遍历所有节点并返回第一个满足条件的节点
+  def collectFirst[B](pf: PartialFunction[BaseType, B]): Option[B]
+  // 将当前节点的子节点替换为新节点
+  final def withNewChildren(newChildren: Seq[BaseType]): BaseType
+  // 用先序遍历的方式将Rule应用于所有节点
+  def transformDown(rule: PartialFunction[BaseType, BaseType]): BaseType
+  // 用后序遍历的方式将Rule应用于所有节点
+  def transformUp(rule: PartialFunction[BaseType, BaseType]): BaseType
+          ......
+}
+```
+## Expression体系
+表达式一般指的是不需要触发执行引擎而能够直接进行计算的单元,通过Expression进行表达，主要定义了5个方面的操作，包括基本属性, 核心操作, 输入输出, 字符串表示和等价性判断
+```scala
+abstract class Expression extends TreeNode[Expression] {
+  /********* 1. 基本属性 *********/
+  // 标记表达式能否在查询执行之前直接静态计算
+  // foldable为true的情况有两种: 
+  // 1. 表达式为Literal类型，例如常量
+  // 2. 当且仅当其子表达式中foldable都为true时
+  def foldable: Boolean = false
+  // 标记表达式是否为确定性的，即每次执行eval函数的输出是否都相同
+  lazy val deterministic: Boolean
+  // 标记表达式是否可能输出Null值
+  def nullable: Boolean
+  def stateful: Boolean = false
+
+  /********* 2. 核心操作 **********/
+  // 表达式对应的处理逻辑, 是其他模块调用该表达式的主要接口
+  def eval(input: InternalRow = null): Any
+  // 用于生成表达式对应的Java代码
+  def genCode(ctx: CodegenContext): ExprCode
+  protected def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode
+
+  /********** 3. 输入输出 *********/
+  lazy val resolved: Boolean
+  def dataType: DataType
+  def childrenResolved
+  // 该Expression中会涉及的属性值
+  def references: AttributeSet = _references
+
+  /********** 4. 等价性判断 *********/
+  // 返回经过规范化(Canonicalize)处理后的表达式
+  // 规范化处理会在确保输出结果相同的前提下通过一些规则对表达式重写
+  // 具体逻辑可以参见Canonicalize工具类
+  lazy val canonicalized: Expression = withCanonicalizedChildren
+  // 判断两个表达式在语义上是否等价
+  final def semanticEquals(other: Expression): Boolean
+  def semanticHash(): Int = canonicalized.hashCode()
+
+  /********* 5. 字符串表示 ***********/
+  override def toString: String
+  def sql: String
+  def prettyName: String
+}
+```
+```plantuml
+abstract class Expression {
+  + eval(input: InternalRow = null): Any
+}
+
+class Unevaluable {}
+note top: 非可执行表达式,即调用eval函数会抛异常
+
+abstract class LeafExpression {
+}
+note bottom : 叶子节点表达式
+
+abstract class UnaryExpression {}
+note bottom : 一元表达式,质保函一个子节点，如abs等
+
+abstract class BinaryExpression {}
+note bottom : 二元表达式,例如加减乘除等
+
+abstract class TernaryExpression {}
+abstract class QuaternaryExpression {}
+abstract class QuinaryExpression {}
+abstract class SeptenaryExpression {}
+
+Expression -right.|> TreeNode : 也是TreeNode
+
+Unevaluable -down.|> Expression
+RuntimeReplaceable -down.|> Expression
+NonSQLExpression -down.|> Expression
+
+LeafExpression -up.|> Expression
+UnaryExpression -up.|> Expression
+BinaryExpression -up.|> Expression
+TernaryExpression -up.|> Expression
+QuaternaryExpression -up.|> Expression
+QuinaryExpression -up.|> Expression
+SeptenaryExpression -down.|> Expression
+```
 
 Catalyst执行主流程
 <div>
