@@ -166,7 +166,7 @@ SELECT txid_current_snapshot();
 
 - `xmin`：最早仍然活跃的事务的`txid`。所有比它更早的事务(`txid < xmin`)，要么已经提交并可见，要么已经回滚并生成死元组。
 - `xmax`：第一个尚未分配的txid。所有`txid ≥ xmax`的事务在获取快照时尚未启动，因此其结果对当前事务不可
-- `xip_list`：获取快照时活跃事务的txid列表。该列表仅包括xmin与xmax之间的txid
+- `xip_list`：获取快照时活跃事务的txid列表，该列表仅包括xmin与xmax之间的txid。PostgreSQL使用事务的开始时间，大多数情况下，事务开始越晚，产生版本越新，但也存在特例，快照从存储活跃事务列表，列表中的事务对快照不可见。
 
 事务快照是由事务管理器提供的。在 READ COMMITTED 隔离级别，事务在执行每条 SQL时都会获取快照，在其他情况下（REPEATABLE READ 或 SERIALIZABLE 隔离级别），事务只会在执行第一条 SQL命令时获取一次快照。获取的事务快照用于元组的可见性检查。
 
@@ -292,3 +292,258 @@ PostGreSQl在恢复时，从最新的检查点开始时XLOG记录写入的位置
 
 1. [PG 9.4.4 中文手册：预写日志](http://www.postgres.cn/docs/9.4/wal-intro.html)
 2. [PG 9.4.4 中文手册：异步提交](http://www.postgres.cn/docs/9.4/wal-async-commit.html)
+
+# 2PC
+PostgreSQL只是支持分布数据库的两阶段提交协议，即只提供了相关操作接口，并没有实现整个协议，两阶段协议整个流程由编程者在应用程序中保证。
+
+```C
+typedef struct GlobalTransactionData {
+	GlobalTransaction next;		/* list link for free list */
+	int			pgprocno;		/* ID of associated dummy PGPROC */
+	BackendId	dummyBackendId; /* similar to backend id for backends */
+    // prepare时间戳，参见MarkAsPreparing
+	TimestampTz prepared_at;
+
+	XLogRecPtr	prepare_start_lsn;	/* XLOG offset of prepare record start */
+	XLogRecPtr	prepare_end_lsn;	/* XLOG offset of prepare record end */
+	TransactionId xid;			/* The GXACT id */
+
+	Oid			owner;			/* ID of user that executed the xact */
+	BackendId	locking_backend;	/* backend currently working on the xact */
+	bool		valid;			/* true if PGPROC entry is in proc array */
+	bool		ondisk;			/* true if prepare state file is on disk */
+	bool		inredo;			/* true if entry was added via xlog_redo */
+    // 协调者发送Prepare消息给其他DBMS
+    // 发送消息时，使用专门的事务ID(GID)来标识此分布式事务
+	char		gid[GIDSIZE];
+} GlobalTransactionData;
+
+/*
+ * Two Phase Commit shared state.  Access to this struct is protected
+ * by TwoPhaseStateLock.
+ */
+typedef struct TwoPhaseStateData {
+	/* Head of linked list of free GlobalTransactionData structs */
+	GlobalTransaction freeGXacts;
+
+	// 有效的prepXacts的数量
+	int			numPrepXacts;
+
+	/* There are max_prepared_xacts items in this array */
+	GlobalTransaction prepXacts[FLEXIBLE_ARRAY_MEMBER];
+} TwoPhaseStateData;
+
+static TwoPhaseStateData *TwoPhaseState;
+```
+
+## 预提交阶段
+
+1. 构造free gxact(`GlobalTransaction`类型)
+2. 两阶段提交协议
+   1. 构建两阶段提交相关记录头部信息(`StartPrepare`)
+   2. 完成记录数据信息的填充并刷新到磁盘(`EndPrepare`)
+
+```c
+PrepareTransaction() {
+    TransactionState s = CurrentTransactionState;
+    // 获取本地当前事务ID
+    TransactionId xid = GetCurrentTransactionId();
+    
+    s->state = TRANS_PREPARE;
+    // 1.1 构造一个free gxact(GlobalTransaction类型)
+	// 获取prepared时间戳
+	prepared_at = GetCurrentTimestamp();
+    // 从TwoPhaseState->freeGXacts获取一个free gxact
+    // 	     并添加一些prepare信息
+    gxact = MarkAsPreparing(xid, prepareGID, prepared_at,
+                            GetUserId(), MyDatabaseId);
+    
+    // 2.1 [2PC协议]构建两阶段提交相关记录头部信息
+    StartPrepare(gxact);
+ 
+
+    // 2.2 [2PC协议]完成记录数据信息的填充并刷新到磁盘
+    EndPrepare(gxact);
+}
+```
+```c
+/*
+ * 2PC state file format:
+ *
+ *	1. TwoPhaseFileHeader
+ *	2. TransactionId[] (subtransactions)
+ *	3. RelFileNode[] (files to be deleted at commit)
+ *	4. RelFileNode[] (files to be deleted at abort)
+ *	5. SharedInvalidationMessage[] (inval messages to be sent at commit)
+ *	6. TwoPhaseRecordOnDisk
+ *	7. ...
+ *	8. TwoPhaseRecordOnDisk (end sentinel, rmid == TWOPHASE_RM_END_ID)
+ *	9. checksum (CRC-32C)
+ *
+ * Each segment except the final checksum is MAXALIGN'd.
+ */
+
+typedef struct xl_xact_prepare {
+    // 由TWOPHASE_MAGIC宏定义实现值0x57F94534
+	uint32		magic;			/* format identifier */
+	uint32		total_len;		/* actual file length */
+	TransactionId xid;			/* original transaction XID */
+	Oid			database;		/* OID of database it was in */
+    // prepared时间戳
+	TimestampTz prepared_at;
+	Oid			owner;			/* user running the transaction */
+	int32		nsubxacts;		/* number of following subxact XIDs */
+	int32		ncommitrels;	/* number of delete-on-commit rels */
+	int32		nabortrels;		/* number of delete-on-abort rels */
+	int32		ncommitstats;	/* number of stats to drop on commit */
+	int32		nabortstats;	/* number of stats to drop on abort */
+	int32		ninvalmsgs;		/* number of cache invalidation messages */
+	bool		initfileinval;	/* does relcache init file need invalidation? */
+	uint16		gidlen;			/* length of the GID - GID follows the header */
+	XLogRecPtr	origin_lsn;		/* lsn of this record at origin node */
+	TimestampTz origin_timestamp;	/* time of prepare at origin node */
+} xl_xact_prepare;
+
+#define TWOPHASE_MAGIC	0x57F94534	/* format identifier */
+typedef xl_xact_prepare TwoPhaseFileHeader;
+
+typedef struct xl_xact_stats_item {
+	int			kind;
+	Oid			dboid;
+	Oid			objoid;
+} xl_xact_stats_item;
+
+typedef union {
+	int8		id;				/* type field --- must be first */
+	SharedInvalCatcacheMsg cc;
+	SharedInvalCatalogMsg cat;
+	SharedInvalRelcacheMsg rc;
+	SharedInvalSmgrMsg sm;
+	SharedInvalRelmapMsg rm;
+	SharedInvalSnapshotMsg sn;
+} SharedInvalidationMessage;
+```
+```c
+// Header for each record in a state file
+typedef struct TwoPhaseRecordOnDisk {
+	uint32		len;			/* length of rmgr data */
+	TwoPhaseRmgrId rmid;		/* resource manager for this record */
+	uint16		info;			/* flag bits for use by rmgr */
+} TwoPhaseRecordOnDisk;
+
+typedef struct StateFileChunk {
+	char	   *data;
+	uint32		len;
+	struct StateFileChunk *next;
+} StateFileChunk;
+
+static struct xllist {
+	StateFileChunk *head;		/* first data block in the chain */
+	StateFileChunk *tail;		/* last block in chain */
+	uint32		num_chunks;
+	uint32		bytes_free;		/* free bytes left in tail block */
+	uint32		total_len;		/* total data bytes in chain */
+} records
+```
+```C
+/*
+ * Start preparing a state file.
+ * Initializes data structure and inserts the 2PC file header record.
+ */
+void StartPrepare(GlobalTransaction gxact) {
+	PGPROC	   *proc = &ProcGlobal->allProcs[gxact->pgprocno];
+	TransactionId xid = gxact->xid;
+	TwoPhaseFileHeader hdr;
+	TransactionId *children;
+	RelFileNode *commitrels;
+	RelFileNode *abortrels;
+	xl_xact_stats_item *abortstats = NULL;
+	xl_xact_stats_item *commitstats = NULL;
+	SharedInvalidationMessage *invalmsgs;
+
+	/* Initialize linked list */
+	records.head = palloc0(sizeof(StateFileChunk));
+	records.head->len = 0;
+	records.head->next = NULL;
+
+	records.bytes_free = Max(sizeof(TwoPhaseFileHeader), 512);
+	records.head->data = palloc(records.bytes_free);
+	records.tail = records.head;
+	records.num_chunks = 1;
+	records.total_len = 0;
+
+    // 1. 构造Header
+	hdr.magic = TWOPHASE_MAGIC;
+	hdr.total_len = 0;			/* EndPrepare will fill this in */
+	hdr.xid = xid;
+	hdr.database = proc->databaseId;
+    // prepare时间戳
+	hdr.prepared_at = gxact->prepared_at;
+	hdr.owner = gxact->owner;
+	hdr.nsubxacts = xactGetCommittedChildren(&children);
+	hdr.ncommitrels = smgrGetPendingDeletes(true, &commitrels);
+	hdr.nabortrels = smgrGetPendingDeletes(false, &abortrels);
+	hdr.ncommitstats = pgstat_get_transactional_drops(true, &commitstats);
+	hdr.nabortstats = pgstat_get_transactional_drops(false, &abortstats);
+	hdr.ninvalmsgs = xactGetCommittedInvalidationMessages(&invalmsgs, &hdr.initfileinval);
+	hdr.gidlen = strlen(gxact->gid) + 1;	/* Include '\0' */
+	/* EndPrepare will fill the origin data, if necessary */
+	hdr.origin_lsn = InvalidXLogRecPtr;
+	hdr.origin_timestamp = 0;
+
+	save_state_data(&hdr, sizeof(TwoPhaseFileHeader));
+	save_state_data(gxact->gid, hdr.gidlen);
+
+	/*
+	 * Add the additional info about subxacts, deletable files and cache
+	 * invalidation messages.
+	 */
+	if (hdr.nsubxacts > 0) {
+		save_state_data(children, hdr.nsubxacts * sizeof(TransactionId));
+		/* While we have the child-xact data, stuff it in the gxact too */
+		GXactLoadSubxactData(gxact, hdr.nsubxacts, children);
+	}
+
+	if (hdr.ncommitrels > 0) {
+		save_state_data(commitrels, hdr.ncommitrels * sizeof(RelFileNode));
+		pfree(commitrels);
+	}
+	if (hdr.nabortrels > 0) {
+		save_state_data(abortrels, hdr.nabortrels * sizeof(RelFileNode));
+		pfree(abortrels);
+	}
+
+	if (hdr.ncommitstats > 0) {
+		save_state_data(commitstats, hdr.ncommitstats * sizeof(xl_xact_stats_item));
+		pfree(commitstats);
+	}
+    
+    if (hdr.nabortstats > 0) {
+		save_state_data(abortstats, hdr.nabortstats * sizeof(xl_xact_stats_item));
+		pfree(abortstats);
+	}
+
+	if (hdr.ninvalmsgs > 0) {
+		save_state_data(invalmsgs, hdr.ninvalmsgs * sizeof(SharedInvalidationMessage));
+		pfree(invalmsgs);
+	}
+}
+```
+## 全局提交阶段
+
+```C
+void FinishPreparedTransaction(const char *gid, bool isCommit){
+    // 2. 本地根据协调者消息，对本地事务进行COMMIT或ABORT
+	if (isCommit)
+        // COMMIT PREPARED,完成事务最终提交
+		RecordTransactionCommitPrepared(xid,
+            hdr->nsubxacts, children, hdr->ncommitrels, commitrels,
+            hdr->ninvalmsgs, invalmsgs, hdr->initfileinval);
+	else
+        // ROLLBACK PREPARED,完成事务终止操作
+		RecordTransactionAbortPrepared(xid,
+            hdr->nsubxacts, children, hdr->nabortrels, abortrels);
+}
+```
+## 参考资料
+1. 《PostgreSQL数据库内核分析》
