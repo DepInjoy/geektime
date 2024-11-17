@@ -1,3 +1,5 @@
+Spark一方面提供了更加灵活丰富的数据操作方式，有些需要分解成几轮MapReduce作业的操作，可以在Spark里一轮实现；另一方面，每轮的计算结果都可以分布式地存放在内存中，下一轮作业直接从内存中读取上一轮的数据，节省了大量的磁盘IO开销。因此，对于机器学习、模式识别等迭代型计算，Spark在计算速度上通常可以获得几倍到几十倍的提升。得益于Spark对Hadoop计算的兼容，以及对迭代型计算的优异表现，成熟之后的Spark系统得到了广泛的应用。例如，在大部分公司中，典型的场景是将
+
 大多数现有的集群计算系统都是基于非循环的数据流模型。即从稳定的物理存储(如分布式文件系统)中加载记录，记录被传入由一组确定性操作构成的DAG(Directed Acyclic Graph，有向无环图)，然后写回稳定存储。DAG数据流图能够在运行时自动实现任务调度和故障恢复。非循环数据流是一种很强大的抽象方法，但仍然有些应用无法使用这种方式描述。这类应用包括：机器学习和图应用中常用的迭代算法(每一步对数据执行相似的函数)；交互式数据挖掘工具(用户反复查询一个数据子集)。基于数据流的框架并不明确支持工作集，所以需要将数据输出到磁盘，然后在每次查询时重新加载，这会带来较大的开销。
 
 针对上述问题，Spark实现了一种分布式的内存抽象，称为弹性分布式数据集
@@ -131,6 +133,24 @@ Cores(Slots)：在Spark中，Cores(或Slots)是每个Executor(也可能是Spark�
 
 3. BarrierTaskContext：提供了额外的上下文信息和工具的TaskContext，用于Barrier Stage中的任务。你可以使用BarrierTaskContext.get()来获取一个正在运行的Barrier Task的Barrier Context。
 
+# 数据类型系统
+所有的数据类型都继承自AbstractDataType抽象类。
+- NumericType类型，比较常用，包括ByteType(表示一字节的整数，范围是-128～127)​、ShortType(表示两字节的整数，范围是-32768～32767)​、IntegerType(表示4字节的整数)​、LongType(表示8字节的整数)​、FloatType(表示4字节的单精度浮点数)和DoubleType(表示8字节的双精度浮点数),DecimalType等。
+- 复合数据类型
+    - 数组类型(ArrayType)，要求数组元素类型一致
+    - 字典类型(MapType)，要求所有key的类型一致，也要求所有的value类型一致。
+    - 结构体类型(StructType)
+
+# Spark SQL
+Spark SQL的前身是Shark，即“Hiveon Spark”​，由Reynold Xin主导开发。Shark项目最初启动于2011年，当时Hive几乎算是唯一的SQL-on-Hadoop选择方案。Hive将SQL语句翻译为MapReduce，性能会受限于MapReduce计算模型，始终无法满足各种交互式SQL分析的需求，因此许多机构仍然依赖传统的企业数据仓库(EDW)。<b><font color=#FA8072>Shark的提出就是针对这种需求的，目标是既能够达到EDW的性能，又能够具有MapReduce的水平扩展功能。</font></b>
+
+Shark建立在Hive代码的基础上，只修改了内存管理、物理计划、执行3个模块中的部分逻辑。Shark通过将Hive的部分物理执行计划交换出来(“swappingout the physical execution engine partofHive”)，最终将HiveQL转换为Spark的计算模型，使之能运行在Spark引擎上，从而使得SQL查询的速度得到10～100倍的提升。<b><font color=#FA8072>Shark的最大特性是与Hive完全兼容，并且支持用户编写机器学习或数据处理函数，对HiveQL执行结果进行进一步分析。</font></b>
+
+随着Spark的不断发展，Shark对Hive的重度依赖体现在架构上的瓶颈越来越突出。一方面，Hive的语法解析和查询优化等模块本身针对的是MapReduce，限制了在Spark系统上的深度优化和维护；另一方面，过度依赖Hive制约了Spark的“One Stack Rule them All”既定方针，也制约了技术栈中各个组件的灵活集成。在此背景下，Spark SQL项目被提出来。
+
+
+
 # 参考资料
 1. 《Spark技术内幕：深入解析Spark内核架构设计与实现原理》
 2. [Datacadamia:Spark-Core(Slot)](https://datacadamia.com/db/spark/cluster/core)
+3. 《Spark SQL内部剖析》

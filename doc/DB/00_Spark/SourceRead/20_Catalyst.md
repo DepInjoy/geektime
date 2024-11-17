@@ -1,3 +1,10 @@
+Spark SQL这类SQL-on-Hadoop解决方案和传统的MPP解决方案在架构上存在很大差异。根据Hadoop生态系统的特点，SQL-on-Hadoop解决方案从架构上来看可以简单地划分为三层结构。
+- 最上层是应用(语言)层，应用层为用户提供数据管理查询的接口，不同的SQL-on-Hadoop系统往往提供各自的SQL语法特性，如Hive的HiveQL、Pig的PigLatin和Spark SQL的DataFrame等。在大数据场景下，应用层也包含一些针对特别需求的接口，如BlinkDB所支持的近似查询功能等。
+- 应用层之下是分布式执行层，SQL-on-Hadoop系统通过一定的规则或策略将SQL语句转换为对应的计算模型。除MapReduce、Spark等通用的计算框架外，分布式执行层可能是某些系统自定义的计算单元，例如Impala中的Query Exec Engine等。分布式执行层通过接口访问数据存储层中的数据，并完成相应的计算任务。
+- 底层是数据存储层，主要负责对关系数据表这样的逻辑视图进行存储与管理。目前，各种SQL-on-Hadoop数据存储层基本都支持分布式文件系统HDFS和分布式NoSQL数据库。
+
+总的来看，SQL-on-Hadoop解决方案类似“堆积木”​，各层之间松耦合，并可以灵活组合。数据存储层与分布式执行层之间通过特定的数据读写接口进行数据的交互。这种分层解耦的方式一方面具有通用性（各层可以分别分离为子系统）和灵活性（彼此能够互相组合）的优势，另一方面隔离了各层的特性，限制了深度集成优化的空间。
+
 # Parser
 ```scala
 class CatalystSqlParser extends AbstractSqlParser {
